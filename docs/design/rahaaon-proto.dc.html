@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#faf9f6;font-family:'IBM Plex Sans',system-ui,sans-serif;color:#191817}
+a{color:#c2401f;text-decoration:none}a:hover{color:#96311a}
+input,textarea,select{font-family:'IBM Plex Sans',sans-serif}
+input:focus,textarea:focus,select:focus{outline:2px solid #c2401f;outline-offset:-1px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeup{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;display:flex;flex-direction:column">
+
+<!-- HEADER -->
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px {{ padX }};border-bottom:1px solid #e6e2da;background:#faf9f6;position:sticky;top:0;z-index:40">
+  <div onClick="{{ goFeed }}" style="font:700 22px 'Space Grotesk',sans-serif;letter-spacing:-0.02em;cursor:pointer">rahaa<span style="color:#c2401f">&nbsp;on.</span></div>
+  <div style="display:flex;align-items:center;gap:{{ navGap }};font:500 14px 'IBM Plex Sans',sans-serif;color:#4a4741;white-space:nowrap">
+    <sc-if value="{{ notMob }}" hint-placeholder-val="{{ true }}"><span onClick="{{ goFeed }}" style="cursor:pointer" style-hover="color:#191817">Selaa</span>
+    <span style="cursor:pointer" style-hover="color:#191817">Tietoa</span></sc-if>
+    <span onClick="{{ goAdmin }}" style="cursor:pointer;color:#8a857c;display:flex;align-items:center;gap:6px" style-hover="color:#191817">Ylläpito
+      <sc-if value="{{ hasQueue }}" hint-placeholder-val="{{ false }}"><span style="background:#c2401f;color:#fff;font:700 11px 'IBM Plex Sans',sans-serif;border-radius:99px;padding:2px 7px">{{ queueCount }}</span></sc-if>
+    </span>
+    <span onClick="{{ openSuggest }}" style="background:#c2401f;color:#fff;padding:10px 18px;border-radius:6px;font-weight:600;cursor:pointer;white-space:nowrap" style-hover="background:#a83519">Ehdota kohde</span>
+  </div>
+</div>
+
+<!-- ============ FEED ============ -->
+<sc-if value="{{ isFeed }}" hint-placeholder-val="{{ true }}">
+<div>
+  <div style="padding:{{ heroPad }};text-align:center;border-bottom:1px solid #e6e2da">
+    <div style="font:500 13px 'IBM Plex Sans',sans-serif;color:#8a857c;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:14px">Turhaa julkista rahankäyttöä kirjattu tähän mennessä</div>
+    <div style="font:{{ heroFont }} 'Space Grotesk',sans-serif;letter-spacing:-0.03em;font-variant-numeric:tabular-nums">{{ totalStr }}&nbsp;<span style="color:#c2401f">€</span></div>
+    <div style="font:400 16px/1.5 'IBM Plex Sans',sans-serif;color:#4a4741;margin-top:16px;max-width:560px;margin-left:auto;margin-right:auto">Kansalaisten ilmoittamia, tekoälyn tiivistämiä ja toimituksen tarkistamia rahareikiä. Koska rahaa on — kysymys on mihin.</div>
+  </div>
+
+  <div style="display:flex;gap:8px;padding:{{ chipsPad }};border-bottom:1px solid #e6e2da;align-items:center;flex-wrap:wrap">
+    <sc-for list="{{ chips }}" as="c" hint-placeholder-count="7">
+      <span onClick="{{ c.onClick }}" style="font:500 13px 'IBM Plex Sans',sans-serif;background:{{ c.bg }};color:{{ c.fg }};border:1px solid {{ c.bd }};padding:7px 14px;border-radius:99px;cursor:pointer">{{ c.label }}</span>
+    </sc-for>
+    <div style="margin-left:auto;display:flex;gap:10px;align-items:center;flex-grow:{{ searchGrow }};flex-wrap:wrap">
+      <select value="{{ sort }}" onChange="{{ onSort }}" style="font:500 13px 'IBM Plex Sans',sans-serif;color:#4a4741;background:#fff;border:1px solid #dcd7cd;border-radius:6px;padding:9px 10px">
+        <option value="new">Uusimmat</option>
+        <option value="amount">Suurin summa</option>
+        <option value="votes">Eniten ääniä</option>
+      </select>
+      <input value="{{ searchQ }}" onChange="{{ onSearch }}" placeholder="Hae kuntaa tai juttua…" style="font:400 13px 'IBM Plex Sans',sans-serif;background:#fff;border:1px solid #dcd7cd;border-radius:6px;padding:10px 14px;width:{{ searchW }};box-sizing:border-box;flex:1;min-width:160px;color:#191817">
+    </div>
+  </div>
+
+  <div style="padding:{{ listPad }};max-width:1240px;margin:0 auto;box-sizing:border-box;width:100%">
+    <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+      <div style="text-align:center;padding:64px 0;color:#8a857c;font:400 16px 'IBM Plex Sans',sans-serif">Ei osumia haulla. Kokeile toista hakusanaa — rahareikiä kyllä riittää.</div>
+    </sc-if>
+    <sc-for list="{{ items }}" as="it" hint-placeholder-count="5">
+      <div style="display:flex;align-items:center;flex-wrap:{{ rowWrap }};gap:{{ rowGap }};padding:24px 0;border-bottom:1px solid #e6e2da;animation:fadeup .25s ease both">
+        <div style="width:{{ amtW }};flex:none;font:{{ amtFont }} 'Space Grotesk',sans-serif;color:#c2401f;font-variant-numeric:tabular-nums">{{ it.amountStr }}</div>
+        <div onClick="{{ it.onOpen }}" style="flex:1;min-width:min(100%,340px);display:flex;flex-direction:column;gap:6px;cursor:pointer">
+          <div style="font:600 19px/1.3 'IBM Plex Sans',sans-serif" style-hover="color:#c2401f">{{ it.title }}</div>
+          <div style="display:flex;gap:10px;align-items:center;font:400 13px 'IBM Plex Sans',sans-serif;color:#8a857c;flex-wrap:wrap"><span style="font-weight:600;color:#4a4741">{{ it.entity }}</span><span>·</span><span>{{ it.category }}</span><span>·</span><span>Lähde: {{ it.source }}</span><span>·</span><span>{{ it.dateStr }}</span></div>
+        </div>
+        <div style="display:flex;gap:10px;flex:none">
+          <span onClick="{{ it.onVote }}" style="display:flex;align-items:center;gap:6px;font:600 13px 'IBM Plex Sans',sans-serif;color:{{ it.voteFg }};border:1px solid {{ it.voteBd }};border-radius:6px;padding:8px 14px;background:{{ it.voteBg }};cursor:pointer">▲&nbsp;{{ it.votesStr }}</span>
+          <span onClick="{{ it.onShare }}" style="display:flex;align-items:center;font:600 13px 'IBM Plex Sans',sans-serif;color:#4a4741;border:1px solid #dcd7cd;border-radius:6px;padding:8px 14px;background:#fff;cursor:pointer" style-hover="border-color:#191817">Jaa</span>
+        </div>
+      </div>
+    </sc-for>
+    <div style="text-align:center;padding-top:28px">
+      <span style="display:inline-block;font:600 14px 'IBM Plex Sans',sans-serif;color:#4a4741;border:1px solid #dcd7cd;border-radius:6px;padding:12px 28px;background:#fff;cursor:pointer" style-hover="border-color:#191817">Näytä lisää</span>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<!-- ============ ADMIN ============ -->
+<sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ false }}">
+<div style="max-width:1100px;margin:0 auto;width:100%;box-sizing:border-box;padding:{{ adminPad }}">
+  <div style="display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:26px">
+    <div style="font:700 32px 'Space Grotesk',sans-serif;letter-spacing:-0.02em">Ylläpito</div>
+    <div style="font:400 13px 'IBM Plex Sans',sans-serif;color:#8a857c">Kirjautunut: toimitus@rahaaon.fi</div>
+  </div>
+  <div style="display:flex;gap:4px;border-bottom:1px solid #e6e2da;margin-bottom:24px">
+    <span onClick="{{ tabQueue }}" style="font:600 14px 'IBM Plex Sans',sans-serif;padding:12px 18px;cursor:pointer;color:{{ tabQFg }};border-bottom:2px solid {{ tabQBd }};margin-bottom:-1px">Ehdotusjono ({{ queueCount }})</span>
+    <span onClick="{{ tabPub }}" style="font:600 14px 'IBM Plex Sans',sans-serif;padding:12px 18px;cursor:pointer;color:{{ tabPFg }};border-bottom:2px solid {{ tabPBd }};margin-bottom:-1px">Julkaistut ({{ pubCount }})</span>
+  </div>
+
+  <sc-if value="{{ isQueueTab }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex;flex-direction:column;gap:20px">
+      <sc-if value="{{ queueEmpty }}" hint-placeholder-val="{{ false }}">
+        <div style="text-align:center;padding:56px 0;color:#8a857c;font:400 15px 'IBM Plex Sans',sans-serif">Jono on tyhjä. Hyvin seulottu. ☕</div>
+      </sc-if>
+      <sc-for list="{{ queue }}" as="q" hint-placeholder-count="2">
+        <div style="background:#fff;border:1px solid #e6e2da;border-radius:10px;overflow:hidden;animation:fadeup .25s ease both">
+          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:14px 18px;background:#f4f1ea;border-bottom:1px solid #e6e2da">
+            <span style="font:600 11px 'IBM Plex Sans',sans-serif;color:#4a4741;text-transform:uppercase;letter-spacing:0.08em">Tekoälyn esikäsittelemä ehdotus</span>
+            <span style="font:600 11px 'IBM Plex Sans',sans-serif;color:{{ q.confFg }};background:{{ q.confBg }};padding:4px 10px;border-radius:99px">AI-varmuus {{ q.conf }}%</span>
+            <span style="margin-left:auto;font:400 12px 'IBM Plex Sans',sans-serif;color:#8a857c">Saapunut {{ q.received }}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:{{ adminCols }};gap:24px;padding:{{ modalPad }}">
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <label style="font:600 11px 'IBM Plex Sans',sans-serif;color:#8a857c;text-transform:uppercase;letter-spacing:0.08em">Otsikko</label>
+                <input value="{{ q.title }}" onChange="{{ q.onTitle }}" style="font:600 15px 'IBM Plex Sans',sans-serif;border:1px solid #dcd7cd;border-radius:6px;padding:10px 12px;color:#191817;background:#fff;width:100%;box-sizing:border-box;min-width:0">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <label style="font:600 11px 'IBM Plex Sans',sans-serif;color:#8a857c;text-transform:uppercase;letter-spacing:0.08em">Tekoälyn tiivistelmä</label>
+                <textarea value="{{ q.summary }}" onChange="{{ q.onSummary }}" rows="3" style="font:400 14px/1.5 'IBM Plex Sans',sans-serif;border:1px solid #dcd7cd;border-radius:6px;padding:10px 12px;color:#191817;resize:vertical;background:#fff;width:100%;box-sizing:border-box;min-width:0"></textarea>
+              </div>
+              <div style="display:grid;grid-template-columns:{{ metaCols }};gap:12px">
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <label style="font:600 11px 'IBM Plex Sans',sans-serif;color:#8a857c;text-transform:uppercase;letter-spacing:0.08em">Summa (€)</label>
+                  <input value="{{ q.amount }}" onChange="{{ q.onAmount }}" style="font:600 14px 'IBM Plex Sans',sans-serif;border:1px solid #dcd7cd;border-radius:6px;padding:10px 12px;font-variant-numeric:tabular-nums;background:#fff;width:100%;box-sizing:border-box;min-width:0">
+                </div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <label style="font:600 11px 'IBM Plex Sans',sans-serif;color:#8a857c;text-transform:uppercase;letter-spacing:0.08em">Taho</label>
+                  <input value="{{ q.entity }}" onChange="{{ q.onEntity }}" style="font:500 14px 'IBM Plex Sans',sans-serif;border:1px solid #dcd7cd;border-radius:6px;padding:10px 12px;background:#fff;width:100%;box-sizing:border-box;min-width:0">
+                </div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <label style="font:600 11px 'IBM Plex Sans',sans-serif;color:#8a857c;text-transform:uppercase;letter-spacing:0.08em">Kategoria</label>
+                  <select value="{{ q.category }}" onChange="{{ q.onCategory }}" style="font:500 14px 'IBM Plex Sans',sans-serif;border:1px solid #dcd7cd;border-radius:6px;padding:10px;background:#fff;width:100%;box-sizing:border-box;min-width:0">
+                    <option>Rakentaminen</option><option>IT-hankkeet</option><option>Konsultit</option><option>Kulttuuri</option><option>Viestintä</option><option>Matkustus</option><option>Muu</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="background:#f8f6f1;border:1px solid #e6e2da;border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:8px">
+                <div style="font:600 11px 'IBM Plex Sans',sans-serif;color:#8a857c;text-transform:uppercase;letter-spacing:0.08em">Lähde</div>
+                <a href="#" style="font:500 13px/1.4 'IBM Plex Sans',sans-serif;word-break:break-all">{{ q.url }}</a>
+                <div style="font:400 12px 'IBM Plex Sans',sans-serif;color:#8a857c">{{ q.sourceName }} · haettu ja arkistoitu automaattisesti</div>
+              </div>
+              <div style="background:#f8f6f1;border:1px solid #e6e2da;border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:6px">
+                <div style="font:600 11px 'IBM Plex Sans',sans-serif;color:#8a857c;text-transform:uppercase;letter-spacing:0.08em">Tekoälyn huomiot</div>
+                <div style="font:400 13px/1.5 'IBM Plex Sans',sans-serif;color:#4a4741">{{ q.aiNote }}</div>
+              </div>
+              <div style="display:flex;gap:10px;margin-top:auto">
+                <span onClick="{{ q.onApprove }}" style="flex:1;text-align:center;font:600 14px 'IBM Plex Sans',sans-serif;color:#fff;background:#1d7a3f;border-radius:6px;padding:12px 0;cursor:pointer" style-hover="background:#166332">Hyväksy ja julkaise</span>
+                <span onClick="{{ q.onReject }}" style="text-align:center;font:600 14px 'IBM Plex Sans',sans-serif;color:#c2401f;border:1px solid #e0b5a8;border-radius:6px;padding:12px 18px;cursor:pointer;background:#fff" style-hover="background:#faeae5">Hylkää</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isPubTab }}" hint-placeholder-val="{{ false }}">
+    <div style="background:#fff;border:1px solid #e6e2da;border-radius:10px;overflow-x:auto">
+    <div style="min-width:780px">
+      <div style="display:grid;grid-template-columns:1fr 150px 110px 90px 110px;gap:16px;padding:12px 24px;background:#f4f1ea;border-bottom:1px solid #e6e2da;font:600 11px 'IBM Plex Sans',sans-serif;color:#8a857c;text-transform:uppercase;letter-spacing:0.08em">
+        <span>Juttu</span><span>Summa</span><span>Taho</span><span>Äänet</span><span></span>
+      </div>
+      <sc-for list="{{ pubRows }}" as="p" hint-placeholder-count="5">
+        <div style="display:grid;grid-template-columns:1fr 150px 110px 90px 110px;gap:16px;padding:16px 24px;border-bottom:1px solid #f0ede6;align-items:center">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span style="font:600 14px 'IBM Plex Sans',sans-serif;color:{{ p.titleFg }}">{{ p.title }}</span>
+            <span style="font:400 12px 'IBM Plex Sans',sans-serif;color:#8a857c">{{ p.category }} · {{ p.source }} · {{ p.dateStr }}</span>
+          </div>
+          <span style="font:600 14px 'Space Grotesk',sans-serif;color:#c2401f;font-variant-numeric:tabular-nums">{{ p.amountStr }}</span>
+          <span style="font:500 13px 'IBM Plex Sans',sans-serif;color:#4a4741">{{ p.entity }}</span>
+          <span style="font:500 13px 'IBM Plex Sans',sans-serif;color:#4a4741;font-variant-numeric:tabular-nums">▲ {{ p.votesStr }}</span>
+          <span onClick="{{ p.onToggle }}" style="font:600 12px 'IBM Plex Sans',sans-serif;color:#4a4741;border:1px solid #dcd7cd;border-radius:6px;padding:7px 0;text-align:center;cursor:pointer;background:#fff" style-hover="border-color:#191817">{{ p.toggleLabel }}</span>
+        </div>
+      </sc-for>
+    </div>
+    </div>
+  </sc-if>
+</div>
+</sc-if>
+
+<!-- ============ DETAIL MODAL ============ -->
+<sc-if value="{{ hasDetail }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ closeDetail }}" style="position:fixed;inset:0;background:rgba(20,19,17,0.55);z-index:60;display:flex;align-items:flex-start;justify-content:center;padding:{{ overlayPad }};overflow:auto">
+  <div onClick="{{ stop }}" style="background:#faf9f6;border-radius:12px;max-width:760px;width:100%;animation:fadeup .25s ease both;overflow:hidden">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:{{ modalHeadPad }};border-bottom:1px solid #e6e2da">
+      <span style="font:600 11px 'IBM Plex Sans',sans-serif;color:#c2401f;background:#faeae5;padding:5px 10px;border-radius:5px;text-transform:uppercase;letter-spacing:0.08em">{{ d.category }}</span>
+      <span onClick="{{ closeDetail }}" style="font:400 22px 'IBM Plex Sans',sans-serif;color:#8a857c;cursor:pointer;line-height:1" style-hover="color:#191817">✕</span>
+    </div>
+    <div style="padding:{{ modalPad }};display:flex;flex-direction:column;gap:20px">
+      <div style="font:{{ dAmtFont }} 'Space Grotesk',sans-serif;color:#c2401f;font-variant-numeric:tabular-nums">{{ d.amountStr }}</div>
+      <div style="font:{{ dTitleFont }} 'IBM Plex Sans',sans-serif;letter-spacing:-0.01em">{{ d.title }}</div>
+      <div style="display:flex;gap:10px;align-items:center;font:400 13px 'IBM Plex Sans',sans-serif;color:#8a857c;flex-wrap:wrap"><span style="font-weight:600;color:#4a4741">{{ d.entity }}</span><span>·</span><span>{{ d.dateStr }}</span><span>·</span><span>Lähde: {{ d.source }}</span></div>
+      <div style="background:#fff;border:1px solid #e6e2da;border-radius:8px;padding:20px 22px;display:flex;flex-direction:column;gap:8px">
+        <div style="font:600 11px 'IBM Plex Sans',sans-serif;color:#8a857c;text-transform:uppercase;letter-spacing:0.08em">Tekoälyn tiivistelmä · toimituksen tarkistama</div>
+        <div style="font:400 15px/1.65 'IBM Plex Sans',sans-serif;color:#191817">{{ d.summary }}</div>
+      </div>
+      <div style="border-left:3px solid #dcd7cd;padding:4px 0 4px 18px;font:400 15px/1.6 Georgia,serif;font-style:italic;color:#4a4741">"{{ d.quote }}"<span style="font:400 13px 'IBM Plex Sans',sans-serif;font-style:normal;color:#8a857c">&nbsp;&nbsp;— {{ d.source }}</span></div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding-top:6px">
+        <span onClick="{{ d.onVote }}" style="display:flex;align-items:center;gap:8px;font:600 15px 'IBM Plex Sans',sans-serif;color:{{ d.voteFg }};border:1px solid {{ d.voteBd }};background:{{ d.voteBg }};border-radius:6px;padding:12px 22px;cursor:pointer">▲&nbsp;Tämä on turhaa&nbsp;·&nbsp;{{ d.votesStr }}</span>
+        <span onClick="{{ d.onShare }}" style="font:600 15px 'IBM Plex Sans',sans-serif;color:#4a4741;border:1px solid #dcd7cd;background:#fff;border-radius:6px;padding:12px 22px;cursor:pointer" style-hover="border-color:#191817">Jaa</span>
+        <a href="#" style="margin-left:auto;font:600 14px 'IBM Plex Sans',sans-serif">Lue alkuperäinen juttu →</a>
+      </div>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<!-- ============ SUGGEST MODAL ============ -->
+<sc-if value="{{ suggestOpen }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ closeSuggest }}" style="position:fixed;inset:0;background:rgba(20,19,17,0.55);z-index:70;display:flex;align-items:flex-start;justify-content:center;padding:{{ overlayPad }};overflow:auto">
+  <div onClick="{{ stop }}" style="background:#faf9f6;border-radius:12px;max-width:620px;width:100%;animation:fadeup .25s ease both;overflow:hidden">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 32px;border-bottom:1px solid #e6e2da">
+      <span style="font:700 17px 'Space Grotesk',sans-serif;padding:8px 0">Ehdota rahareikää</span>
+      <span onClick="{{ closeSuggest }}" style="font:400 22px 'IBM Plex Sans',sans-serif;color:#8a857c;cursor:pointer;line-height:1" style-hover="color:#191817">✕</span>
+    </div>
+
+    <sc-if value="{{ sIsInput }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:{{ modalPad }};display:flex;flex-direction:column;gap:18px">
+      <div style="font:400 15px/1.6 'IBM Plex Sans',sans-serif;color:#4a4741">Liitä linkki lehtijuttuun tai uutiseen. Tekoäly lukee jutun, poimii summan ja tahon, kategorisoi ja tiivistää — toimitus tarkistaa ennen julkaisua.</div>
+      <input value="{{ sUrl }}" onChange="{{ onSUrl }}" placeholder="https://esimerkiksi.hs.fi/juttu…" style="font:500 15px 'IBM Plex Sans',sans-serif;border:1px solid #dcd7cd;border-radius:6px;padding:14px 16px;background:#fff;color:#191817">
+      <sc-if value="{{ sError }}" hint-placeholder-val="{{ false }}"><div style="font:500 13px 'IBM Plex Sans',sans-serif;color:#c2401f">Lisää kelvollinen linkki (alkaa http…).</div></sc-if>
+      <span onClick="{{ submitUrl }}" style="text-align:center;font:600 15px 'IBM Plex Sans',sans-serif;color:#fff;background:#c2401f;border-radius:6px;padding:14px 0;cursor:pointer" style-hover="background:#a83519">Lähetä tekoälyn luettavaksi</span>
+      <div style="font:400 12px/1.5 'IBM Plex Sans',sans-serif;color:#8a857c;text-align:center">Ehdotus käsitellään nimettömänä. Vain julkiset lähteet kelpaavat.</div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ sIsProcessing }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:40px 32px;display:flex;flex-direction:column;gap:18px;align-items:center">
+      <div style="width:36px;height:36px;border:3px solid #e6e2da;border-top-color:#c2401f;border-radius:50%;animation:spin .8s linear infinite"></div>
+      <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:360px">
+        <sc-for list="{{ aiSteps }}" as="s" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:10px;font:500 14px 'IBM Plex Sans',sans-serif;color:{{ s.fg }}"><span style="width:18px;text-align:center">{{ s.icon }}</span>{{ s.label }}</div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ sIsPreview }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:{{ modalPad }};display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;align-items:center;gap:10px"><span style="font:600 11px 'IBM Plex Sans',sans-serif;color:#1d7a3f;background:#e3f2e8;padding:5px 10px;border-radius:99px">Tekoäly luki jutun</span><span style="font:400 13px 'IBM Plex Sans',sans-serif;color:#8a857c">Tarkista poimitut tiedot</span></div>
+      <div style="background:#fff;border:1px solid #e6e2da;border-radius:8px;padding:20px 22px;display:flex;flex-direction:column;gap:12px">
+        <div style="font:700 26px 'Space Grotesk',sans-serif;color:#c2401f;font-variant-numeric:tabular-nums">{{ pv.amountStr }}</div>
+        <div style="font:600 17px/1.35 'IBM Plex Sans',sans-serif">{{ pv.title }}</div>
+        <div style="font:400 13px 'IBM Plex Sans',sans-serif;color:#8a857c">{{ pv.entity }} · {{ pv.category }} · {{ pv.sourceName }}</div>
+        <div style="font:400 14px/1.6 'IBM Plex Sans',sans-serif;color:#4a4741;border-top:1px solid #f0ede6;padding-top:12px">{{ pv.summary }}</div>
+      </div>
+      <span onClick="{{ confirmSubmit }}" style="text-align:center;font:600 15px 'IBM Plex Sans',sans-serif;color:#fff;background:#c2401f;border-radius:6px;padding:14px 0;cursor:pointer" style-hover="background:#a83519">Näyttää oikealta — lähetä toimitukselle</span>
+      <span onClick="{{ backToInput }}" style="text-align:center;font:600 14px 'IBM Plex Sans',sans-serif;color:#4a4741;cursor:pointer" style-hover="color:#191817">Vaihda linkkiä</span>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ sIsDone }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:44px 32px;display:flex;flex-direction:column;gap:14px;align-items:center;text-align:center">
+      <div style="width:52px;height:52px;border-radius:50%;background:#e3f2e8;color:#1d7a3f;display:flex;align-items:center;justify-content:center;font-size:24px">✓</div>
+      <div style="font:700 21px 'Space Grotesk',sans-serif">Kiitos! Ehdotus on jonossa.</div>
+      <div style="font:400 14px/1.6 'IBM Plex Sans',sans-serif;color:#4a4741;max-width:380px">Toimitus tarkistaa tekoälyn poiminnat ja julkaisee jutun, jos raha todella on mennyt harakoille.</div>
+      <span onClick="{{ closeSuggest }}" style="font:600 14px 'IBM Plex Sans',sans-serif;color:#fff;background:#191817;border-radius:6px;padding:12px 28px;cursor:pointer;margin-top:6px">Selvä</span>
+    </div>
+    </sc-if>
+
+  </div>
+</div>
+</sc-if>
+
+<!-- TOAST -->
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+<div style="position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#191817;color:#fff;font:500 14px 'IBM Plex Sans',sans-serif;padding:12px 22px;border-radius:8px;z-index:90;animation:fadeup .2s ease both">{{ toast }}</div>
+</sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;startView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;admin&quot;,&quot;options&quot;:[&quot;feed&quot;,&quot;admin&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototyyppi&quot;}}">
+class Component extends DCLogic {
+  state = {
+    view: this.props.startView ?? 'feed', tab: 'queue', searchQ: '', cat: 'Kaikki', sort: 'new',
+    voted: {}, detailId: null, suggestOpen: false, sStep: 'input', sUrl: '', sError: false, aiIdx: 0, toast: '',
+    items: [
+      {id:1, title:'IT-järjestelmä myöhässä neljä vuotta — hinta ehti kolminkertaistua', amount:62000000, entity:'Valtio', category:'IT-hankkeet', source:'Helsingin Sanomat', days:2, votes:1204, hidden:false,
+       summary:'Alkuperäinen budjetti oli 21 M€ ja valmistumisarvio on siirtynyt kolmesti. Järjestelmää käyttää tällä hetkellä 14 henkilöä. Vanha järjestelmä pidetään rinnalla käynnissä "varmuuden vuoksi", mikä maksaa 2 M€ vuodessa.',
+       quote:'Hankejohtajan mukaan aikataulu on nyt realistinen, kuten se on ollut joka vuosi.'},
+      {id:2, title:'Lämmitetty pyörätie, jota ei koskaan kytketty päälle', amount:1200000, entity:'Oulu', category:'Rakentaminen', source:'Kaleva', days:3, votes:892, hidden:false,
+       summary:'Lämmityskaapelit asennettiin 2023, mutta sähköliittymä jäi tilaamatta. Talvikunnossapito on hoidettu auraamalla lämmitetyn osuuden päältä. Kaupunki selvittää, kenen vastuulla liittymän tilaaminen oli.',
+       quote:'Kaapelit ovat siellä hyvässä tallessa, totesi yhdyskuntatekniikan päällikkö.'},
+      {id:3, title:'Konsulttiselvitys konsulttien käytön vähentämisestä', amount:240000, entity:'Valtio', category:'Konsultit', source:'Iltalehti', days:5, votes:2041, hidden:false,
+       summary:'Selvityksen keskeinen suositus oli teettää jatkoselvitys. Jatkoselvityksen kilpailutus on parhaillaan käynnissä, ja siihen on varattu 180 000 €.',
+       quote:'Ulkopuolinen näkemys oli välttämätön, ministeriöstä perustellaan.'},
+      {id:4, title:'Taidepenkki, jolla ei taiteilijan mukaan ole tarkoituskaan istua', amount:40000, entity:'Tampere', category:'Kulttuuri', source:'Aamulehti', days:7, votes:655, hidden:false,
+       summary:'Teos kommentoi istumista yhteiskunnallisena ilmiönä. Kaupunki hankki lisäksi kyltin "Ei saa istua" sekä huoltosopimuksen, joka kattaa istumisen jälkien poistamisen.',
+       quote:'Penkki kysyy, kuka saa levätä, kuvailee teoksen tekijä.'},
+      {id:5, title:'Kunnan uusi logo muistuttaa erehdyttävästi edellistä', amount:18000, entity:'Kouvola', category:'Viestintä', source:'Kouvolan Sanomat', days:8, votes:448, hidden:false,
+       summary:'Uudistuksessa kirjasin vaihtui ja väri pysyi samana. Asukaskyselyssä 71 % vastaajista ei huomannut eroa. Brändiuudistuksen jalkautus jatkuu vuoteen 2027.',
+       quote:'Muutos on hienovarainen mutta merkityksellinen, kertoo viestintäjohtaja.'},
+      {id:6, title:'Virkamiesdelegaation benchmarking-matka Dubaihin lumiosaamisen perässä', amount:74000, entity:'Valtio', category:'Matkustus', source:'Yle', days:11, votes:1310, hidden:false,
+       summary:'Kahdeksan hengen delegaatio tutustui Dubain sisälaskettelukeskuksen lumetusjärjestelmään. Matkaraportti on kaksi sivua, joista toinen on kansilehti.',
+       quote:'Lumiolosuhteiden ymmärrys syveni merkittävästi, raportissa todetaan.'},
+      {id:7, title:'Sote-kirjaamisjärjestelmän lisenssit, joita kukaan ei käyttänyt', amount:14300000, entity:'Hyvinvointialue', category:'IT-hankkeet', source:'Yle', days:14, votes:977, hidden:false,
+       summary:'Lisenssejä hankittiin 12 000 käyttäjälle. Käyttöönotto peruuntui, mutta kolmivuotinen sopimus ei sisältänyt irtisanomisehtoa. Lisenssit vanhenevat ensi keväänä.',
+       quote:'Sopimus oli sen ajan tietojen valossa perusteltu, arvioi hankintajohtaja.'},
+      {id:8, title:'Silta, joka päättyy peltoon — jatko-osa budjetoitu vuodelle 2031', amount:8700000, entity:'ELY-keskus', category:'Rakentaminen', source:'Maaseudun Tulevaisuus', days:18, votes:731, hidden:false,
+       summary:'Sillan itäpää valmistui aikataulussa, mutta jatkotien rahoitus siirtyi kehyskaudelle 2031. Siihen asti silta toimii paikallisten mukaan "hienona näköalapaikkana".',
+       quote:'Kokonaisuus valmistuu kyllä aikanaan, ELY-keskuksesta vakuutetaan.'}
+    ],
+    queue: [
+      {id:101, title:'Kaupunki tilasi 400 000 € sovelluksen, jolla on 23 latausta', amount:'400000', entity:'Espoo', category:'IT-hankkeet', sourceName:'Länsiväylä', url:'https://www.lansivayla.fi/paikalliset/kaupunkisovellus-lataukset', conf:92, received:'2 h sitten',
+       summary:'Asukassovellus julkaistiin keväällä 2025. Sovelluskaupan mukaan latauksia on 23, joista kaupungin viestintäosaston osuus on arviolta 19.',
+       aiNote:'Summa vahvistettu kahdesta kohdasta artikkelia. Latausmäärä voi olla muuttunut julkaisun jälkeen.'},
+      {id:102, title:'Kiertoliittymän taideteos jouduttiin siirtämään — näkyvyyshaitta', amount:'260000', entity:'Jyväskylä', category:'Kulttuuri', sourceName:'Keskisuomalainen', url:'https://www.ksml.fi/paikalliset/kiertoliittyman-taide-siirto', conf:81, received:'5 h sitten',
+       summary:'Teos asennettiin kiertoliittymään, jonka jälkeen todettiin sen peittävän näkemäalueen. Siirto uuteen paikkaan maksoi 60 000 €, mikä sisältyy summaan.',
+       aiNote:'Summa on artikkelin arvio (teos + siirto). Tarkka jakauma ei selviä lähteestä.'},
+      {id:103, title:'Kunnanjohtajien johtamisvalmennus sisälsi alpakkakävelyn', amount:'35000', entity:'Kuntaliitto', category:'Muu', sourceName:'Suomen Kuvalehti', url:'https://suomenkuvalehti.fi/kotimaa/johtamisvalmennus-alpakat', conf:64, received:'1 pv sitten',
+       summary:'Kaksipäiväinen valmennus sisälsi työpajoja sekä "läsnäoloharjoituksen alpakkojen kanssa". Osallistujapalaute oli erinomainen.',
+       aiNote:'Matala varmuus: summa mainitaan vain otsikossa eikä sitä eritellä. Suosittelen tarkistamaan lähteen.'}
+    ]
+  };
+  componentDidMount(){ this._rs=()=>this.setState({vw:window.innerWidth}); window.addEventListener('resize',this._rs); this.setState({vw:window.innerWidth}); }
+  fmt(n){ return n.toLocaleString('fi-FI') + ' €'; }
+  toast(msg){ clearTimeout(this._tt); this.setState({toast:msg}); this._tt = setTimeout(()=>this.setState({toast:''}), 2200); }
+  componentWillUnmount(){ clearTimeout(this._tt); clearInterval(this._ai); window.removeEventListener('resize',this._rs); }
+  vote(id){ this.setState(s=>{ const voted={...s.voted}; const items=s.items.map(it=> it.id===id ? {...it, votes: it.votes + (voted[id]?-1:1)} : it); voted[id]=!voted[id]; return {voted, items}; }); }
+  makePreview(url){
+    let host=''; try{ host=new URL(url).hostname.replace('www.',''); }catch(e){}
+    const src = host.includes('hs.fi')?'Helsingin Sanomat': host.includes('yle')?'Yle': host.includes('il')?'Iltalehti': host||'Tuntematon lähde';
+    return { amountStr:'87 000 €', title:'Kaupungintalon aulaan vuokrattiin viherseinä, jonka kasvit ovat muovia', entity:'Vantaa', category:'Muu', sourceName:src,
+      summary:'Kolmivuotinen vuokrasopimus sisältää "kasvillisuuden elinvoimaisuuden ylläpidon". Huoltokäynneillä muovikasvit pyyhitään pölystä. Sopimuksen arvo on 87 000 €.' };
+  }
+  renderVals(){
+    const s=this.state;
+    const mob=(s.vw ?? (typeof window!=='undefined'?window.innerWidth:1200))<720;
+    const cats=['Kaikki','Valtio','Kaupungit','Rakentaminen','IT-hankkeet','Konsultit','Kulttuuri'];
+    const chips=cats.map(c=>{ const a=s.cat===c; return {label:c, bg:a?'#191817':'#fff', fg:a?'#fff':'#4a4741', bd:a?'#191817':'#dcd7cd', onClick:()=>this.setState({cat:c})}; });
+    const pub=s.items.filter(it=>!it.hidden);
+    const q=s.searchQ.trim().toLowerCase();
+    let list=pub.filter(it=>{
+      if(s.cat==='Valtio' && it.entity!=='Valtio') return false;
+      if(s.cat==='Kaupungit' && ['Valtio','Hyvinvointialue','ELY-keskus','Kuntaliitto'].includes(it.entity)) return false;
+      if(!['Kaikki','Valtio','Kaupungit'].includes(s.cat) && it.category!==s.cat) return false;
+      if(q && !(it.title+' '+it.entity+' '+it.category+' '+it.source).toLowerCase().includes(q)) return false;
+      return true;
+    });
+    list=[...list].sort((a,b)=> s.sort==='amount'? b.amount-a.amount : s.sort==='votes'? b.votes-a.votes : a.days-b.days);
+    const mkItem=(it)=>{ const v=!!s.voted[it.id]; return {
+      title:it.title, entity:it.entity, category:it.category, source:it.source,
+      amountStr:this.fmt(it.amount), votesStr:it.votes.toLocaleString('fi-FI'),
+      dateStr: it.days===0?'juuri nyt': it.days<7? it.days+' pv sitten' : Math.round(it.days/7)+' vk sitten',
+      voted:v, voteBg:v?'#c2401f':'#fff', voteFg:v?'#fff':'#4a4741', voteBd:v?'#c2401f':'#dcd7cd',
+      onVote:(e)=>{e.stopPropagation(); this.vote(it.id);},
+      onShare:(e)=>{e.stopPropagation(); this.toast('Linkki kopioitu leikepöydälle');},
+      onOpen:()=>this.setState({detailId:it.id})
+    };};
+    const detailItem = s.items.find(it=>it.id===s.detailId);
+    const d = detailItem ? {...mkItem(detailItem), summary:detailItem.summary, quote:detailItem.quote} : {};
+    const stepLabels=['Ladataan artikkeli…','Poimitaan summa ja taho…','Kategorisoidaan…','Laaditaan tiivistelmä…'];
+    const aiSteps=stepLabels.map((l,i)=>({label:l, icon: i<s.aiIdx?'✓': i===s.aiIdx?'●':'○', fg: i<s.aiIdx?'#1d7a3f': i===s.aiIdx?'#191817':'#b9b3a7'}));
+    const queue=s.queue.map(it=>{
+      const set=(field)=>(e)=>this.setState(st=>({queue:st.queue.map(x=>x.id===it.id?{...x,[field]:e.target.value}:x)}));
+      return {...it, conf:it.conf,
+        confBg: it.conf>=85?'#e3f2e8': it.conf>=70?'#fdf3d7':'#faeae5', confFg: it.conf>=85?'#1d7a3f': it.conf>=70?'#8a6d00':'#c2401f',
+        onTitle:set('title'), onSummary:set('summary'), onAmount:set('amount'), onEntity:set('entity'), onCategory:set('category'),
+        onApprove:()=>{ this.setState(st=>({
+            queue:st.queue.filter(x=>x.id!==it.id),
+            items:[{id:Date.now(), title:it.title, amount:parseInt(String(it.amount).replace(/\D/g,''))||0, entity:it.entity, category:it.category, source:it.sourceName, days:0, votes:0, hidden:false, summary:it.summary, quote:'Lähde: '+it.sourceName+'.'}, ...st.items]
+          })); this.toast('Julkaistu etusivulle'); },
+        onReject:()=>{ this.setState(st=>({queue:st.queue.filter(x=>x.id!==it.id)})); this.toast('Ehdotus hylätty'); }
+      };
+    });
+    const pubRows=s.items.map(p=>({ title:p.title, titleFg:p.hidden?'#b9b3a7':'#191817', category:p.category, source:p.source,
+      dateStr:p.days===0?'juuri nyt':p.days+' pv', amountStr:this.fmt(p.amount), entity:p.entity, votesStr:p.votes.toLocaleString('fi-FI'),
+      toggleLabel:p.hidden?'Palauta':'Piilota',
+      onToggle:()=>{ this.setState(st=>({items:st.items.map(x=>x.id===p.id?{...x,hidden:!x.hidden}:x)})); }
+    }));
+    return {
+      mob, notMob:!mob,
+      padX: mob?'16px':'48px',
+      navGap: mob?'14px':'26px',
+      heroPad: mob?'40px 16px 32px':'60px 48px 46px',
+      heroFont: mob?'700 40px/1':'700 84px/1',
+      chipsPad: mob?'14px 16px':'18px 48px',
+      searchW: mob?'100%':'220px',
+      searchGrow: mob?'1':'0',
+      listPad: mob?'4px 16px 40px':'4px 48px 48px',
+      rowWrap: mob?'wrap':'nowrap',
+      amtW: mob?'100%':'185px',
+      amtFont: mob?'700 24px':'700 28px',
+      rowGap: mob?'10px':'24px',
+      adminPad: mob?'28px 16px 56px':'40px 48px 64px',
+      adminCols: mob?'minmax(0,1fr)':'minmax(0,1fr) 320px',
+      metaCols: mob?'minmax(0,1fr)':'repeat(3,minmax(0,1fr))',
+      overlayPad: mob?'20px 10px':'56px 24px',
+      modalPad: mob?'22px 18px':'32px',
+      modalHeadPad: mob?'14px 18px':'18px 32px',
+      dAmtFont: mob?'700 34px/1':'700 52px/1',
+      dTitleFont: mob?'700 21px/1.3':'700 27px/1.25',
+      isFeed:s.view==='feed', isAdmin:s.view==='admin',
+      goFeed:()=>this.setState({view:'feed'}), goAdmin:()=>this.setState({view:'admin'}),
+      totalStr:pub.reduce((a,b)=>a+b.amount,0).toLocaleString('fi-FI'),
+      chips, sort:s.sort, onSort:(e)=>this.setState({sort:e.target.value}),
+      searchQ:s.searchQ, onSearch:(e)=>this.setState({searchQ:e.target.value}),
+      items:list.map(mkItem), noResults:list.length===0,
+      hasDetail:!!detailItem, d, closeDetail:()=>this.setState({detailId:null}), stop:(e)=>e.stopPropagation(),
+      suggestOpen:s.suggestOpen, openSuggest:()=>this.setState({suggestOpen:true, sStep:'input', sUrl:'', sError:false, aiIdx:0}),
+      closeSuggest:()=>{ clearInterval(this._ai); this.setState({suggestOpen:false}); },
+      sIsInput:s.sStep==='input', sIsProcessing:s.sStep==='processing', sIsPreview:s.sStep==='preview', sIsDone:s.sStep==='done',
+      sUrl:s.sUrl, onSUrl:(e)=>this.setState({sUrl:e.target.value, sError:false}), sError:s.sError,
+      submitUrl:()=>{ if(!/^https?:\/\/.+\..+/.test(s.sUrl.trim())){ this.setState({sError:true}); return; }
+        this.setState({sStep:'processing', aiIdx:0});
+        clearInterval(this._ai);
+        this._ai=setInterval(()=>{ this.setState(st=>{ if(st.aiIdx>=3){ clearInterval(this._ai); return {sStep:'preview'}; } return {aiIdx:st.aiIdx+1}; }); }, 750); },
+      aiSteps, pv:this.makePreview(s.sUrl),
+      backToInput:()=>this.setState({sStep:'input'}),
+      confirmSubmit:()=>{ const pv=this.makePreview(s.sUrl);
+        this.setState(st=>({ sStep:'done', queue:[{id:Date.now(), title:pv.title, amount:'87000', entity:pv.entity, category:pv.category, sourceName:pv.sourceName, url:st.sUrl, conf:88, received:'juuri nyt', summary:pv.summary, aiNote:'Summa poimittu sopimuksen kokonaisarvosta. Vuosikustannus ei selviä lähteestä.'}, ...st.queue] })); },
+      hasQueue:s.queue.length>0, queueCount:s.queue.length, queueEmpty:s.queue.length===0,
+      tab:s.tab, isQueueTab:s.tab==='queue', isPubTab:s.tab==='pub',
+      tabQueue:()=>this.setState({tab:'queue'}), tabPub:()=>this.setState({tab:'pub'}),
+      tabQFg:s.tab==='queue'?'#191817':'#8a857c', tabQBd:s.tab==='queue'?'#c2401f':'transparent',
+      tabPFg:s.tab==='pub'?'#191817':'#8a857c', tabPBd:s.tab==='pub'?'#c2401f':'transparent',
+      pubCount:s.items.length, queue, pubRows,
+      hasToast:!!s.toast, toast:s.toast
+    };
+  }
+}
+
+</script>
+</body>
+</html>

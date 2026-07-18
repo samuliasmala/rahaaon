@@ -1,0 +1,68 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+ * "Rahaa on." design tokens, lifted from docs/design/rahaaon-proto.dc.html.
+ * Tailwind 4 CSS-first theme: each token becomes a utility (bg-paper, text-ink…).
+ */
+@theme {
+  --font-sans:
+    "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-display: "Space Grotesk Variable", "Space Grotesk", var(--font-sans);
+
+  /* The design's mobile cutoff is 720px, not Tailwind's default 768px. */
+  --breakpoint-md: 45rem;
+
+  /* Brand */
+  --color-accent: #c2401f;
+  --color-accent-dark: #a83519;
+  --color-accent-deep: #96311a;
+  --color-accent-wash: #faeae5;
+  --color-accent-hairline: #e0b5a8;
+
+  /* Surfaces */
+  --color-paper: #faf9f6;
+  --color-surface: #ffffff;
+  --color-wash: #f4f1ea;
+  --color-wash-soft: #f8f6f1;
+  --color-hairline: #e6e2da;
+  --color-hairline-strong: #dcd7cd;
+  --color-hairline-soft: #f0ede6;
+
+  /* Text */
+  --color-ink: #191817;
+  --color-body: #4a4741;
+  --color-muted: #8a857c;
+  --color-faint: #b9b3a7;
+
+  /* Status */
+  --color-ok: #1d7a3f;
+  --color-ok-dark: #166332;
+  --color-ok-wash: #e3f2e8;
+  --color-warn: #8a6d00;
+  --color-warn-wash: #fdf3d7;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+  }
+  body {
+    margin: 0;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* The design uses a single global focus treatment for form fields. */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: -1px;
+  }
+}
+
+/* Amounts and vote counts use tabular figures — they're the point. */
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}

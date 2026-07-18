@@ -1,0 +1,11 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+allowBuilds:
+  esbuild: true
+  unrs-resolver: true
+catalog:
+  "@types/node": "^24.0.0"
+  typescript: "^7.0.2"
+  vitest: "^3.0.0"
+  zod: "^4.0.0"

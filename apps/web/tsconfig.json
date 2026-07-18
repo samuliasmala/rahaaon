@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["node"],
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    // App bundle — never emits .d.ts, so skip declaration (avoids TS2742 on
+    // libraries with un-nameable inferred types).
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["src", "vite.config.ts"]
+}
