@@ -14,7 +14,13 @@ export default defineConfig({
     // Listen on all interfaces so the dev server is reachable when run inside a
     // container (harmless on the host).
     host: true,
-    port: 5173,
+    // 5173/3000 belong to the vesi dev stack on the same machine; rahaaon uses 5174/3001.
+    port: 5174,
+    proxy: {
+      // Forward API + auth calls to the Hono server (path preserved), so the
+      // browser treats them as same-origin and the session cookie is shared.
+      "/api": { target: "http://localhost:3001", changeOrigin: true },
+    },
   },
   test: {
     environment: "node",

@@ -1,7 +1,17 @@
+import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { toast } from "sonner";
+import {
+  getGetApiAdminItemsQueryKey,
+  getGetApiAdminSuggestionsQueryKey,
+  usePatchApiAdminSuggestionsId,
+  usePostApiAdminSuggestionsIdApprove,
+  usePostApiAdminSuggestionsIdReject,
+} from "../../api/admin/admin.js";
+import { getGetApiItemsQueryKey } from "../../api/items/items.js";
+import { Category, type PatchSuggestion, type Suggestion } from "../../api/model/index.js";
 import { cn } from "../../lib/cn.js";
-import { CATEGORIES, type Category, type QueueItem } from "../../lib/types.js";
-import { useAppStore } from "../../store/app-store.js";
+import { formatTimeAgo, parseEuroAmount } from "../../lib/format.js";
 import { Button } from "../ui/button.js";
 import { Input } from "../ui/input.js";
 import { FieldLabel } from "../ui/label.js";
@@ -15,11 +25,70 @@ function confidenceClasses(confidence: number): string {
   return "bg-accent-wash text-accent";
 }
 
-/** One AI-preprocessed suggestion: editable extraction + source panel + verdict. */
-export function QueueCard({ entry }: { entry: QueueItem }) {
-  const updateQueueItem = useAppStore((s) => s.updateQueueItem);
-  const approveQueueItem = useAppStore((s) => s.approveQueueItem);
-  const rejectQueueItem = useAppStore((s) => s.rejectQueueItem);
+/**
+ * One AI-preprocessed suggestion: editable extraction + source panel + verdict.
+ * Edits live in local draft state and are saved on blur; approving saves the
+ * draft first so what the editor sees is exactly what gets published.
+ */
+export function QueueCard({ entry }: { entry: Suggestion }) {
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState({
+    title: entry.title,
+    summary: entry.summary,
+    amount: String(entry.amountEur),
+    entity: entry.entity,
+    category: entry.category,
+  });
+
+  const patchMutation = usePatchApiAdminSuggestionsId();
+  const approveMutation = usePostApiAdminSuggestionsIdApprove();
+  const rejectMutation = usePostApiAdminSuggestionsIdReject();
+  const busy = approveMutation.isPending || rejectMutation.isPending;
+
+  function toPatch(): PatchSuggestion {
+    return {
+      title: draft.title,
+      summary: draft.summary,
+      amountEur: parseEuroAmount(draft.amount),
+      entity: draft.entity,
+      category: draft.category,
+    };
+  }
+
+  function saveDraft() {
+    patchMutation.mutate({ id: entry.id, data: toPatch() });
+  }
+
+  async function refreshQueue() {
+    await queryClient.invalidateQueries({ queryKey: getGetApiAdminSuggestionsQueryKey() });
+  }
+
+  async function approve() {
+    try {
+      await patchMutation.mutateAsync({ id: entry.id, data: toPatch() });
+      await approveMutation.mutateAsync({ id: entry.id });
+    } catch {
+      toast("Julkaisu epäonnistui. Yritä uudelleen.");
+      return;
+    }
+    await Promise.all([
+      refreshQueue(),
+      queryClient.invalidateQueries({ queryKey: getGetApiItemsQueryKey() }),
+      queryClient.invalidateQueries({ queryKey: getGetApiAdminItemsQueryKey() }),
+    ]);
+    toast("Julkaistu etusivulle");
+  }
+
+  async function reject() {
+    try {
+      await rejectMutation.mutateAsync({ id: entry.id });
+    } catch {
+      toast("Hylkäys epäonnistui. Yritä uudelleen.");
+      return;
+    }
+    await refreshQueue();
+    toast("Ehdotus hylätty");
+  }
 
   return (
     <section className="animate-in overflow-hidden rounded-[10px] border border-hairline bg-surface duration-250 fade-in slide-in-from-bottom-[10px]">
@@ -30,7 +99,9 @@ export function QueueCard({ entry }: { entry: QueueItem }) {
         <Pill className={cn(confidenceClasses(entry.confidence), "tabular")}>
           AI-varmuus {entry.confidence}%
         </Pill>
-        <span className="ml-auto text-xs text-muted">Saapunut {entry.received}</span>
+        <span className="ml-auto text-xs text-muted">
+          Saapunut {formatTimeAgo(entry.createdAt)}
+        </span>
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 p-4.5 md:grid-cols-[minmax(0,1fr)_320px] md:p-8">
@@ -39,8 +110,9 @@ export function QueueCard({ entry }: { entry: QueueItem }) {
             <FieldLabel htmlFor={`queue-title-${entry.id}`}>Otsikko</FieldLabel>
             <Input
               id={`queue-title-${entry.id}`}
-              value={entry.title}
-              onChange={(e) => updateQueueItem(entry.id, { title: e.target.value })}
+              value={draft.title}
+              onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+              onBlur={saveDraft}
               className="text-[15px] font-semibold"
             />
           </div>
@@ -48,8 +120,9 @@ export function QueueCard({ entry }: { entry: QueueItem }) {
             <FieldLabel htmlFor={`queue-summary-${entry.id}`}>Tekoälyn tiivistelmä</FieldLabel>
             <Textarea
               id={`queue-summary-${entry.id}`}
-              value={entry.summary}
-              onChange={(e) => updateQueueItem(entry.id, { summary: e.target.value })}
+              value={draft.summary}
+              onChange={(e) => setDraft((d) => ({ ...d, summary: e.target.value }))}
+              onBlur={saveDraft}
             />
           </div>
           <div className="grid grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-3">
@@ -58,8 +131,9 @@ export function QueueCard({ entry }: { entry: QueueItem }) {
               <Input
                 id={`queue-amount-${entry.id}`}
                 inputMode="numeric"
-                value={entry.amount}
-                onChange={(e) => updateQueueItem(entry.id, { amount: e.target.value })}
+                value={draft.amount}
+                onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
+                onBlur={saveDraft}
                 className="font-semibold tabular"
               />
             </div>
@@ -67,8 +141,9 @@ export function QueueCard({ entry }: { entry: QueueItem }) {
               <FieldLabel htmlFor={`queue-entity-${entry.id}`}>Taho</FieldLabel>
               <Input
                 id={`queue-entity-${entry.id}`}
-                value={entry.entity}
-                onChange={(e) => updateQueueItem(entry.id, { entity: e.target.value })}
+                value={draft.entity}
+                onChange={(e) => setDraft((d) => ({ ...d, entity: e.target.value }))}
+                onBlur={saveDraft}
                 className="font-medium"
               />
             </div>
@@ -76,12 +151,13 @@ export function QueueCard({ entry }: { entry: QueueItem }) {
               <FieldLabel htmlFor={`queue-category-${entry.id}`}>Kategoria</FieldLabel>
               <Select
                 id={`queue-category-${entry.id}`}
-                value={entry.category}
-                onChange={(e) =>
-                  updateQueueItem(entry.id, { category: e.target.value as Category })
-                }
+                value={draft.category}
+                onChange={(e) => {
+                  setDraft((d) => ({ ...d, category: e.target.value as Suggestion["category"] }));
+                }}
+                onBlur={saveDraft}
               >
-                {CATEGORIES.map((category) => (
+                {Object.values(Category).map((category) => (
                   <option key={category} value={category}>
                     {category}
                   </option>
@@ -118,20 +194,12 @@ export function QueueCard({ entry }: { entry: QueueItem }) {
             <Button
               variant="success"
               className="flex-1"
-              onClick={() => {
-                approveQueueItem(entry.id);
-                toast("Julkaistu etusivulle");
-              }}
+              disabled={busy}
+              onClick={() => void approve()}
             >
               Hyväksy ja julkaise
             </Button>
-            <Button
-              variant="outlineDanger"
-              onClick={() => {
-                rejectQueueItem(entry.id);
-                toast("Ehdotus hylätty");
-              }}
-            >
+            <Button variant="outlineDanger" disabled={busy} onClick={() => void reject()}>
               Hylkää
             </Button>
           </div>

@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rahaaon
+      POSTGRES_PASSWORD: rahaaon
+      POSTGRES_DB: rahaaon
+    ports:
+      # 5432/5433 are often taken (host Postgres, vesi dev); map to 5434.
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rahaaon -d rahaaon"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  db_data:

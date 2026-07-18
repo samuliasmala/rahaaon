@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { getGetApiAdminSuggestionsQueryKey } from "../../api/admin/admin.js";
+import {
+  usePostApiSuggestions,
+  usePostApiSuggestionsPreview,
+} from "../../api/suggestions/suggestions.js";
 import { cn } from "../../lib/cn.js";
 import { formatEur } from "../../lib/format.js";
-import {
-  AI_STEP_INTERVAL_MS,
-  AI_STEPS,
-  isLikelyUrl,
-  mockExtractArticle,
-} from "../../lib/suggestion-ai.js";
-import { useAppStore } from "../../store/app-store.js";
+import { AI_STEP_INTERVAL_MS, AI_STEPS, isLikelyUrl } from "../../lib/suggestion-ai.js";
 import { useUiStore } from "../../store/ui-store.js";
 import { Button } from "../ui/button.js";
 import { Dialog, DialogHeader } from "../ui/dialog.js";
@@ -17,18 +18,31 @@ import { Pill } from "../ui/pill.js";
 type Step = "input" | "processing" | "preview" | "done";
 
 /**
- * The reader suggestion flow: paste a link → simulated AI pipeline → check the
- * extraction → lands in the editorial queue.
+ * The reader suggestion flow: paste a link → the API's AI pipeline extracts the
+ * facts (the step list animates while it runs) → check the extraction → submit
+ * to the editorial queue.
  */
 export function SuggestDialog() {
   const open = useUiStore((s) => s.suggestOpen);
   const closeSuggest = useUiStore((s) => s.closeSuggest);
-  const submitSuggestion = useAppStore((s) => s.submitSuggestion);
+  const queryClient = useQueryClient();
 
   const [step, setStep] = useState<Step>("input");
   const [url, setUrl] = useState("");
   const [urlError, setUrlError] = useState(false);
   const [doneSteps, setDoneSteps] = useState(0);
+
+  const previewMutation = usePostApiSuggestionsPreview();
+  const submitMutation = usePostApiSuggestions({
+    mutation: {
+      onSuccess: () => {
+        // The header badge and the admin queue list are now stale.
+        void queryClient.invalidateQueries({ queryKey: getGetApiAdminSuggestionsQueryKey() });
+        setStep("done");
+      },
+      onError: () => toast("Lähetys epäonnistui. Yritä hetken päästä uudelleen."),
+    },
+  });
 
   // Fresh slate every time the dialog opens.
   useEffect(() => {
@@ -37,10 +51,13 @@ export function SuggestDialog() {
       setUrl("");
       setUrlError(false);
       setDoneSteps(0);
+      previewMutation.reset();
+      submitMutation.reset();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; resetting on open is the intent
   }, [open]);
 
-  // Simulated pipeline: tick through the steps, then show the preview.
+  // Animate the pipeline steps while the preview request runs.
   useEffect(() => {
     if (step !== "processing") return;
     const timer = setInterval(() => {
@@ -49,11 +66,18 @@ export function SuggestDialog() {
     return () => clearInterval(timer);
   }, [step]);
 
+  // Show the preview once the animation has played out AND the API answered.
   useEffect(() => {
-    if (step === "processing" && doneSteps >= AI_STEPS.length) setStep("preview");
-  }, [step, doneSteps]);
+    if (step !== "processing") return;
+    if (previewMutation.isError) {
+      toast("Artikkelin luku epäonnistui. Yritä uudelleen.");
+      setStep("input");
+      return;
+    }
+    if (doneSteps >= AI_STEPS.length && previewMutation.isSuccess) setStep("preview");
+  }, [step, doneSteps, previewMutation.isError, previewMutation.isSuccess]);
 
-  const preview = useMemo(() => mockExtractArticle(url), [url]);
+  const preview = previewMutation.data;
 
   function submitUrl() {
     if (!isLikelyUrl(url)) {
@@ -62,11 +86,7 @@ export function SuggestDialog() {
     }
     setDoneSteps(0);
     setStep("processing");
-  }
-
-  function confirmSubmit() {
-    submitSuggestion(url.trim(), preview);
-    setStep("done");
+    previewMutation.mutate({ data: { url: url.trim() } });
   }
 
   return (
@@ -135,7 +155,7 @@ export function SuggestDialog() {
         </div>
       )}
 
-      {step === "preview" && (
+      {step === "preview" && preview && (
         <div className="flex flex-col gap-4 p-4.5 md:p-8">
           <div className="flex items-center gap-2.5">
             <Pill className="bg-ok-wash text-ok">Tekoäly luki jutun</Pill>
@@ -143,7 +163,7 @@ export function SuggestDialog() {
           </div>
           <div className="flex flex-col gap-3 rounded-lg border border-hairline bg-surface px-5.5 py-5">
             <p className="font-display text-[26px] font-bold text-accent tabular">
-              {formatEur(preview.amount)}
+              {formatEur(preview.amountEur)}
             </p>
             <p className="text-[17px]/[1.35] font-semibold">{preview.title}</p>
             <p className="text-[13px] text-muted">
@@ -153,8 +173,12 @@ export function SuggestDialog() {
               {preview.summary}
             </p>
           </div>
-          <Button size="lg" onClick={confirmSubmit}>
-            Näyttää oikealta — lähetä toimitukselle
+          <Button
+            size="lg"
+            disabled={submitMutation.isPending}
+            onClick={() => submitMutation.mutate({ data: { url: url.trim() } })}
+          >
+            {submitMutation.isPending ? "Lähetetään…" : "Näyttää oikealta — lähetä toimitukselle"}
           </Button>
           <Button variant="ghost" onClick={() => setStep("input")}>
             Vaihda linkkiä

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { useGetApiItems } from "../api/items/items.js";
 import { DetailDialog } from "../components/feed/detail-dialog.js";
 import { FilterBar } from "../components/feed/filter-bar.js";
 import { Hero } from "../components/feed/hero.js";
@@ -12,7 +13,6 @@ import {
   type FeedFilter,
   type SortOrder,
 } from "../lib/feed.js";
-import { useAppStore } from "../store/app-store.js";
 
 /** Feed rows shown before the reader asks for more. */
 const PAGE_SIZE = 6;
@@ -22,13 +22,13 @@ export const Route = createFileRoute("/")({
 });
 
 function FeedPage() {
-  const items = useAppStore((s) => s.items);
+  const { data: items = [], isLoading } = useGetApiItems();
 
   const [filter, setFilter] = useState<FeedFilter>("Kaikki");
   const [sort, setSort] = useState<SortOrder>("new");
   const [search, setSearch] = useState("");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const [detailId, setDetailId] = useState<number | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   const filtered = sortFeedItems(filterFeedItems(items, filter, search), sort);
   const visible = filtered.slice(0, visibleCount);
@@ -56,7 +56,7 @@ function FeedPage() {
         onSearch={updateSearch}
       />
       <div className="mx-auto w-full max-w-[1240px] px-4 pt-1 pb-10 md:px-12 md:pb-12">
-        {filtered.length === 0 && (
+        {!isLoading && filtered.length === 0 && (
           <p className="py-16 text-center text-base text-muted">
             Ei osumia haulla. Kokeile toista hakusanaa — rahareikiä kyllä riittää.
           </p>

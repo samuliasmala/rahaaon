@@ -1,8 +1,18 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "stream",
-  "globalDependencies": ["tsconfig.base.json"],
-  "globalEnv": ["NODE_ENV", "CI"],
+  "globalDependencies": ["tsconfig.base.json", ".env.example"],
+  "globalEnv": [
+    "NODE_ENV",
+    "CI",
+    "PORT",
+    "APP_URL",
+    "API_URL",
+    "DATABASE_URL",
+    "AUTH_SECRET",
+    "SEED_ADMIN_PASSWORD",
+    "LOG_LEVEL"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

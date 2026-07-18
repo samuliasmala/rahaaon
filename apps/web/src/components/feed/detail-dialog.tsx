@@ -1,14 +1,13 @@
 import { VoteButton } from "./vote-button.js";
-import { formatAge, formatCount, formatEur } from "../../lib/format.js";
+import { daysSince, formatAge, formatCount, formatEur } from "../../lib/format.js";
 import { copyLink } from "../../lib/share.js";
-import { useAppStore } from "../../store/app-store.js";
+import { useToggleVote } from "../../lib/votes.js";
 import { Button } from "../ui/button.js";
 import { Dialog, DialogHeader } from "../ui/dialog.js";
-import type { WasteItem } from "../../lib/types.js";
+import type { WasteItem } from "../../api/model/index.js";
 
 export function DetailDialog({ item, onClose }: { item: WasteItem | null; onClose: () => void }) {
-  const voted = useAppStore((s) => (item ? Boolean(s.voted[item.id]) : false));
-  const toggleVote = useAppStore((s) => s.toggleVote);
+  const voteMutation = useToggleVote();
 
   return (
     <Dialog
@@ -26,7 +25,7 @@ export function DetailDialog({ item, onClose }: { item: WasteItem | null; onClos
           </DialogHeader>
           <div className="flex flex-col gap-5 p-4.5 md:p-8">
             <p className="font-display text-[34px]/none font-bold text-accent tabular md:text-[52px]/none">
-              {formatEur(item.amount)}
+              {formatEur(item.amountEur)}
             </p>
             <h2 className="text-[21px]/[1.3] font-bold tracking-[-0.01em] md:text-[27px]/[1.25]">
               {item.title}
@@ -34,9 +33,9 @@ export function DetailDialog({ item, onClose }: { item: WasteItem | null; onClos
             <p className="flex flex-wrap items-center gap-2.5 text-[13px] text-muted">
               <span className="font-semibold text-body">{item.entity}</span>
               <span aria-hidden>·</span>
-              <span>{formatAge(item.days)}</span>
+              <span>{formatAge(daysSince(item.publishedAt))}</span>
               <span aria-hidden>·</span>
-              <span>Lähde: {item.source}</span>
+              <span>Lähde: {item.sourceName}</span>
             </p>
             <div className="flex flex-col gap-2 rounded-lg border border-hairline bg-surface px-5.5 py-5">
               <p className="text-[11px] font-semibold tracking-[0.08em] text-muted uppercase">
@@ -44,26 +43,28 @@ export function DetailDialog({ item, onClose }: { item: WasteItem | null; onClos
               </p>
               <p className="text-[15px]/[1.65]">{item.summary}</p>
             </div>
-            <blockquote className="border-l-[3px] border-hairline-strong py-1 pl-4.5 font-serif text-[15px]/[1.6] text-body italic">
-              &ldquo;{item.quote}&rdquo;
-              <span className="font-sans text-[13px] text-muted not-italic">
-                &nbsp;&nbsp;— {item.source}
-              </span>
-            </blockquote>
+            {item.quote && (
+              <blockquote className="border-l-[3px] border-hairline-strong py-1 pl-4.5 font-serif text-[15px]/[1.6] text-body italic">
+                &ldquo;{item.quote}&rdquo;
+                <span className="font-sans text-[13px] text-muted not-italic">
+                  &nbsp;&nbsp;— {item.sourceName}
+                </span>
+              </blockquote>
+            )}
             <div className="flex flex-wrap items-center gap-3 pt-1.5">
               <VoteButton
-                voted={voted}
-                onClick={() => toggleVote(item.id)}
+                voted={item.voted}
+                onClick={() => voteMutation.mutate({ id: item.id })}
                 className="gap-2 px-5.5 py-3 text-[15px]"
               >
                 Tämä on turhaa&nbsp;·&nbsp;
                 <span className="tabular">{formatCount(item.votes)}</span>
               </VoteButton>
-              <Button variant="outline" size="lg" onClick={() => void copyLink(item.url)}>
+              <Button variant="outline" size="lg" onClick={() => void copyLink(item.sourceUrl)}>
                 Jaa
               </Button>
               <a
-                href={item.url}
+                href={item.sourceUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="ml-auto text-sm font-semibold text-accent hover:text-accent-deep"

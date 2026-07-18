@@ -1,0 +1,43 @@
+{
+  "name": "@rahaaon/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "build": "tsdown",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run --exclude \"**/*.int.test.ts\"",
+    "test:integration": "vitest run int.test.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:seed": "tsx src/db/seed.ts",
+    "db:studio": "drizzle-kit studio",
+    "openapi:export": "tsx src/openapi-export.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.14.0",
+    "@hono/swagger-ui": "^0.6.1",
+    "@hono/zod-openapi": "^1.4.0",
+    "better-auth": "^1.6.0",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.0",
+    "pino": "^9.6.0",
+    "postgres": "^3.4.5",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "^10.16.0",
+    "@types/node": "catalog:",
+    "drizzle-kit": "^0.31.10",
+    "pino-pretty": "^13.0.0",
+    "testcontainers": "^10.16.0",
+    "tsdown": "^0.22.7",
+    "tsx": "^4.19.2",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

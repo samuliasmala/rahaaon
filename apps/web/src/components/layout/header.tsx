@@ -1,11 +1,18 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useAppStore } from "../../store/app-store.js";
+import { useGetApiAdminSuggestions } from "../../api/admin/admin.js";
+import { meQueryOptions } from "../../lib/session.js";
 import { useUiStore } from "../../store/ui-store.js";
 import { Button } from "../ui/button.js";
 
 export function Header() {
-  const queueCount = useAppStore((s) => s.queue.length);
   const openSuggest = useUiStore((s) => s.openSuggest);
+  const { data: me } = useQuery(meQueryOptions);
+  // The queue badge is editorial-only data; don't even ask when signed out.
+  const { data: queue } = useGetApiAdminSuggestions({
+    query: { enabled: Boolean(me) },
+  });
+  const queueCount = queue?.length ?? 0;
 
   return (
     <header className="sticky top-0 z-40 flex items-center justify-between gap-3 border-b border-hairline bg-paper px-4 py-3.5 md:px-12">

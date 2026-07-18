@@ -5,7 +5,14 @@
 **/node_modules/**
 pnpm-lock.yaml
 **/routeTree.gen.ts
+apps/web/src/api/**
 **/*.gen.ts
+
+# Generated OpenAPI document (source for orval codegen).
+apps/api/openapi.json
+
+# Drizzle-generated migrations + metadata — owned by drizzle-kit, not Prettier.
+apps/api/drizzle/
 
 # Design references — kept verbatim, not Prettier-normalised.
 docs/

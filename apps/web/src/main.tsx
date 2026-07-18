@@ -1,3 +1,4 @@
+import { QueryClientProvider } from "@tanstack/react-query";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
@@ -8,11 +9,13 @@ import "@fontsource/ibm-plex-sans/500.css";
 import "@fontsource/ibm-plex-sans/600.css";
 import "@fontsource/ibm-plex-sans/700.css";
 import { NotFound } from "./components/layout/not-found.js";
+import { queryClient } from "./lib/query-client.js";
 import { routeTree } from "./routeTree.gen.ts";
 import "./styles/globals.css";
 
 const router = createRouter({
   routeTree,
+  context: { queryClient },
   defaultPreload: "intent",
   defaultNotFoundComponent: NotFound,
 });
@@ -28,7 +31,9 @@ if (!rootEl) throw new Error("Root element #root not found");
 
 createRoot(rootEl).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
     {/* The design's toast: a dark pill centered at the bottom of the viewport. */}
     <Toaster
       position="bottom-center"

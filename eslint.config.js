@@ -10,6 +10,7 @@ import prettierPlugin from "eslint-plugin-prettier";
 import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
+import security from "eslint-plugin-security";
 import turbo from "eslint-plugin-turbo";
 import unicorn from "eslint-plugin-unicorn";
 import unusedImports from "eslint-plugin-unused-imports";
@@ -28,6 +29,7 @@ export default tseslint.config(
       "**/node_modules/**",
       "**/*.gen.ts",
       "**/routeTree.gen.ts",
+      "apps/web/src/api/**",
     ],
   },
 
@@ -189,6 +191,19 @@ export default tseslint.config(
     },
   },
 
+  // 05 — Node backend: security lint
+  {
+    ...security.configs.recommended,
+    files: ["apps/api/src/**/*.ts"],
+    rules: {
+      ...security.configs.recommended.rules,
+      "security/detect-eval-with-expression": "error",
+      // Flags every computed key (`arr[i]`, `col[field]`) — all hits here are
+      // TS-typed loop indices or static-map lookups, never user-controlled.
+      "security/detect-object-injection": "off",
+    },
+  },
+
   // 07 — testing: Vitest (unit)
   {
     files: ["**/*.test.{ts,tsx}", "apps/web/src/test/**/*.{ts,tsx}"],
@@ -209,6 +224,17 @@ export default tseslint.config(
     rules: {
       "@typescript-eslint/only-throw-error": "off",
       "react-refresh/only-export-components": "off",
+    },
+  },
+  {
+    // CLI entry points log to the console by design.
+    files: [
+      "apps/api/src/db/seed.ts",
+      "apps/api/src/db/migrate.ts",
+      "apps/api/src/openapi-export.ts",
+    ],
+    rules: {
+      "no-console": "off",
     },
   },
   {

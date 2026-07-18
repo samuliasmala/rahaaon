@@ -2,7 +2,14 @@ packages:
   - "apps/*"
   - "packages/*"
 allowBuilds:
+  # Telemetry-only postinstall (orval dependency) — keep off.
+  "@scarf/scarf": false
+  # Optional native accelerators pulled in by testcontainers (ssh2) — the JS
+  # fallbacks are fine, so skip the node-gyp builds.
+  cpu-features: false
   esbuild: true
+  protobufjs: false
+  ssh2: false
   unrs-resolver: true
 catalog:
   "@types/node": "^24.0.0"

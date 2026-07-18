@@ -17,6 +17,9 @@
     "test": "turbo run test",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
+    "db:generate": "pnpm --filter @rahaaon/api db:generate",
+    "db:migrate": "pnpm --filter @rahaaon/api db:migrate",
+    "db:seed": "pnpm --filter @rahaaon/api db:seed",
     "prepare": "husky"
   },
   "devDependencies": {
@@ -34,6 +37,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.5.3",
+    "eslint-plugin-security": "^4.0.1",
     "eslint-plugin-turbo": "^2.10.5",
     "eslint-plugin-unicorn": "^72.0.0",
     "eslint-plugin-unused-imports": "^4.4.1",

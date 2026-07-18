@@ -1,14 +1,25 @@
+import { useQueryClient } from "@tanstack/react-query";
+import { getGetApiAdminItemsQueryKey, usePatchApiAdminItemsId } from "../../api/admin/admin.js";
+import { getGetApiItemsQueryKey } from "../../api/items/items.js";
 import { cn } from "../../lib/cn.js";
-import { formatAgeShort, formatCount, formatEur } from "../../lib/format.js";
-import { useAppStore } from "../../store/app-store.js";
+import { daysSince, formatAgeShort, formatCount, formatEur } from "../../lib/format.js";
 import { Button } from "../ui/button.js";
-import type { WasteItem } from "../../lib/types.js";
+import type { WasteItem } from "../../api/model/index.js";
 
 const GRID_COLS = "grid-cols-[1fr_150px_110px_90px_110px]";
 
 /** Every published item — hidden ones stay listed here, greyed out. */
 export function PublishedTable({ items }: { items: WasteItem[] }) {
-  const toggleHidden = useAppStore((s) => s.toggleHidden);
+  const queryClient = useQueryClient();
+  const toggleMutation = usePatchApiAdminItemsId({
+    mutation: {
+      onSuccess: () =>
+        Promise.all([
+          queryClient.invalidateQueries({ queryKey: getGetApiAdminItemsQueryKey() }),
+          queryClient.invalidateQueries({ queryKey: getGetApiItemsQueryKey() }),
+        ]),
+    },
+  });
 
   return (
     <div className="overflow-x-auto rounded-[10px] border border-hairline bg-surface">
@@ -41,11 +52,11 @@ export function PublishedTable({ items }: { items: WasteItem[] }) {
                 {item.title}
               </span>
               <span className="text-xs text-muted">
-                {item.category} · {item.source} · {formatAgeShort(item.days)}
+                {item.category} · {item.sourceName} · {formatAgeShort(daysSince(item.publishedAt))}
               </span>
             </div>
             <span className="font-display text-sm font-semibold text-accent tabular">
-              {formatEur(item.amount)}
+              {formatEur(item.amountEur)}
             </span>
             <span className="text-[13px] font-medium text-body">{item.entity}</span>
             <span className="text-[13px] font-medium text-body tabular">
@@ -55,7 +66,8 @@ export function PublishedTable({ items }: { items: WasteItem[] }) {
               variant="outline"
               size="sm"
               className="w-full px-0 text-xs"
-              onClick={() => toggleHidden(item.id)}
+              disabled={toggleMutation.isPending}
+              onClick={() => toggleMutation.mutate({ id: item.id, data: { hidden: !item.hidden } })}
             >
               {item.hidden ? "Palauta" : "Piilota"}
             </Button>

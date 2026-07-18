@@ -1,4 +1,4 @@
-import type { WasteItem } from "./types.js";
+import type { WasteItem } from "../api/model/index.js";
 
 /** Filter chips shown above the feed: two entity scopes + the most common categories. */
 export const FEED_FILTERS = [
@@ -27,7 +27,6 @@ export function filterFeedItems(
 ): WasteItem[] {
   const query = search.trim().toLowerCase();
   return items.filter((item) => {
-    if (item.hidden) return false;
     if (filter === "Valtio" && item.entity !== "Valtio") return false;
     if (filter === "Kaupungit" && NATIONAL_ENTITIES.includes(item.entity)) return false;
     if (
@@ -39,7 +38,8 @@ export function filterFeedItems(
       return false;
     }
     if (query) {
-      const haystack = `${item.title} ${item.entity} ${item.category} ${item.source}`.toLowerCase();
+      const haystack =
+        `${item.title} ${item.entity} ${item.category} ${item.sourceName}`.toLowerCase();
       if (!haystack.includes(query)) return false;
     }
     return true;
@@ -50,16 +50,16 @@ export function sortFeedItems(items: WasteItem[], sort: SortOrder): WasteItem[] 
   return [...items].sort((a, b) => {
     switch (sort) {
       case "amount":
-        return b.amount - a.amount;
+        return b.amountEur - a.amountEur;
       case "votes":
         return b.votes - a.votes;
       case "new":
-        return a.days - b.days;
+        return b.publishedAt.localeCompare(a.publishedAt);
     }
   });
 }
 
-/** Sum of all visible (non-hidden) items — the hero counter. */
+/** Sum of all listed items — the hero counter (the feed endpoint already excludes hidden). */
 export function totalRecorded(items: WasteItem[]): number {
-  return items.filter((item) => !item.hidden).reduce((sum, item) => sum + item.amount, 0);
+  return items.reduce((sum, item) => sum + item.amountEur, 0);
 }
