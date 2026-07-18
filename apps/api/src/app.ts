@@ -22,7 +22,7 @@ export function createApp() {
   app.use(
     "*",
     cors({
-      origin: env.APP_URL,
+      origin: [...new Set([env.APP_URL, "http://localhost:5174"])],
       credentials: true,
       allowHeaders: ["Content-Type", "Authorization"],
       allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],

@@ -21,6 +21,8 @@ export default defineConfig({
       // browser treats them as same-origin and the session cookie is shared.
       "/api": { target: "http://localhost:3001", changeOrigin: true },
     },
+    // Published through the host Caddy (TLS + reverse proxy to this port).
+    allowedHosts: ["rahaaon.asmala.fi"],
   },
   test: {
     environment: "node",
