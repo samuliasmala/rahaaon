@@ -1,11 +1,13 @@
-# Dev environment management. Only Postgres runs in Docker (docker-compose.yml);
-# the app itself (web + api) runs on the host via `pnpm dev`.
+# Dev environment management. The dev stack runs the app (Vite + tsx watch)
+# in a container with the repo bind-mounted — see docker-compose.dev.yml.
+#
+# Host ports are overridable to avoid clashes: WEB_PORT=5175 API_PORT=3002 make up
 
-COMPOSE := docker compose
+COMPOSE := docker compose -f docker-compose.yml -f docker-compose.dev.yml
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env up down dev logs ps migrate seed psql clean
+.PHONY: help env up down restart build logs ps shell migrate seed psql clean
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
@@ -19,29 +21,35 @@ env: ## Create .env from .env.example with a generated secret (no-op if .env exi
 		echo "Created .env from .env.example with a generated AUTH_SECRET — review URLs/ports if needed."; \
 	fi
 
-up: ## Start Postgres, detached
+up: ## Start the dev stack (app + db), detached
 	$(COMPOSE) up -d
 
-down: ## Stop Postgres (volume is kept)
+down: ## Stop the dev stack (volumes are kept)
 	$(COMPOSE) down
 
-dev: ## Run the app on the host (web + api via turbo)
-	pnpm dev
+restart: ## Restart the app container (db untouched)
+	$(COMPOSE) restart app
 
-logs: ## Follow Postgres logs
-	$(COMPOSE) logs -f db
+build: ## Rebuild the dev image (only needed when dev.Dockerfile changes)
+	$(COMPOSE) build
+
+logs: ## Follow app logs
+	$(COMPOSE) logs -f app
 
 ps: ## Show stack status
 	$(COMPOSE) ps
 
-migrate: ## Run database migrations (on the host)
-	pnpm db:migrate
+shell: ## Open a shell in the app container
+	$(COMPOSE) exec app bash
 
-seed: ## Seed the database (on the host)
-	pnpm db:seed
+migrate: ## Run database migrations (inside the app container)
+	$(COMPOSE) exec app pnpm db:migrate
+
+seed: ## Seed the database (inside the app container)
+	$(COMPOSE) exec app pnpm db:seed
 
 psql: ## Open psql against the dev database
 	$(COMPOSE) exec db psql -U rahaaon -d rahaaon
 
-clean: ## Stop Postgres and DELETE the db volume
+clean: ## Stop the stack and DELETE all volumes (db data, node_modules)
 	$(COMPOSE) down -v
