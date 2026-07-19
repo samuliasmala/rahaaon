@@ -4,12 +4,14 @@ import { useState } from "react";
 import {
   useGetApiAdminItems,
   useGetApiAdminSubmissions,
+  useGetApiAdminSubmissionsRejected,
   useGetApiAdminSuggestions,
   useGetApiAdminSuggestionsRejected,
 } from "../api/admin/admin.js";
 import { PublishedTable } from "../components/admin/published-table.js";
 import { QueueCard } from "../components/admin/queue-card.js";
 import { RejectedCard } from "../components/admin/rejected-card.js";
+import { RejectedSubmissionCard } from "../components/admin/rejected-submission-card.js";
 import { SubmissionCard } from "../components/admin/submission-card.js";
 import { signOut } from "../lib/auth-client.js";
 import { cn } from "../lib/cn.js";
@@ -31,9 +33,16 @@ function AdminPage() {
   const { data: me } = useQuery(meQueryOptions);
   const { data: submissions = [] } = useGetApiAdminSubmissions();
   const { data: queue = [] } = useGetApiAdminSuggestions();
-  const { data: rejected = [] } = useGetApiAdminSuggestionsRejected();
+  const { data: rejectedSuggestions = [] } = useGetApiAdminSuggestionsRejected();
+  const { data: rejectedSubmissions = [] } = useGetApiAdminSubmissionsRejected();
   const { data: items = [] } = useGetApiAdminItems();
   const [tab, setTab] = useState<AdminTab>("submissions");
+
+  // One archive for both kinds of rejections, newest first.
+  const rejected = [
+    ...rejectedSubmissions.map((entry) => ({ kind: "submission" as const, entry })),
+    ...rejectedSuggestions.map((entry) => ({ kind: "suggestion" as const, entry })),
+  ].sort((a, b) => b.entry.rejectedAt.localeCompare(a.entry.rejectedAt));
 
   async function handleSignOut() {
     await signOut();
@@ -105,9 +114,13 @@ function AdminPage() {
           {rejected.length === 0 && (
             <p className="py-14 text-center text-[15px] text-muted">Ei hylättyjä ehdotuksia.</p>
           )}
-          {rejected.map((entry) => (
-            <RejectedCard key={entry.id} entry={entry} />
-          ))}
+          {rejected.map((item) =>
+            item.kind === "submission" ? (
+              <RejectedSubmissionCard key={item.entry.id} entry={item.entry} />
+            ) : (
+              <RejectedCard key={item.entry.id} entry={item.entry} />
+            ),
+          )}
         </div>
       )}
     </main>

@@ -253,6 +253,16 @@ const SUBMISSIONS: SeedSubmission[] = [
   },
 ];
 
+/** One archived link rejection for the merged "Hylätyt" tab. */
+const REJECTED_SUBMISSION: SeedSubmission & { rejectedHoursAgo: number } = {
+  url: "https://esimerkki.blogspot.fi.invalid/mielipide-verot",
+  title: "MIELIPIDE: Kaikki verorahat menevät hukkaan!!",
+  description: "Nimettömän kirjoittajan blogimerkintä ilman lähteitä.",
+  siteName: "esimerkki.blogspot.fi.invalid",
+  hoursAgo: 12,
+  rejectedHoursAgo: 10,
+};
+
 async function main() {
   console.log("[seed] wiping content tables…");
   await db.delete(s.itemVote);
@@ -330,6 +340,15 @@ async function main() {
       createdAt: new Date(now - sub.hoursAgo * HOUR_MS),
     })),
   );
+  await db.insert(s.urlSubmission).values({
+    url: REJECTED_SUBMISSION.url,
+    title: REJECTED_SUBMISSION.title,
+    description: REJECTED_SUBMISSION.description,
+    siteName: REJECTED_SUBMISSION.siteName,
+    status: "rejected",
+    createdAt: new Date(now - REJECTED_SUBMISSION.hoursAgo * HOUR_MS),
+    processedAt: new Date(now - REJECTED_SUBMISSION.rejectedHoursAgo * HOUR_MS),
+  });
 
   console.log("[seed] creating editorial user…");
   // Public sign-up is disabled, so go through better-auth's internal adapter —
@@ -352,8 +371,8 @@ async function main() {
     items: ITEMS.length,
     votes: ITEMS.reduce((n, i) => n + i.votes, 0),
     suggestions: SUGGESTIONS.length,
-    rejected: 1,
     submissions: SUBMISSIONS.length,
+    rejected: { suggestions: 1, submissions: 1 },
   });
   console.log(`[seed] admin login: ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`);
 }

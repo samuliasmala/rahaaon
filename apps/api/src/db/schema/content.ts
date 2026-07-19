@@ -30,7 +30,11 @@ export const suggestionStatusEnum = pgEnum("suggestion_status", [
   "rejected",
 ]);
 
-export const urlSubmissionStatusEnum = pgEnum("url_submission_status", ["new", "processed"]);
+export const urlSubmissionStatusEnum = pgEnum("url_submission_status", [
+  "new",
+  "processed",
+  "rejected",
+]);
 
 /** A published waste-of-money story on the public feed. */
 export const wasteItem = pgTable("waste_item", {
@@ -77,8 +81,9 @@ export const suggestion = pgTable("suggestion", {
 
 /**
  * A raw reader-submitted link (the public "Ehdota kohde" flow). Lands here as
- * `status = 'new'`; an editor sends it onward to the AI queue ("process"),
- * which creates a {@link suggestion} row and marks this one `processed`.
+ * `status = 'new'`; an editor either sends it onward to the AI queue
+ * ("process", which creates a {@link suggestion} row) or rejects it into the
+ * archive — from where it can be restored back to `new`.
  */
 export const urlSubmission = pgTable("url_submission", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -89,6 +94,7 @@ export const urlSubmission = pgTable("url_submission", {
   siteName: text("site_name").notNull().default(""),
   status: urlSubmissionStatusEnum("status").notNull().default("new"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  /** When the entry left the queue — set on process AND reject, cleared on restore. */
   processedAt: timestamp("processed_at", { withTimezone: true }),
   /** Set when processed — the AI-queue entry this submission became. */
   suggestionId: uuid("suggestion_id").references(() => suggestion.id, {

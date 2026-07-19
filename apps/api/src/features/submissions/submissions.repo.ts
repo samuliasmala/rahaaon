@@ -4,7 +4,7 @@ import { suggestion, urlSubmission } from "../../db/schema/index.js";
 import { notFound } from "../../lib/http-errors.js";
 import { fetchPagePreview } from "../../lib/page-preview.js";
 import { extractArticle } from "../../lib/suggestion-ai.js";
-import type { UrlSubmissionView } from "./schemas.js";
+import type { RejectedUrlSubmissionView, UrlSubmissionView } from "./schemas.js";
 
 type SubmissionRow = typeof urlSubmission.$inferSelect;
 
@@ -46,6 +46,41 @@ export async function listNewSubmissions(): Promise<UrlSubmissionView[]> {
     .where(eq(urlSubmission.status, "new"))
     .orderBy(desc(urlSubmission.createdAt));
   return rows.map(toView);
+}
+
+/** Reject a link out of the queue (kept in the rejected archive). */
+export async function rejectSubmission(id: string): Promise<void> {
+  const updated = await db
+    .update(urlSubmission)
+    .set({ status: "rejected", processedAt: new Date() })
+    .where(and(eq(urlSubmission.id, id), eq(urlSubmission.status, "new")))
+    .returning({ id: urlSubmission.id });
+  if (updated.length === 0) throw notFound("Ehdotusta ei löytynyt");
+}
+
+/** The rejected-links archive, newest rejection first. */
+export async function listRejectedSubmissions(): Promise<RejectedUrlSubmissionView[]> {
+  const rows = await db
+    .select()
+    .from(urlSubmission)
+    .where(eq(urlSubmission.status, "rejected"))
+    .orderBy(desc(urlSubmission.processedAt));
+  return rows.map((row) => ({
+    ...toView(row),
+    // processedAt is always set on reject; the fallback only guards hand-edited rows.
+    rejectedAt: (row.processedAt ?? row.createdAt).toISOString(),
+  }));
+}
+
+/** Put a rejected link back into the Ehdotusjono. */
+export async function restoreSubmission(id: string): Promise<UrlSubmissionView> {
+  const [row] = await db
+    .update(urlSubmission)
+    .set({ status: "new", processedAt: null })
+    .where(and(eq(urlSubmission.id, id), eq(urlSubmission.status, "rejected")))
+    .returning();
+  if (!row) throw notFound("Ehdotusta ei löytynyt");
+  return toView(row);
 }
 
 /**

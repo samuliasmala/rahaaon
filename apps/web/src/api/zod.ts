@@ -289,3 +289,48 @@ export const postApiAdminSubmissionsIdProcessParams = zod.object({
 export const postApiAdminSubmissionsIdProcessResponse = zod.object({
   "suggestionId": zod.uuid()
 })
+
+
+/**
+ * @summary Reject a link out of the Ehdotusjono
+ */
+export const postApiAdminSubmissionsIdRejectParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const postApiAdminSubmissionsIdRejectResponse = zod.object({
+  "ok": zod.literal(true)
+})
+
+
+/**
+ * @summary The rejected-links archive, newest rejection first
+ */
+export const getApiAdminSubmissionsRejectedResponseItem = zod.object({
+  "id": zod.uuid(),
+  "url": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "siteName": zod.string(),
+  "createdAt": zod.iso.datetime({})
+}).and(zod.object({
+  "rejectedAt": zod.iso.datetime({})
+}))
+export const getApiAdminSubmissionsRejectedResponse = zod.array(getApiAdminSubmissionsRejectedResponseItem)
+
+
+/**
+ * @summary Restore a rejected link back to the Ehdotusjono
+ */
+export const postApiAdminSubmissionsIdRestoreParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const postApiAdminSubmissionsIdRestoreResponse = zod.object({
+  "id": zod.uuid(),
+  "url": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "siteName": zod.string(),
+  "createdAt": zod.iso.datetime({})
+})

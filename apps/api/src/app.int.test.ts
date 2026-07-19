@@ -280,6 +280,56 @@ describe("editorial loop", () => {
     rejectedSuggestionId = id;
   });
 
+  it("rejects and restores a url submission through the archive", async () => {
+    const created = await app.request(
+      "/api/submissions",
+      json({ url: "https://blogi.invalid/mutu-juttu" }),
+    );
+    const { id } = (await created.json()) as { id: string };
+
+    const rejectRes = await app.request(`/api/admin/submissions/${id}/reject`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(rejectRes.status).toBe(200);
+
+    // Out of the queue, into the archive; a rejected link can't be processed.
+    const listAfterReject = (await (
+      await app.request("/api/admin/submissions", { headers: { cookie: editorCookie } })
+    ).json()) as { id: string }[];
+    expect(listAfterReject.map((sub) => sub.id)).not.toContain(id);
+
+    const rejected = (await (
+      await app.request("/api/admin/submissions/rejected", { headers: { cookie: editorCookie } })
+    ).json()) as { id: string; rejectedAt: string }[];
+    expect(rejected.map((r) => r.id)).toContain(id);
+    expect(rejected.find((r) => r.id === id)?.rejectedAt).toBeTruthy();
+
+    const processAttempt = await app.request(`/api/admin/submissions/${id}/process`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(processAttempt.status).toBe(404);
+
+    // Restore puts it back into the Ehdotusjono; restore is one-shot.
+    const restoreRes = await app.request(`/api/admin/submissions/${id}/restore`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(restoreRes.status).toBe(200);
+
+    const listAfterRestore = (await (
+      await app.request("/api/admin/submissions", { headers: { cookie: editorCookie } })
+    ).json()) as { id: string }[];
+    expect(listAfterRestore.map((sub) => sub.id)).toContain(id);
+
+    const again = await app.request(`/api/admin/submissions/${id}/restore`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(again.status).toBe(404);
+  });
+
   it("restores a rejected suggestion back to the pending queue", async () => {
     const res = await app.request(`/api/admin/suggestions/${rejectedSuggestionId}/restore`, {
       method: "POST",

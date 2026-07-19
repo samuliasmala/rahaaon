@@ -26,3 +26,10 @@ export const urlSubmissionSchema = z
   .openapi("UrlSubmission");
 
 export type UrlSubmissionView = z.infer<typeof urlSubmissionSchema>;
+
+/** A rejected link in the admin archive; `rejectedAt` drives the "Hylätty … sitten" label. */
+export const rejectedUrlSubmissionSchema = urlSubmissionSchema
+  .extend({ rejectedAt: z.iso.datetime() })
+  .openapi("RejectedUrlSubmission");
+
+export type RejectedUrlSubmissionView = z.infer<typeof rejectedUrlSubmissionSchema>;

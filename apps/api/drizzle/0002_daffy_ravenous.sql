@@ -1,0 +1,1 @@
+ALTER TYPE "public"."url_submission_status" ADD VALUE 'rejected';

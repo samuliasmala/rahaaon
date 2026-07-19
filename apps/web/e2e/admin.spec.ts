@@ -13,10 +13,10 @@ test("admin page shows the seeded queues and the tabs switch", async ({ page }) 
   await expect(page.getByRole("heading", { name: "Ylläpito" })).toBeVisible();
   await expect(page.getByText(`Kirjautunut: ${ADMIN_EMAIL}`)).toBeVisible();
 
-  // Seed: 2 url submissions, 3 queued suggestions, 1 rejected, 8 published items.
+  // Seed: 2 url submissions, 3 queued suggestions, 1+1 rejected, 8 published items.
   await expect(page.getByRole("tab", { name: "Ehdotusjono (2)" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Tekoälyn käsittelemät (3)" })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Hylätyt (1)" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Hylätyt (2)" })).toBeVisible();
   await page.getByRole("tab", { name: "Julkaistut (8)" }).click();
   await expect(page.getByRole("tab", { name: "Julkaistut (8)" })).toHaveAttribute(
     "aria-selected",
@@ -117,6 +117,34 @@ test("rejecting and restoring a suggestion round-trips through Hylätyt", async 
   await expect(
     page.getByRole("tab", { name: `Tekoälyn käsittelemät (${queueBefore})` }),
   ).toBeVisible();
+});
+
+test("rejecting and restoring a link round-trips through Hylätyt", async ({ page }) => {
+  await page.goto("/admin");
+  const submissionsBefore = await tabCount(page, "Ehdotusjono");
+  const rejectedBefore = await tabCount(page, "Hylätyt");
+
+  // Reject the newest link in the Ehdotusjono.
+  const submissionCard = page.locator("section").first();
+  const url = await submissionCard.getByRole("link").innerText();
+  await submissionCard.getByRole("button", { name: "Hylkää" }).click();
+
+  const rejectedTabName = `Hylätyt (${rejectedBefore + 1})`;
+  await expect(page.getByRole("tab", { name: rejectedTabName })).toBeVisible();
+  await expect(
+    page.getByRole("tab", { name: `Ehdotusjono (${submissionsBefore - 1})` }),
+  ).toBeVisible();
+
+  // Restore it from the merged archive (newest rejection first) …
+  await page.getByRole("tab", { name: rejectedTabName }).click();
+  const rejectedCard = page.locator("section").first();
+  await expect(rejectedCard.getByText("Hylätty linkki")).toBeVisible();
+  await expect(rejectedCard.getByRole("link", { name: url })).toBeVisible();
+  await rejectedCard.getByRole("button", { name: "Palauta jonoon" }).click();
+
+  // … and both queues are back where they started.
+  await expect(page.getByRole("tab", { name: `Hylätyt (${rejectedBefore})` })).toBeVisible();
+  await expect(page.getByRole("tab", { name: `Ehdotusjono (${submissionsBefore})` })).toBeVisible();
 });
 
 test.describe("logged out", () => {

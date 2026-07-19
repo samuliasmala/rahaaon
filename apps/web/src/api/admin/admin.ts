@@ -30,9 +30,11 @@ import type {
   PatchItem,
   PatchSuggestion,
   PostApiAdminSubmissionsIdProcess200,
+  PostApiAdminSubmissionsIdReject200,
   PostApiAdminSuggestionsIdApprove200,
   PostApiAdminSuggestionsIdReject200,
   RejectedSuggestion,
+  RejectedUrlSubmission,
   Suggestion,
   UrlSubmission,
   WasteItem
@@ -784,6 +786,222 @@ export const usePostApiAdminSubmissionsIdProcess = <TError = ErrorResponse,
       > => {
 
       const mutationOptions = getPostApiAdminSubmissionsIdProcessMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary Reject a link out of the Ehdotusjono
+ */
+export const postApiAdminSubmissionsIdReject = (
+    id: string,
+ signal?: AbortSignal
+) => {
+      
+      
+      return apiFetch<PostApiAdminSubmissionsIdReject200>(
+      {url: `/api/admin/submissions/${id}/reject`, method: 'POST', ...(signal ? { signal }: {})
+    },
+      );
+    }
+  
+
+
+export const getPostApiAdminSubmissionsIdRejectMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdReject>>, TError,{id: string}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdReject>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['postApiAdminSubmissionsIdReject'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiAdminSubmissionsIdReject>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  postApiAdminSubmissionsIdReject(id,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiAdminSubmissionsIdRejectMutationResult = NonNullable<Awaited<ReturnType<typeof postApiAdminSubmissionsIdReject>>>
+    
+    export type PostApiAdminSubmissionsIdRejectMutationError = ErrorResponse
+
+    /**
+ * @summary Reject a link out of the Ehdotusjono
+ */
+export const usePostApiAdminSubmissionsIdReject = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdReject>>, TError,{id: string}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiAdminSubmissionsIdReject>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+
+      const mutationOptions = getPostApiAdminSubmissionsIdRejectMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary The rejected-links archive, newest rejection first
+ */
+export const getApiAdminSubmissionsRejected = (
+    
+ signal?: AbortSignal
+) => {
+      
+      
+      return apiFetch<RejectedUrlSubmission[]>(
+      {url: `/api/admin/submissions/rejected`, method: 'GET', ...(signal ? { signal }: {})
+    },
+      );
+    }
+  
+
+
+
+export const getGetApiAdminSubmissionsRejectedQueryKey = () => {
+    return [
+    `/api/admin/submissions/rejected`
+    ] as const;
+    }
+
+    
+export const getGetApiAdminSubmissionsRejectedQueryOptions = <TData = Awaited<ReturnType<typeof getApiAdminSubmissionsRejected>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsRejected>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetApiAdminSubmissionsRejectedQueryKey();
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiAdminSubmissionsRejected>>> = ({ signal }) => getApiAdminSubmissionsRejected(signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsRejected>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiAdminSubmissionsRejectedQueryResult = NonNullable<Awaited<ReturnType<typeof getApiAdminSubmissionsRejected>>>
+export type GetApiAdminSubmissionsRejectedQueryError = ErrorResponse
+
+
+export function useGetApiAdminSubmissionsRejected<TData = Awaited<ReturnType<typeof getApiAdminSubmissionsRejected>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsRejected>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAdminSubmissionsRejected>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAdminSubmissionsRejected>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAdminSubmissionsRejected<TData = Awaited<ReturnType<typeof getApiAdminSubmissionsRejected>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsRejected>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAdminSubmissionsRejected>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAdminSubmissionsRejected>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAdminSubmissionsRejected<TData = Awaited<ReturnType<typeof getApiAdminSubmissionsRejected>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsRejected>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The rejected-links archive, newest rejection first
+ */
+
+export function useGetApiAdminSubmissionsRejected<TData = Awaited<ReturnType<typeof getApiAdminSubmissionsRejected>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsRejected>>, TError, TData>>, }
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetApiAdminSubmissionsRejectedQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
+ * @summary Restore a rejected link back to the Ehdotusjono
+ */
+export const postApiAdminSubmissionsIdRestore = (
+    id: string,
+ signal?: AbortSignal
+) => {
+      
+      
+      return apiFetch<UrlSubmission>(
+      {url: `/api/admin/submissions/${id}/restore`, method: 'POST', ...(signal ? { signal }: {})
+    },
+      );
+    }
+  
+
+
+export const getPostApiAdminSubmissionsIdRestoreMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdRestore>>, TError,{id: string}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdRestore>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['postApiAdminSubmissionsIdRestore'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiAdminSubmissionsIdRestore>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  postApiAdminSubmissionsIdRestore(id,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiAdminSubmissionsIdRestoreMutationResult = NonNullable<Awaited<ReturnType<typeof postApiAdminSubmissionsIdRestore>>>
+    
+    export type PostApiAdminSubmissionsIdRestoreMutationError = ErrorResponse
+
+    /**
+ * @summary Restore a rejected link back to the Ehdotusjono
+ */
+export const usePostApiAdminSubmissionsIdRestore = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdRestore>>, TError,{id: string}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiAdminSubmissionsIdRestore>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+
+      const mutationOptions = getPostApiAdminSubmissionsIdRestoreMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }

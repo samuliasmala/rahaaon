@@ -1,6 +1,18 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { pagePreviewSchema, submitUrlSchema, urlSubmissionSchema } from "./schemas.js";
-import { createSubmission, listNewSubmissions, processSubmission } from "./submissions.repo.js";
+import {
+  pagePreviewSchema,
+  rejectedUrlSubmissionSchema,
+  submitUrlSchema,
+  urlSubmissionSchema,
+} from "./schemas.js";
+import {
+  createSubmission,
+  listNewSubmissions,
+  listRejectedSubmissions,
+  processSubmission,
+  rejectSubmission,
+  restoreSubmission,
+} from "./submissions.repo.js";
 import { commonErrorResponses, createRouter } from "../../lib/openapi.js";
 import { fetchPagePreview } from "../../lib/page-preview.js";
 import { requireAuth } from "../../middleware/auth.js";
@@ -95,5 +107,70 @@ submissionRoutes.openapi(
   async (c) => {
     const result = await processSubmission(c.req.valid("param").id);
     return c.json(result, 200);
+  },
+);
+
+submissionRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/admin/submissions/{id}/reject",
+    summary: "Reject a link out of the Ehdotusjono",
+    tags: ["Admin"],
+    middleware: [requireAuth] as const,
+    request: { params: idParam },
+    responses: {
+      200: {
+        description: "Rejected",
+        content: { "application/json": { schema: z.object({ ok: z.literal(true) }) } },
+      },
+      ...commonErrorResponses,
+    },
+  }),
+  async (c) => {
+    await rejectSubmission(c.req.valid("param").id);
+    return c.json({ ok: true as const }, 200);
+  },
+);
+
+submissionRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/admin/submissions/rejected",
+    summary: "The rejected-links archive, newest rejection first",
+    tags: ["Admin"],
+    middleware: [requireAuth] as const,
+    responses: {
+      200: {
+        description: "Rejected links",
+        content: { "application/json": { schema: z.array(rejectedUrlSubmissionSchema) } },
+      },
+      ...commonErrorResponses,
+    },
+  }),
+  async (c) => {
+    const rows = await listRejectedSubmissions();
+    return c.json(rows, 200);
+  },
+);
+
+submissionRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/admin/submissions/{id}/restore",
+    summary: "Restore a rejected link back to the Ehdotusjono",
+    tags: ["Admin"],
+    middleware: [requireAuth] as const,
+    request: { params: idParam },
+    responses: {
+      200: {
+        description: "Back in the queue",
+        content: { "application/json": { schema: urlSubmissionSchema } },
+      },
+      ...commonErrorResponses,
+    },
+  }),
+  async (c) => {
+    const restored = await restoreSubmission(c.req.valid("param").id);
+    return c.json(restored, 200);
   },
 );
