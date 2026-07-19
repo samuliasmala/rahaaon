@@ -36,8 +36,16 @@ beforeAll(async () => {
   process.env.AUTH_SECRET = "test-auth-secret-at-least-16-chars-long";
   process.env.NODE_ENV = "test";
   // A developer's .env may carry a real key; the suite must stay on the
-  // deterministic mock extraction (no live LLM calls, no cost).
-  delete process.env.OPENAI_API_KEY;
+  // deterministic mock extraction (no live LLM calls, no cost). Same for the
+  // S3 archive — this suite covers the archiving-disabled path (see
+  // archive.int.test.ts for the S3-enabled one). Set to "" rather than delete:
+  // env.ts treats empty as unset, while loadEnvFile would refill a DELETED var
+  // from the repo .env (it only skips vars that are present).
+  process.env.OPENAI_API_KEY = "";
+  process.env.S3_ENDPOINT = "";
+  process.env.S3_BUCKET = "";
+  process.env.S3_ACCESS_KEY_ID = "";
+  process.env.S3_SECRET_ACCESS_KEY = "";
 
   const migrationClient = postgres(process.env.DATABASE_URL, { max: 1 });
   await migrate(drizzle(migrationClient), { migrationsFolder: "./drizzle" });

@@ -3,17 +3,17 @@ import { z } from "zod";
 import { unavailable } from "./http-errors.js";
 import { languageModel, llmConfigured } from "./llm.js";
 import { logger } from "./logger.js";
-import { fetchPageText } from "./page-preview.js";
 import { env } from "../config/env.js";
 import { CATEGORIES, type Category } from "../db/schema/content.js";
 
 /**
- * The AI ingestion pipeline: fetch the submitted article and have an LLM draft
- * the suggestion (title, amount, entity, category, summary + caveats) for the
- * editorial queue. Provider-agnostic via the AI SDK — the model comes from
- * `lib/llm.ts`. Without an API key the extraction falls back to a fixed mock in
- * dev/test (so the flow works offline and in CI) and fails with a clear 503 in
- * production.
+ * The AI ingestion pipeline: have an LLM draft the suggestion (title, amount,
+ * entity, category, summary + caveats) for the editorial queue. The article
+ * text comes from the caller — normally the submit-time S3 archive, see
+ * `lib/article-archive.ts`. Provider-agnostic via the AI SDK — the model comes
+ * from `lib/llm.ts`. Without an API key the extraction falls back to a fixed
+ * mock in dev/test (so the flow works offline and in CI) and fails with a
+ * clear 503 in production.
  */
 
 export interface ArticleExtraction {
@@ -110,6 +110,7 @@ function finishExtraction(raw: z.infer<typeof extractionSchema>, url: string): A
 export async function extractArticle(
   url: string,
   context: SubmissionContext,
+  pageText: string,
 ): Promise<ArticleExtraction> {
   if (!llmConfigured) {
     if (env.isProd) {
@@ -118,7 +119,6 @@ export async function extractArticle(
     return mockExtraction(url);
   }
 
-  const pageText = await fetchPageText(url);
   try {
     const { object } = await generateObject({
       model: languageModel(),

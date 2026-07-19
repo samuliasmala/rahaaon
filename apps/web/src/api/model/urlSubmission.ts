@@ -5,6 +5,7 @@
  * Crowdsourced tracker of wasteful public spending (rahaaon.fi).
  * OpenAPI spec version: 0.1.0
  */
+import type { UrlSubmissionArchiveStatus } from './urlSubmissionArchiveStatus';
 
 export interface UrlSubmission {
   id: string;
@@ -13,4 +14,6 @@ export interface UrlSubmission {
   description: string;
   siteName: string;
   createdAt: string;
+  archiveStatus: UrlSubmissionArchiveStatus;
+  hasArchivedText: boolean;
 }

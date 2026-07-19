@@ -58,6 +58,20 @@ const rawSchema = z.object({
 
   /** Password given to the seeded editorial user (db:seed). */
   SEED_ADMIN_PASSWORD: z.preprocess(emptyToUndefined, z.string().min(8).optional()),
+
+  /**
+   * Object storage for the article archive (raw text captured at submit time).
+   * The same S3_* values the backup runner uses: R2 in prod, MinIO in the
+   * dev/test stacks and local dev. All four must be set for archiving to run —
+   * without them submissions simply skip archiving (archive_status stays null).
+   */
+  // Deliberately not .url(): the var is shared with the backup tooling, and a
+  // malformed value should break the optional archive feature at first use,
+  // not the whole API at boot.
+  S3_ENDPOINT: z.preprocess(emptyToUndefined, z.string().optional()),
+  S3_BUCKET: z.preprocess(emptyToUndefined, z.string().optional()),
+  S3_ACCESS_KEY_ID: z.preprocess(emptyToUndefined, z.string().optional()),
+  S3_SECRET_ACCESS_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
 });
 
 const DEV_AUTH_SECRET = "dev-only-insecure-auth-secret-0000000000";

@@ -1,8 +1,11 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../../db/client.js";
 import { suggestion, urlSubmission } from "../../db/schema/index.js";
-import { notFound } from "../../lib/http-errors.js";
-import { fetchPagePreview } from "../../lib/page-preview.js";
+import { archiveEnabled, archiveSubmission } from "../../lib/article-archive.js";
+import { notFound, unavailable } from "../../lib/http-errors.js";
+import { logger } from "../../lib/logger.js";
+import { fetchPagePreview, fetchPageText } from "../../lib/page-preview.js";
+import { getTextObject } from "../../lib/s3.js";
 import { extractArticle } from "../../lib/suggestion-ai.js";
 import type { RejectedUrlSubmissionView, UrlSubmissionView } from "./schemas.js";
 
@@ -16,13 +19,17 @@ function toView(row: SubmissionRow): UrlSubmissionView {
     description: row.description,
     siteName: row.siteName,
     createdAt: row.createdAt.toISOString(),
+    archiveStatus: row.archiveStatus,
+    hasArchivedText: row.archiveTextKey !== null,
   };
 }
 
 /**
  * Store a confirmed reader link in the Ehdotusjono. The page metadata is
  * captured server-side (normally straight from the preview cache — the reader
- * just confirmed it) so the admin list can show what was submitted.
+ * just confirmed it) so the admin list can show what was submitted. The page
+ * text archive runs fire-and-forget after the response — the submitter never
+ * waits on (or hears about) it; the row's archive_status tells the admin.
  */
 export async function createSubmission(url: string): Promise<UrlSubmissionView> {
   const preview = await fetchPagePreview(url);
@@ -33,8 +40,10 @@ export async function createSubmission(url: string): Promise<UrlSubmissionView> 
       title: preview.title,
       description: preview.description,
       siteName: preview.siteName,
+      ...(archiveEnabled ? { archiveStatus: "pending" as const } : {}),
     })
     .returning();
+  if (archiveEnabled) void archiveSubmission(row!.id, url);
   return toView(row!);
 }
 
@@ -84,14 +93,52 @@ export async function restoreSubmission(id: string): Promise<UrlSubmissionView> 
 }
 
 /**
+ * The archived page text for the admin download link. Works for any status —
+ * the rejected archive keeps its captured text too.
+ */
+export async function getSubmissionArchiveText(id: string): Promise<string> {
+  const [row] = await db
+    .select({ key: urlSubmission.archiveTextKey })
+    .from(urlSubmission)
+    .where(eq(urlSubmission.id, id))
+    .limit(1);
+  if (!row?.key) throw notFound("Arkistoitua tekstiä ei ole");
+  try {
+    return await getTextObject(row.key);
+  } catch (err) {
+    logger.error({ id, key: row.key, err: (err as Error).message }, "archive read failed");
+    throw unavailable("Arkiston lukeminen epäonnistui — yritä hetken kuluttua uudelleen");
+  }
+}
+
+/**
+ * The article text for the extraction: the submit-time S3 archive when one
+ * exists (the page as the reader saw it — no second download), otherwise one
+ * live fetch attempt (pre-archive rows, failed archives, archiving disabled).
+ */
+async function pageTextFor(entry: SubmissionRow): Promise<string> {
+  if (entry.archiveTextKey) {
+    try {
+      return await getTextObject(entry.archiveTextKey);
+    } catch (err) {
+      logger.warn(
+        { id: entry.id, key: entry.archiveTextKey, err: (err as Error).message },
+        "archived text unavailable, falling back to live fetch",
+      );
+    }
+  }
+  return (await fetchPageText(entry.url)).text;
+}
+
+/**
  * Send a submission onward to the AI queue: run the extraction and store the
  * result as a pending suggestion. The submission is kept, marked `processed`
  * and linked to the suggestion it became.
  */
 export async function processSubmission(id: string): Promise<{ suggestionId: string }> {
-  // The extraction (page fetch + LLM call) can take seconds, so it runs before
-  // the transaction — never while holding a row lock and a pool connection. On
-  // failure the submission stays 'new' and the editor can retry.
+  // The extraction (text retrieval + LLM call) can take seconds, so it runs
+  // before the transaction — never while holding a row lock and a pool
+  // connection. On failure the submission stays 'new' and the editor can retry.
   const [entry] = await db
     .select()
     .from(urlSubmission)
@@ -99,11 +146,11 @@ export async function processSubmission(id: string): Promise<{ suggestionId: str
     .limit(1);
   if (!entry) throw notFound("Ehdotusta ei löytynyt");
 
-  const extraction = await extractArticle(entry.url, {
-    title: entry.title,
-    description: entry.description,
-    siteName: entry.siteName,
-  });
+  const extraction = await extractArticle(
+    entry.url,
+    { title: entry.title, description: entry.description, siteName: entry.siteName },
+    await pageTextFor(entry),
+  );
 
   return db.transaction(async (tx) => {
     // Row lock + status re-check so two concurrent process calls can't both

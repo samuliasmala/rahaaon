@@ -7,6 +7,7 @@ import {
 } from "./schemas.js";
 import {
   createSubmission,
+  getSubmissionArchiveText,
   listNewSubmissions,
   listRejectedSubmissions,
   processSubmission,
@@ -107,6 +108,30 @@ submissionRoutes.openapi(
   async (c) => {
     const result = await processSubmission(c.req.valid("param").id);
     return c.json(result, 200);
+  },
+);
+
+submissionRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/admin/submissions/{id}/archive/text",
+    summary: "Download the page text archived at submit time",
+    tags: ["Admin"],
+    middleware: [requireAuth] as const,
+    request: { params: idParam },
+    responses: {
+      200: {
+        description: "The archived text, as a file attachment",
+        content: { "text/plain": { schema: z.string() } },
+      },
+      ...commonErrorResponses,
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const text = await getSubmissionArchiveText(id);
+    c.header("Content-Disposition", `attachment; filename="ehdotus-${id}.txt"`);
+    return c.text(text, 200);
   },
 );
 

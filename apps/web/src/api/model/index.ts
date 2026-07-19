@@ -33,5 +33,6 @@ export * from './rejectedUrlSubmissionAllOf';
 export * from './submitUrl';
 export * from './suggestion';
 export * from './urlSubmission';
+export * from './urlSubmissionArchiveStatus';
 export * from './voteResult';
 export * from './wasteItem';

@@ -790,6 +790,98 @@ export const usePostApiAdminSubmissionsIdProcess = <TError = ErrorResponse,
       return useMutation(mutationOptions, queryClient);
     }
     /**
+ * @summary Download the page text archived at submit time
+ */
+export const getApiAdminSubmissionsIdArchiveText = (
+    id: string,
+ signal?: AbortSignal
+) => {
+      
+      
+      return apiFetch<string>(
+      {url: `/api/admin/submissions/${id}/archive/text`, method: 'GET', ...(signal ? { signal }: {})
+    },
+      );
+    }
+  
+
+
+
+export const getGetApiAdminSubmissionsIdArchiveTextQueryKey = (id?: string,) => {
+    return [
+    `/api/admin/submissions/${id}/archive/text`
+    ] as const;
+    }
+
+    
+export const getGetApiAdminSubmissionsIdArchiveTextQueryOptions = <TData = Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetApiAdminSubmissionsIdArchiveTextQueryKey(id);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>> = ({ signal }) => getApiAdminSubmissionsIdArchiveText(id, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiAdminSubmissionsIdArchiveTextQueryResult = NonNullable<Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>>
+export type GetApiAdminSubmissionsIdArchiveTextQueryError = ErrorResponse
+
+
+export function useGetApiAdminSubmissionsIdArchiveText<TData = Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError = ErrorResponse>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAdminSubmissionsIdArchiveText<TData = Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAdminSubmissionsIdArchiveText<TData = Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Download the page text archived at submit time
+ */
+
+export function useGetApiAdminSubmissionsIdArchiveText<TData = Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError, TData>>, }
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetApiAdminSubmissionsIdArchiveTextQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
  * @summary Reject a link out of the Ehdotusjono
  */
 export const postApiAdminSubmissionsIdReject = (

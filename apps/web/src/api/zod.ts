@@ -274,7 +274,9 @@ export const getApiAdminSubmissionsResponseItem = zod.object({
   "title": zod.string(),
   "description": zod.string(),
   "siteName": zod.string(),
-  "createdAt": zod.iso.datetime({})
+  "createdAt": zod.iso.datetime({}),
+  "archiveStatus": zod.union([zod.literal('pending'),zod.literal('ok'),zod.literal('paywalled'),zod.literal('failed'),zod.literal(null)]).nullable(),
+  "hasArchivedText": zod.boolean()
 })
 export const getApiAdminSubmissionsResponse = zod.array(getApiAdminSubmissionsResponseItem)
 
@@ -288,6 +290,14 @@ export const postApiAdminSubmissionsIdProcessParams = zod.object({
 
 export const postApiAdminSubmissionsIdProcessResponse = zod.object({
   "suggestionId": zod.uuid()
+})
+
+
+/**
+ * @summary Download the page text archived at submit time
+ */
+export const getApiAdminSubmissionsIdArchiveTextParams = zod.object({
+  "id": zod.uuid()
 })
 
 
@@ -312,7 +322,9 @@ export const getApiAdminSubmissionsRejectedResponseItem = zod.object({
   "title": zod.string(),
   "description": zod.string(),
   "siteName": zod.string(),
-  "createdAt": zod.iso.datetime({})
+  "createdAt": zod.iso.datetime({}),
+  "archiveStatus": zod.union([zod.literal('pending'),zod.literal('ok'),zod.literal('paywalled'),zod.literal('failed'),zod.literal(null)]).nullable(),
+  "hasArchivedText": zod.boolean()
 }).and(zod.object({
   "rejectedAt": zod.iso.datetime({})
 }))
@@ -332,5 +344,7 @@ export const postApiAdminSubmissionsIdRestoreResponse = zod.object({
   "title": zod.string(),
   "description": zod.string(),
   "siteName": zod.string(),
-  "createdAt": zod.iso.datetime({})
+  "createdAt": zod.iso.datetime({}),
+  "archiveStatus": zod.union([zod.literal('pending'),zod.literal('ok'),zod.literal('paywalled'),zod.literal('failed'),zod.literal(null)]).nullable(),
+  "hasArchivedText": zod.boolean()
 })

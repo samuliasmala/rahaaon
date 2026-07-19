@@ -365,6 +365,22 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "archiveStatus": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "pending",
+              "ok",
+              "paywalled",
+              "failed",
+              null
+            ]
+          },
+          "hasArchivedText": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -373,7 +389,9 @@
           "title",
           "description",
           "siteName",
-          "createdAt"
+          "createdAt",
+          "archiveStatus",
+          "hasArchivedText"
         ]
       },
       "RejectedUrlSubmission": {
@@ -1846,6 +1864,107 @@
                   "required": [
                     "suggestionId"
                   ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Virheellinen pyyntö",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kirjautuminen vaaditaan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Ei käyttöoikeutta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ei löytynyt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validointivirhe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Palvelinvirhe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Palvelu ei tilapäisesti käytettävissä",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/submissions/{id}/archive/text": {
+      "get": {
+        "summary": "Download the page text archived at submit time",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The archived text, as a file attachment",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }

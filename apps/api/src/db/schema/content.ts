@@ -36,6 +36,12 @@ export const urlSubmissionStatusEnum = pgEnum("url_submission_status", [
   "rejected",
 ]);
 
+/**
+ * Outcome of the submit-time page archive (raw text to S3). NULL when
+ * archiving was never attempted (S3 not configured / pre-feature rows).
+ */
+export const archiveStatusEnum = pgEnum("archive_status", ["pending", "ok", "paywalled", "failed"]);
+
 /** A published waste-of-money story on the public feed. */
 export const wasteItem = pgTable("waste_item", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -93,6 +99,14 @@ export const urlSubmission = pgTable("url_submission", {
   description: text("description").notNull().default(""),
   siteName: text("site_name").notNull().default(""),
   status: urlSubmissionStatusEnum("status").notNull().default("new"),
+  /**
+   * Submit-time page archive: raw text is fetched right after the row is
+   * created and stored to S3 (fire-and-forget). `paywalled` = fetched but
+   * suspiciously little text. The S3 key is set whenever any text was saved —
+   * also for paywalled pages, so the editor can see what little there was.
+   */
+  archiveStatus: archiveStatusEnum("archive_status"),
+  archiveTextKey: text("archive_text_key"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   /** When the entry left the queue — set on process AND reject, cleared on restore. */
   processedAt: timestamp("processed_at", { withTimezone: true }),

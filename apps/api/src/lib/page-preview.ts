@@ -225,26 +225,32 @@ function htmlToText(html: string): string {
     .trim();
 }
 
+export interface PageText {
+  /** False when the page couldn't be read at all (network, non-HTML, blocked). */
+  fetched: boolean;
+  text: string;
+}
+
 /**
- * Fetch a page and reduce it to plain text for the AI extraction pipeline.
- * Same guarded fetch as the preview (SSRF check per redirect hop, timeout,
- * size cap). Best-effort like the preview: returns "" when the page can't be
- * read, and extraction falls back to the metadata captured at submit time.
+ * Fetch a page and reduce it to plain text for the archive/AI pipeline. Same
+ * guarded fetch as the preview (SSRF check per redirect hop, timeout, size
+ * cap). Best-effort like the preview: `fetched: false` with empty text when
+ * the page can't be read — callers fall back to the submit-time metadata.
  */
-export async function fetchPageText(url: string, maxChars = 15_000): Promise<string> {
+export async function fetchPageText(url: string, maxChars = 15_000): Promise<PageText> {
   try {
     const res = await fetchGuarded(url);
-    if (!res) return "";
+    if (!res) return { fetched: false, text: "" };
     const contentType = res.headers.get("content-type") ?? "";
     if (!res.ok || !contentType.includes("text/html")) {
       await res.body?.cancel();
-      return "";
+      return { fetched: false, text: "" };
     }
     const html = await readBodyCapped(res, MAX_HTML_BYTES);
-    return htmlToText(html).slice(0, maxChars);
+    return { fetched: true, text: htmlToText(html).slice(0, maxChars) };
   } catch (err) {
     logger.debug({ url, err: (err as Error).message }, "page text fetch failed");
-    return "";
+    return { fetched: false, text: "" };
   }
 }
 

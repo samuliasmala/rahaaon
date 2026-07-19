@@ -22,6 +22,13 @@ export const urlSubmissionSchema = z
     description: z.string(),
     siteName: z.string(),
     createdAt: z.iso.datetime(),
+    /**
+     * Outcome of the submit-time page archive; null when archiving was never
+     * attempted (S3 not configured / pre-feature rows).
+     */
+    archiveStatus: z.enum(["pending", "ok", "paywalled", "failed"]).nullable(),
+    /** True when archived page text exists — the archive/text download works. */
+    hasArchivedText: z.boolean(),
   })
   .openapi("UrlSubmission");
 

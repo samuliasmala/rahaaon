@@ -16,6 +16,9 @@ services:
       # bind-mounted .env (whose host-port URL doesn't apply inside the network)
       # because an already-set env var wins over process.loadEnvFile.
       DATABASE_URL: postgres://rahaaon:rahaaon@db:5432/rahaaon
+      # Same service-name trick for MinIO (article archive). Credentials still
+      # come from the bind-mounted .env — this only fixes the hostname.
+      S3_ENDPOINT: http://minio:9000
       # Interpolated from the repo .env (compose reads it), NOT hardcoded: the
       # dev stack is published at rahaaon.asmala.fi via host Caddy, so APP_URL
       # may be the public origin rather than localhost.

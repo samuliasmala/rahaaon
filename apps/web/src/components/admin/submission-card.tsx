@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ArchiveInfo } from "./archive-info.js";
 import {
   getGetApiAdminSubmissionsQueryKey,
   getGetApiAdminSubmissionsRejectedQueryKey,
@@ -81,6 +82,7 @@ export function SubmissionCard({ entry }: { entry: UrlSubmission }) {
           >
             {entry.url}
           </a>
+          <ArchiveInfo entry={entry} />
         </div>
         <div className="flex shrink-0 gap-2.5 md:self-center">
           <Button disabled={busy} onClick={() => void process()}>
