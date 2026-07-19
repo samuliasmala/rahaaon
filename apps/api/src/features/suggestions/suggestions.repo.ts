@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "../../db/client.js";
 import { suggestion, wasteItem } from "../../db/schema/index.js";
 import { notFound } from "../../lib/http-errors.js";
-import type { SuggestionView, patchSuggestionSchema } from "./schemas.js";
+import type { RejectedSuggestionView, SuggestionView, patchSuggestionSchema } from "./schemas.js";
 import type { z } from "@hono/zod-openapi";
 
 type SuggestionPatch = z.infer<typeof patchSuggestionSchema>;
@@ -82,7 +82,7 @@ export async function approveSuggestion(id: string): Promise<{ itemId: string }>
   });
 }
 
-/** Reject a pending suggestion (kept for audit, dropped from the queue). */
+/** Reject a pending suggestion (kept in the rejected archive, dropped from the queue). */
 export async function rejectSuggestion(id: string): Promise<void> {
   const updated = await db
     .update(suggestion)
@@ -90,4 +90,29 @@ export async function rejectSuggestion(id: string): Promise<void> {
     .where(and(eq(suggestion.id, id), eq(suggestion.status, "pending")))
     .returning({ id: suggestion.id });
   if (updated.length === 0) throw notFound("Ehdotusta ei löytynyt");
+}
+
+/** The rejected archive, newest rejection first. */
+export async function listRejectedSuggestions(): Promise<RejectedSuggestionView[]> {
+  const rows = await db
+    .select()
+    .from(suggestion)
+    .where(eq(suggestion.status, "rejected"))
+    .orderBy(desc(suggestion.reviewedAt));
+  return rows.map((row) => ({
+    ...toView(row),
+    // reviewedAt is always set on reject; the fallback only guards hand-edited rows.
+    rejectedAt: (row.reviewedAt ?? row.createdAt).toISOString(),
+  }));
+}
+
+/** Put a rejected suggestion back into the pending queue for a new verdict. */
+export async function restoreSuggestion(id: string): Promise<SuggestionView> {
+  const [row] = await db
+    .update(suggestion)
+    .set({ status: "pending", reviewedAt: null })
+    .where(and(eq(suggestion.id, id), eq(suggestion.status, "rejected")))
+    .returning();
+  if (!row) throw notFound("Ehdotusta ei löytynyt");
+  return toView(row);
 }

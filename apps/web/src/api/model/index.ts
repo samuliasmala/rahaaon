@@ -25,6 +25,8 @@ export * from './postApiSubmissions201';
 export * from './readiness';
 export * from './readinessDb';
 export * from './readinessStatus';
+export * from './rejectedSuggestion';
+export * from './rejectedSuggestionAllOf';
 export * from './submitUrl';
 export * from './suggestion';
 export * from './urlSubmission';

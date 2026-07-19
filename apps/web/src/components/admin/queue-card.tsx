@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import {
   getGetApiAdminItemsQueryKey,
   getGetApiAdminSuggestionsQueryKey,
+  getGetApiAdminSuggestionsRejectedQueryKey,
   usePatchApiAdminSuggestionsId,
   usePostApiAdminSuggestionsIdApprove,
   usePostApiAdminSuggestionsIdReject,
@@ -86,7 +87,10 @@ export function QueueCard({ entry }: { entry: Suggestion }) {
       toast("Hylkäys epäonnistui. Yritä uudelleen.");
       return;
     }
-    await refreshQueue();
+    await Promise.all([
+      refreshQueue(),
+      queryClient.invalidateQueries({ queryKey: getGetApiAdminSuggestionsRejectedQueryKey() }),
+    ]);
     toast("Ehdotus hylätty");
   }
 

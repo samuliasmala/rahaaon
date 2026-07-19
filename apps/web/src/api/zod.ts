@@ -191,6 +191,49 @@ export const postApiAdminSuggestionsIdRejectResponse = zod.object({
 
 
 /**
+ * @summary The rejected archive: rejected suggestions, newest rejection first
+ */
+export const getApiAdminSuggestionsRejectedResponseItem = zod.object({
+  "id": zod.uuid(),
+  "url": zod.string(),
+  "title": zod.string(),
+  "amountEur": zod.number(),
+  "entity": zod.string(),
+  "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']),
+  "sourceName": zod.string(),
+  "summary": zod.string(),
+  "aiNote": zod.string(),
+  "confidence": zod.number(),
+  "createdAt": zod.iso.datetime({})
+}).and(zod.object({
+  "rejectedAt": zod.iso.datetime({})
+}))
+export const getApiAdminSuggestionsRejectedResponse = zod.array(getApiAdminSuggestionsRejectedResponseItem)
+
+
+/**
+ * @summary Restore a rejected suggestion back to the pending queue
+ */
+export const postApiAdminSuggestionsIdRestoreParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const postApiAdminSuggestionsIdRestoreResponse = zod.object({
+  "id": zod.uuid(),
+  "url": zod.string(),
+  "title": zod.string(),
+  "amountEur": zod.number(),
+  "entity": zod.string(),
+  "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']),
+  "sourceName": zod.string(),
+  "summary": zod.string(),
+  "aiNote": zod.string(),
+  "confidence": zod.number(),
+  "createdAt": zod.iso.datetime({})
+})
+
+
+/**
  * @summary Fetch the google-like page preview for a link, without submitting anything
  */
 export const postApiSubmissionsPreviewBodyUrlMax = 2000;

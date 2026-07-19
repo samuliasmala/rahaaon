@@ -210,6 +210,23 @@ const SUGGESTIONS: SeedSuggestion[] = [
   },
 ];
 
+/** One archived rejection so the admin "Hylätyt" tab has content in demos. */
+const REJECTED: SeedSuggestion & { rejectedHoursAgo: number } = {
+  title: "Kaupunginjohtajan virka-auto vaihdettiin sähköiseen — latausasema unohtui",
+  amountEur: 92_000,
+  entity: "Pori",
+  category: "Muu",
+  sourceName: "Satakunnan Kansa",
+  url: "https://www.satakunnankansa.fi/paikalliset/virka-auto-lataus",
+  confidence: 45,
+  hoursAgo: 48,
+  rejectedHoursAgo: 30,
+  summary:
+    "Auto on ladattu naapurikunnan huoltoasemalla. Artikkelin mukaan latausasema on tilattu, " +
+    "mutta toimitusaika on 8 kuukautta.",
+  aiNote: "Matala varmuus: kulu voi olla normaali hankinta. Summa sisältää auton hinnan.",
+};
+
 interface SeedSubmission {
   url: string;
   title: string;
@@ -288,6 +305,21 @@ async function main() {
     })),
   );
 
+  await db.insert(s.suggestion).values({
+    url: REJECTED.url,
+    title: REJECTED.title,
+    amountEur: REJECTED.amountEur,
+    entity: REJECTED.entity,
+    category: REJECTED.category,
+    sourceName: REJECTED.sourceName,
+    summary: REJECTED.summary,
+    aiNote: REJECTED.aiNote,
+    confidence: REJECTED.confidence,
+    status: "rejected",
+    createdAt: new Date(now - REJECTED.hoursAgo * HOUR_MS),
+    reviewedAt: new Date(now - REJECTED.rejectedHoursAgo * HOUR_MS),
+  });
+
   console.log("[seed] inserting url submissions…");
   await db.insert(s.urlSubmission).values(
     SUBMISSIONS.map((sub) => ({
@@ -320,6 +352,7 @@ async function main() {
     items: ITEMS.length,
     votes: ITEMS.reduce((n, i) => n + i.votes, 0),
     suggestions: SUGGESTIONS.length,
+    rejected: 1,
     submissions: SUBMISSIONS.length,
   });
   console.log(`[seed] admin login: ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`);

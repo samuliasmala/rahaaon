@@ -20,6 +20,13 @@ export const suggestionSchema = z
 
 export type SuggestionView = z.infer<typeof suggestionSchema>;
 
+/** A rejected entry in the admin archive; `rejectedAt` drives the "Hylätty … sitten" label. */
+export const rejectedSuggestionSchema = suggestionSchema
+  .extend({ rejectedAt: z.iso.datetime() })
+  .openapi("RejectedSuggestion");
+
+export type RejectedSuggestionView = z.infer<typeof rejectedSuggestionSchema>;
+
 /** Editorial edits before publishing; all fields optional. */
 export const patchSuggestionSchema = z
   .object({

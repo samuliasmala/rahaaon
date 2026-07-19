@@ -119,6 +119,7 @@ describe("editorial loop", () => {
   let submissionId: string;
   let suggestionId: string;
   let itemId: string;
+  let rejectedSuggestionId: string;
 
   it("answers the page preview with a fallback for an unreachable link", async () => {
     const res = await app.request(
@@ -245,7 +246,7 @@ describe("editorial loop", () => {
     expect(adminItems.find((i) => i.id === itemId)?.hidden).toBe(true);
   });
 
-  it("rejects a suggestion out of the queue", async () => {
+  it("rejects a suggestion into the rejected archive", async () => {
     const created = await app.request(
       "/api/submissions",
       json({ url: "https://www.hs.fi.invalid/huono-juttu" }),
@@ -268,5 +269,41 @@ describe("editorial loop", () => {
     });
     const queue = (await queueRes.json()) as { id: string }[];
     expect(queue.map((q) => q.id)).not.toContain(id);
+
+    const rejectedRes = await app.request("/api/admin/suggestions/rejected", {
+      headers: { cookie: editorCookie },
+    });
+    const rejected = (await rejectedRes.json()) as { id: string; rejectedAt: string }[];
+    expect(rejected.map((r) => r.id)).toContain(id);
+    expect(rejected.find((r) => r.id === id)?.rejectedAt).toBeTruthy();
+
+    rejectedSuggestionId = id;
+  });
+
+  it("restores a rejected suggestion back to the pending queue", async () => {
+    const res = await app.request(`/api/admin/suggestions/${rejectedSuggestionId}/restore`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(res.status).toBe(200);
+
+    const queueRes = await app.request("/api/admin/suggestions", {
+      headers: { cookie: editorCookie },
+    });
+    const queue = (await queueRes.json()) as { id: string }[];
+    expect(queue.map((q) => q.id)).toContain(rejectedSuggestionId);
+
+    const rejectedRes = await app.request("/api/admin/suggestions/rejected", {
+      headers: { cookie: editorCookie },
+    });
+    const rejected = (await rejectedRes.json()) as { id: string }[];
+    expect(rejected.map((r) => r.id)).not.toContain(rejectedSuggestionId);
+
+    // Restore is one-shot: the suggestion is pending again, not rejected.
+    const again = await app.request(`/api/admin/suggestions/${rejectedSuggestionId}/restore`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(again.status).toBe(404);
   });
 });

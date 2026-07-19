@@ -5,15 +5,17 @@ import {
   useGetApiAdminItems,
   useGetApiAdminSubmissions,
   useGetApiAdminSuggestions,
+  useGetApiAdminSuggestionsRejected,
 } from "../api/admin/admin.js";
 import { PublishedTable } from "../components/admin/published-table.js";
 import { QueueCard } from "../components/admin/queue-card.js";
+import { RejectedCard } from "../components/admin/rejected-card.js";
 import { SubmissionCard } from "../components/admin/submission-card.js";
 import { signOut } from "../lib/auth-client.js";
 import { cn } from "../lib/cn.js";
 import { ensureMe, invalidateMe, meQueryOptions } from "../lib/session.js";
 
-type AdminTab = "submissions" | "queue" | "published";
+type AdminTab = "submissions" | "queue" | "published" | "rejected";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async ({ context }) => {
@@ -29,6 +31,7 @@ function AdminPage() {
   const { data: me } = useQuery(meQueryOptions);
   const { data: submissions = [] } = useGetApiAdminSubmissions();
   const { data: queue = [] } = useGetApiAdminSuggestions();
+  const { data: rejected = [] } = useGetApiAdminSuggestionsRejected();
   const { data: items = [] } = useGetApiAdminItems();
   const [tab, setTab] = useState<AdminTab>("submissions");
 
@@ -64,6 +67,9 @@ function AdminPage() {
         <TabButton active={tab === "published"} onClick={() => setTab("published")}>
           Julkaistut ({items.length})
         </TabButton>
+        <TabButton active={tab === "rejected"} onClick={() => setTab("rejected")}>
+          Hylätyt ({rejected.length})
+        </TabButton>
       </div>
 
       {tab === "submissions" && (
@@ -93,6 +99,17 @@ function AdminPage() {
       )}
 
       {tab === "published" && <PublishedTable items={items} />}
+
+      {tab === "rejected" && (
+        <div className="flex flex-col gap-5">
+          {rejected.length === 0 && (
+            <p className="py-14 text-center text-[15px] text-muted">Ei hylättyjä ehdotuksia.</p>
+          )}
+          {rejected.map((entry) => (
+            <RejectedCard key={entry.id} entry={entry} />
+          ))}
+        </div>
+      )}
     </main>
   );
 }

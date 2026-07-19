@@ -13,9 +13,10 @@ test("admin page shows the seeded queues and the tabs switch", async ({ page }) 
   await expect(page.getByRole("heading", { name: "Ylläpito" })).toBeVisible();
   await expect(page.getByText(`Kirjautunut: ${ADMIN_EMAIL}`)).toBeVisible();
 
-  // Seed creates 2 url submissions, 3 queued suggestions and 8 published items.
+  // Seed: 2 url submissions, 3 queued suggestions, 1 rejected, 8 published items.
   await expect(page.getByRole("tab", { name: "Ehdotusjono (2)" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Tekoälyn käsittelemät (3)" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Hylätyt (1)" })).toBeVisible();
   await page.getByRole("tab", { name: "Julkaistut (8)" }).click();
   await expect(page.getByRole("tab", { name: "Julkaistut (8)" })).toHaveAttribute(
     "aria-selected",
@@ -86,6 +87,36 @@ test("processing a submission moves it to the AI queue", async ({ page }) => {
   // The processed entry now sits in the AI queue with its source link intact.
   await page.getByRole("tab", { name: queueTabName }).click();
   await expect(page.getByRole("link", { name: url }).first()).toBeVisible();
+});
+
+test("rejecting and restoring a suggestion round-trips through Hylätyt", async ({ page }) => {
+  await page.goto("/admin");
+  const queueBefore = await tabCount(page, "Tekoälyn käsittelemät");
+  const rejectedBefore = await tabCount(page, "Hylätyt");
+
+  // Reject the newest queue entry.
+  await page.getByRole("tab", { name: `Tekoälyn käsittelemät (${queueBefore})` }).click();
+  const queueCard = page.locator("section").first();
+  const url = await queueCard.getByRole("link").innerText();
+  await queueCard.getByRole("button", { name: "Hylkää" }).click();
+
+  const rejectedTabName = `Hylätyt (${rejectedBefore + 1})`;
+  await expect(page.getByRole("tab", { name: rejectedTabName })).toBeVisible();
+  await expect(
+    page.getByRole("tab", { name: `Tekoälyn käsittelemät (${queueBefore - 1})` }),
+  ).toBeVisible();
+
+  // Restore it from the archive (newest rejection first) …
+  await page.getByRole("tab", { name: rejectedTabName }).click();
+  const rejectedCard = page.locator("section").first();
+  await expect(rejectedCard.getByRole("link", { name: url })).toBeVisible();
+  await rejectedCard.getByRole("button", { name: "Palauta jonoon" }).click();
+
+  // … and both queues are back where they started.
+  await expect(page.getByRole("tab", { name: `Hylätyt (${rejectedBefore})` })).toBeVisible();
+  await expect(
+    page.getByRole("tab", { name: `Tekoälyn käsittelemät (${queueBefore})` }),
+  ).toBeVisible();
 });
 
 test.describe("logged out", () => {

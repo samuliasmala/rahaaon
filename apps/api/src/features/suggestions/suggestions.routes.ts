@@ -1,9 +1,11 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { patchSuggestionSchema, suggestionSchema } from "./schemas.js";
+import { patchSuggestionSchema, rejectedSuggestionSchema, suggestionSchema } from "./schemas.js";
 import {
   approveSuggestion,
   listPendingSuggestions,
+  listRejectedSuggestions,
   rejectSuggestion,
+  restoreSuggestion,
   updateSuggestion,
 } from "./suggestions.repo.js";
 import { commonErrorResponses, createRouter } from "../../lib/openapi.js";
@@ -100,5 +102,48 @@ suggestionRoutes.openapi(
   async (c) => {
     await rejectSuggestion(c.req.valid("param").id);
     return c.json({ ok: true as const }, 200);
+  },
+);
+
+suggestionRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/admin/suggestions/rejected",
+    summary: "The rejected archive: rejected suggestions, newest rejection first",
+    tags: ["Admin"],
+    middleware: [requireAuth] as const,
+    responses: {
+      200: {
+        description: "Rejected suggestions",
+        content: { "application/json": { schema: z.array(rejectedSuggestionSchema) } },
+      },
+      ...commonErrorResponses,
+    },
+  }),
+  async (c) => {
+    const rows = await listRejectedSuggestions();
+    return c.json(rows, 200);
+  },
+);
+
+suggestionRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/admin/suggestions/{id}/restore",
+    summary: "Restore a rejected suggestion back to the pending queue",
+    tags: ["Admin"],
+    middleware: [requireAuth] as const,
+    request: { params: idParam },
+    responses: {
+      200: {
+        description: "Back in the queue",
+        content: { "application/json": { schema: suggestionSchema } },
+      },
+      ...commonErrorResponses,
+    },
+  }),
+  async (c) => {
+    const restored = await restoreSuggestion(c.req.valid("param").id);
+    return c.json(restored, 200);
   },
 );

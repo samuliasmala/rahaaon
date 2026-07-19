@@ -32,6 +32,7 @@ import type {
   PostApiAdminSubmissionsIdProcess200,
   PostApiAdminSuggestionsIdApprove200,
   PostApiAdminSuggestionsIdReject200,
+  RejectedSuggestion,
   Suggestion,
   UrlSubmission,
   WasteItem
@@ -475,6 +476,160 @@ export const usePostApiAdminSuggestionsIdReject = <TError = ErrorResponse,
       > => {
 
       const mutationOptions = getPostApiAdminSuggestionsIdRejectMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary The rejected archive: rejected suggestions, newest rejection first
+ */
+export const getApiAdminSuggestionsRejected = (
+    
+ signal?: AbortSignal
+) => {
+      
+      
+      return apiFetch<RejectedSuggestion[]>(
+      {url: `/api/admin/suggestions/rejected`, method: 'GET', ...(signal ? { signal }: {})
+    },
+      );
+    }
+  
+
+
+
+export const getGetApiAdminSuggestionsRejectedQueryKey = () => {
+    return [
+    `/api/admin/suggestions/rejected`
+    ] as const;
+    }
+
+    
+export const getGetApiAdminSuggestionsRejectedQueryOptions = <TData = Awaited<ReturnType<typeof getApiAdminSuggestionsRejected>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSuggestionsRejected>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetApiAdminSuggestionsRejectedQueryKey();
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiAdminSuggestionsRejected>>> = ({ signal }) => getApiAdminSuggestionsRejected(signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSuggestionsRejected>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiAdminSuggestionsRejectedQueryResult = NonNullable<Awaited<ReturnType<typeof getApiAdminSuggestionsRejected>>>
+export type GetApiAdminSuggestionsRejectedQueryError = ErrorResponse
+
+
+export function useGetApiAdminSuggestionsRejected<TData = Awaited<ReturnType<typeof getApiAdminSuggestionsRejected>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSuggestionsRejected>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAdminSuggestionsRejected>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAdminSuggestionsRejected>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAdminSuggestionsRejected<TData = Awaited<ReturnType<typeof getApiAdminSuggestionsRejected>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSuggestionsRejected>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAdminSuggestionsRejected>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAdminSuggestionsRejected>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAdminSuggestionsRejected<TData = Awaited<ReturnType<typeof getApiAdminSuggestionsRejected>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSuggestionsRejected>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The rejected archive: rejected suggestions, newest rejection first
+ */
+
+export function useGetApiAdminSuggestionsRejected<TData = Awaited<ReturnType<typeof getApiAdminSuggestionsRejected>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSuggestionsRejected>>, TError, TData>>, }
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetApiAdminSuggestionsRejectedQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
+ * @summary Restore a rejected suggestion back to the pending queue
+ */
+export const postApiAdminSuggestionsIdRestore = (
+    id: string,
+ signal?: AbortSignal
+) => {
+      
+      
+      return apiFetch<Suggestion>(
+      {url: `/api/admin/suggestions/${id}/restore`, method: 'POST', ...(signal ? { signal }: {})
+    },
+      );
+    }
+  
+
+
+export const getPostApiAdminSuggestionsIdRestoreMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSuggestionsIdRestore>>, TError,{id: string}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSuggestionsIdRestore>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['postApiAdminSuggestionsIdRestore'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiAdminSuggestionsIdRestore>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  postApiAdminSuggestionsIdRestore(id,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiAdminSuggestionsIdRestoreMutationResult = NonNullable<Awaited<ReturnType<typeof postApiAdminSuggestionsIdRestore>>>
+    
+    export type PostApiAdminSuggestionsIdRestoreMutationError = ErrorResponse
+
+    /**
+ * @summary Restore a rejected suggestion back to the pending queue
+ */
+export const usePostApiAdminSuggestionsIdRestore = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSuggestionsIdRestore>>, TError,{id: string}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiAdminSuggestionsIdRestore>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+
+      const mutationOptions = getPostApiAdminSuggestionsIdRestoreMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
