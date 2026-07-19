@@ -13,9 +13,9 @@ import type { UrlSubmission } from "../../api/model/index.js";
 
 /**
  * One reader-submitted link in the Ehdotusjono: the page metadata captured at
- * submit time plus the verdict — onward to the AI queue ("Käsittele"; the
- * actual AI processing is a stub for now, see the API's suggestion-ai module)
- * or into the rejected archive ("Hylkää").
+ * submit time plus the verdict — onward to the AI queue ("Käsittele"; runs the
+ * LLM extraction, see the API's suggestion-ai module) or into the rejected
+ * archive ("Hylkää").
  */
 export function SubmissionCard({ entry }: { entry: UrlSubmission }) {
   const queryClient = useQueryClient();

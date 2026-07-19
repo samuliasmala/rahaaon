@@ -84,23 +84,39 @@ export async function restoreSubmission(id: string): Promise<UrlSubmissionView> 
 }
 
 /**
- * Send a submission onward to the AI queue: run the extraction (a mock until
- * the real pipeline exists) and store the result as a pending suggestion. The
- * submission is kept, marked `processed` and linked to the suggestion it became.
+ * Send a submission onward to the AI queue: run the extraction and store the
+ * result as a pending suggestion. The submission is kept, marked `processed`
+ * and linked to the suggestion it became.
  */
 export async function processSubmission(id: string): Promise<{ suggestionId: string }> {
+  // The extraction (page fetch + LLM call) can take seconds, so it runs before
+  // the transaction — never while holding a row lock and a pool connection. On
+  // failure the submission stays 'new' and the editor can retry.
+  const [entry] = await db
+    .select()
+    .from(urlSubmission)
+    .where(and(eq(urlSubmission.id, id), eq(urlSubmission.status, "new")))
+    .limit(1);
+  if (!entry) throw notFound("Ehdotusta ei löytynyt");
+
+  const extraction = await extractArticle(entry.url, {
+    title: entry.title,
+    description: entry.description,
+    siteName: entry.siteName,
+  });
+
   return db.transaction(async (tx) => {
-    // Row lock so two concurrent process calls can't both read 'new' and
-    // insert duplicate suggestions; the loser sees 'processed' and 404s.
-    const [entry] = await tx
-      .select()
+    // Row lock + status re-check so two concurrent process calls can't both
+    // insert a suggestion; the loser (or a reject that raced the extraction)
+    // sees a non-'new' status and 404s, wasting only its LLM call.
+    const [locked] = await tx
+      .select({ id: urlSubmission.id })
       .from(urlSubmission)
       .where(and(eq(urlSubmission.id, id), eq(urlSubmission.status, "new")))
       .limit(1)
       .for("update");
-    if (!entry) throw notFound("Ehdotusta ei löytynyt");
+    if (!locked) throw notFound("Ehdotusta ei löytynyt");
 
-    const extraction = extractArticle(entry.url);
     const [created] = await tx
       .insert(suggestion)
       .values({ url: entry.url, ...extraction })

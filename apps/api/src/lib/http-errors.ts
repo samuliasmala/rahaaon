@@ -15,6 +15,7 @@ export type ErrorCode =
   | "conflict"
   | "unprocessable"
   | "rate_limited"
+  | "unavailable"
   | "internal_error";
 
 export class AppError extends Error {
@@ -41,6 +42,7 @@ export const conflict = (message: string, details?: unknown) =>
   new AppError(409, "conflict", message, details);
 export const unprocessable = (message: string, details?: unknown) =>
   new AppError(422, "unprocessable", message, details);
+export const unavailable = (message: string) => new AppError(503, "unavailable", message);
 
 /** The JSON error envelope returned to clients (and described in the OpenAPI doc). */
 export const errorResponseSchema = z

@@ -184,6 +184,70 @@ async function fetchGuarded(url: string): Promise<Response | null> {
   return null; // too many redirects
 }
 
+/**
+ * Remove every `open…close` block (script/style bodies, comments) with a
+ * linear indexOf scan. The regex equivalent (`<script[\s\S]*?<\/script>`) goes
+ * quadratic on adversarial input — 512KB of unclosed `<script` openers costs
+ * seconds of blocked event loop — and the fetched pages are submitter-chosen.
+ * When `close` doesn't end the block itself (`</script` needs its `>`), the
+ * scan skips to the next `>`. An unclosed block drops the rest of the document.
+ */
+function stripBlocks(html: string, open: string, close: string): string {
+  const lower = html.toLowerCase();
+  const parts: string[] = [];
+  let pos = 0;
+  for (;;) {
+    const start = lower.indexOf(open, pos);
+    if (start === -1) {
+      parts.push(html.slice(pos));
+      break;
+    }
+    parts.push(html.slice(pos, start), " ");
+    const closeAt = lower.indexOf(close, start + open.length);
+    if (closeAt === -1) break;
+    const blockEnd = close.endsWith(">") ? closeAt + close.length - 1 : lower.indexOf(">", closeAt);
+    if (blockEnd === -1) break;
+    pos = blockEnd + 1;
+  }
+  return parts.join("");
+}
+
+const NON_CONTENT_TAGS = ["script", "style", "noscript", "svg", "template"];
+
+/** Strip an HTML document down to its readable text, whitespace-collapsed. */
+function htmlToText(html: string): string {
+  let text = stripBlocks(html, "<!--", "-->");
+  for (const tag of NON_CONTENT_TAGS) {
+    text = stripBlocks(text, `<${tag}`, `</${tag}`);
+  }
+  return decodeEntities(text.replace(/<[^>]+>/g, " "))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Fetch a page and reduce it to plain text for the AI extraction pipeline.
+ * Same guarded fetch as the preview (SSRF check per redirect hop, timeout,
+ * size cap). Best-effort like the preview: returns "" when the page can't be
+ * read, and extraction falls back to the metadata captured at submit time.
+ */
+export async function fetchPageText(url: string, maxChars = 15_000): Promise<string> {
+  try {
+    const res = await fetchGuarded(url);
+    if (!res) return "";
+    const contentType = res.headers.get("content-type") ?? "";
+    if (!res.ok || !contentType.includes("text/html")) {
+      await res.body?.cancel();
+      return "";
+    }
+    const html = await readBodyCapped(res, MAX_HTML_BYTES);
+    return htmlToText(html).slice(0, maxChars);
+  } catch (err) {
+    logger.debug({ url, err: (err as Error).message }, "page text fetch failed");
+    return "";
+  }
+}
+
 export async function fetchPagePreview(url: string): Promise<PagePreview> {
   const cached = cache.get(url);
   if (cached && cached.expiresAt > Date.now()) return cached.preview;

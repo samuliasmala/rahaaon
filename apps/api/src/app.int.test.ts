@@ -35,6 +35,9 @@ beforeAll(async () => {
   process.env.DATABASE_URL = container.getConnectionUri();
   process.env.AUTH_SECRET = "test-auth-secret-at-least-16-chars-long";
   process.env.NODE_ENV = "test";
+  // A developer's .env may carry a real key; the suite must stay on the
+  // deterministic mock extraction (no live LLM calls, no cost).
+  delete process.env.OPENAI_API_KEY;
 
   const migrationClient = postgres(process.env.DATABASE_URL, { max: 1 });
   await migrate(drizzle(migrationClient), { migrationsFolder: "./drizzle" });

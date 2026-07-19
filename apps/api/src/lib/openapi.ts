@@ -36,4 +36,5 @@ export const commonErrorResponses = {
   404: errorResponse("Ei löytynyt"),
   422: errorResponse("Validointivirhe"),
   500: errorResponse("Palvelinvirhe"),
+  503: errorResponse("Palvelu ei tilapäisesti käytettävissä"),
 } as const;

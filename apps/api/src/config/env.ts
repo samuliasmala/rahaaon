@@ -29,6 +29,12 @@ if (!isProd) {
   }
 }
 
+/**
+ * The env templates ship `KEY=` lines; loadEnvFile turns those into empty
+ * strings, which must mean "unset" — not fail `min()` validation at boot.
+ */
+const emptyToUndefined = (v: unknown) => (v === "" ? undefined : v);
+
 const rawSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(3001),
@@ -39,10 +45,19 @@ const rawSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
 
   // Secrets: required in production, dev default otherwise.
-  AUTH_SECRET: z.string().min(16).optional(),
+  AUTH_SECRET: z.preprocess(emptyToUndefined, z.string().min(16).optional()),
+
+  /**
+   * LLM access for the AI ingestion pipeline (suggestion extraction). Optional:
+   * without a key dev/test fall back to the mock extraction; in production the
+   * process endpoint returns 503 until the key is configured.
+   */
+  OPENAI_API_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** Model used for article extraction; any OpenAI model id. */
+  LLM_MODEL: z.preprocess(emptyToUndefined, z.string().default("gpt-5-mini")),
 
   /** Password given to the seeded editorial user (db:seed). */
-  SEED_ADMIN_PASSWORD: z.string().min(8).optional(),
+  SEED_ADMIN_PASSWORD: z.preprocess(emptyToUndefined, z.string().min(8).optional()),
 });
 
 const DEV_AUTH_SECRET = "dev-only-insecure-auth-secret-0000000000";
