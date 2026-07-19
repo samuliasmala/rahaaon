@@ -4,19 +4,18 @@ Three environments on one Ubuntu VPS (shared with the vesi stacks), each an
 isolated Docker Compose stack (own Postgres/volumes), fronted by host **Caddy**
 for TLS. Images are built once by CI, pushed to **GHCR**, and pulled on the VPS.
 
-| Env  | Trigger                             | Domain                   | web port | project name   |
-| ---- | ----------------------------------- | ------------------------ | -------- | -------------- |
-| dev  | push to `main` (no CI gate)         | `dev.rahaaon.asmala.fi`  | 8091     | `rahaaon-dev`  |
-| test | push tag `vX.Y.Z`                   | `test.rahaaon.asmala.fi` | 8092     | `rahaaon-test` |
-| prod | **manual** (Actions → Run workflow) | `rahaaon.asmala.fi`      | 8090     | `rahaaon-prod` |
+| Env  | Trigger                             | Domain                    | web port | project name   |
+| ---- | ----------------------------------- | ------------------------- | -------- | -------------- |
+| dev  | push to `main` (no CI gate)         | `dev.rahaaon.samcode.fi`  | 8091     | `rahaaon-dev`  |
+| test | push tag `vX.Y.Z`                   | `test.rahaaon.samcode.fi` | 8092     | `rahaaon-test` |
+| prod | **manual** (Actions → Run workflow) | `rahaaon.samcode.fi`      | 8090     | `rahaaon-prod` |
 
 Prod reuses the **exact image** built for the `vX.Y.Z` tag that ran on test — no
 rebuild — so what you approve is byte-identical to what you tested.
 
-> **Note:** `rahaaon.asmala.fi` currently points at the host Vite dev server
-> (`:5174`, see the repo-root README / host Caddyfile). Deploying the prod stack
-> for the first time means replacing that Caddy block with the one in
-> `deploy/Caddyfile`.
+> **Note:** the dev-machine publish at `rahaaon.asmala.fi` (host Caddy → local
+> Vite `:5174`) is a separate setup on a different machine; it coexists with
+> these stacks and is unaffected by deploys.
 
 ---
 
@@ -69,8 +68,10 @@ git clone git@github.com-rahaaon:samuliasmala/rahaaon.git /srv/rahaaon
 cd /srv/rahaaon
 
 # Env files — one per stack (gitignored). deploy/init-env.sh fills the per-env
-# values (domain, WEB_PORT, BACKUP_ENV) and generates the DB password + secrets.
+# values (domain, WEB_PORT, BACKUP_ENV, MinIO vs R2) and generates the DB
+# password + secrets; then fill in what it lists as manual (prod R2 creds).
 make env-deploy ENV=dev && make env-deploy ENV=test && make env-deploy ENV=prod
+$EDITOR .env.prod
 ```
 
 **Back as root / sudo — host services:**
@@ -129,16 +130,13 @@ DEPLOY_ENV=prod DEPLOY_REF=v0.1.0 IMAGE_TAG=v0.1.0 REGISTRY=ghcr.io/samuliasmala
 
 ## Backups
 
-Daily `pg_dump` (compressed custom format) written to the VPS disk by the
-`backup` container, invoked by the systemd timers. Layout:
-`/srv/rahaaon/backups/<env>/rahaaon-<env>-<UTC-timestamp>-<label>.dump`
-(`label` = `daily` or `premigrate`). Kept `RETENTION_DAYS` (default 30); older
-dumps auto-pruned.
-
-These dumps live on the **same disk as the database** — they protect against
-bad migrations and fat-fingered deletes, not disk loss. Enable the VPS
-provider's **daily volume snapshots** as the off-machine layer (or add object
-storage later, like vesi's R2 pipeline).
+Daily `pg_dump` (compressed custom format) streamed straight to object storage
+by the `backup` container, invoked by the systemd timers. prod targets
+**Cloudflare R2**; dev/test target the stack's bundled **MinIO** (profile
+`minio`, console published on `127.0.0.1:${MINIO_CONSOLE_PORT}` — dev 9093 /
+test 9094). Layout in the bucket:
+`backups/<env>/rahaaon-<env>-<UTC-timestamp>-<label>.dump` (`label` = `daily`
+or `premigrate`). Kept `RETENTION_DAYS` (default 30); older dumps auto-pruned.
 
 Run one on demand:
 
@@ -153,8 +151,10 @@ into a live db:
 ```bash
 DC="docker compose -p rahaaon-prod --env-file .env.prod -f docker-compose.prod.yml"
 
-# 1. List available dumps and pick one.
-ls -lt backups/prod/
+# 1. List available dumps and pick one. (rclone-env.sh maps S3_* -> the rclone
+#    "r2" remote; a bare `--entrypoint rclone` would not see the credentials.)
+$DC --profile backup run --rm --entrypoint sh backup -c \
+  '. /usr/local/bin/rclone-env.sh && rclone ls "r2:$S3_BUCKET/backups/prod"'
 
 # 2. Stop the app so nothing writes during the restore. Leave db up.
 #    `migrate` is a one-shot, already exited.
@@ -162,14 +162,16 @@ $DC stop api web
 
 # 3. Restore. --clean drops/recreates objects first.
 $DC --profile backup run --rm --entrypoint sh backup -c \
-  'pg_restore --clean --if-exists --no-owner -d "$DATABASE_URL" /backups/prod/<FILE>.dump'
+  '. /usr/local/bin/rclone-env.sh && rclone cat "r2:$S3_BUCKET/backups/prod/<FILE>.dump" | pg_restore --clean --if-exists --no-owner -d "$DATABASE_URL"'
 
 # 4. Bring the app back up (waits for healthy).
 $DC up -d --wait
 ```
 
-**Rehearse this runbook once against the test stack** and note the measured
-restore time — an untested restore is a hypothesis, not a capability.
+Also enable your **VPS provider's daily volume snapshots** as cheap whole-disk
+insurance — complementary to the logical dumps, zero code. **Rehearse this
+runbook once against the test stack** and note the measured restore time — an
+untested restore is a hypothesis, not a capability.
 
 ## Monitoring
 

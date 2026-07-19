@@ -3,11 +3,11 @@
 # global options (ACME email, trusted_proxies) are owned there. Keep the
 # rahaaon blocks below in sync with it.
 #
-# NOTE: rahaaon.asmala.fi currently points at the host Vite dev server (:5174).
-# Deploying the prod stack means replacing that block with the one below.
+# (The dev-machine publish at rahaaon.asmala.fi — host Caddy → local Vite
+# :5174 — is a separate setup on a different machine and is unaffected.)
 #
-# DNS: point rahaaon / dev.rahaaon / test.rahaaon A (or AAAA) records at this
-# VPS's IP.
+# DNS: point rahaaon / dev.rahaaon / test.rahaaon samcode.fi A (or AAAA)
+# records at this VPS's IP.
 
 # Shared config for every rahaaon stack: compression + security response headers.
 (rahaaon_site) {
@@ -25,19 +25,19 @@
 }
 
 # prod  (WEB_PORT=8090)
-rahaaon.asmala.fi {
+rahaaon.samcode.fi {
 	import rahaaon_site
 	reverse_proxy 127.0.0.1:8090
 }
 
 # test  (WEB_PORT=8092)
-test.rahaaon.asmala.fi {
+test.rahaaon.samcode.fi {
 	import rahaaon_site
 	reverse_proxy 127.0.0.1:8092
 }
 
 # dev   (WEB_PORT=8091)
-dev.rahaaon.asmala.fi {
+dev.rahaaon.samcode.fi {
 	import rahaaon_site
 	reverse_proxy 127.0.0.1:8091
 }

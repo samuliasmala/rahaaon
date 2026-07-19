@@ -46,6 +46,61 @@ services:
       timeout: 5s
       retries: 10
 
+  # Self-hosted S3-compatible object storage for the dev/test stacks (DB backups).
+  # profile-gated ["minio"]: prod NEVER starts it — prod points S3_* at R2.
+  # deploy/deploy.sh activates --profile minio for dev/test. Root creds double as
+  # the S3 access key (reused by backup.sh), so both agree on ${S3_*}. Empty
+  # (`:-`) defaults — not `:?` — because interpolation runs before profile
+  # filtering, so a `:?` here would break every prod command (prod sets no
+  # MINIO_CONSOLE_PORT); the values only matter when the profile is on.
+  minio:
+    image: minio/minio:latest
+    profiles: ["minio"]
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:-}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:-}
+    logging: *default-logging
+    mem_limit: 512m
+    expose:
+      - "9000" # S3 API — internal to the stack network (backup uses minio:9000)
+    ports:
+      # Console on localhost only (tunnel to inspect). Unique per stack — set
+      # MINIO_CONSOLE_PORT in the env file (dev 9093 / test 9094; vesi's stacks
+      # hold 9091/9092 on the same VPS). If two dev/test stacks share the
+      # fallback the second `up` fails loudly on the port bind.
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # One-shot: create the bucket the backups expect, then exit.
+  # Own profile — activated only by the explicit `compose run minio-init` in
+  # deploy.sh (run auto-enables it). Keeps the one-shot out of the main
+  # `up --profile minio --wait` set, which treats its exit — even a successful
+  # one — as a failure (nothing depends_on it via service_completed_successfully).
+  # No depends_on either: deploy.sh brings minio up with `up --wait` right before
+  # `run minio-init`, and a depends_on on the profile-gated minio would make that
+  # `run` fail with "no such service: minio" unless --profile minio is also passed.
+  minio-init:
+    image: minio/mc:latest
+    profiles: ["minio-init"]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        mc alias set local http://minio:9000 "${S3_ACCESS_KEY_ID:-}" "${S3_SECRET_ACCESS_KEY:-}"
+        mc mb --ignore-existing "local/${S3_BUCKET:-rahaaon}"
+    logging: *default-logging
+    mem_limit: 128m
+    restart: "no"
+
   # One-shot: apply pending migrations, then exit. The api waits for it. Reuses
   # the api image (migrate.js is bundled into it) — no separate build/push.
   migrate:
@@ -119,7 +174,6 @@ services:
   # On-demand backup runner (profile-gated: never starts with `up`). Invoked by
   # deploy/deploy.sh and the systemd timer:
   #   docker compose --profile backup run --rm backup [label]
-  # Dumps land on the VPS disk under ./backups/<env>/ (bind mount below).
   # Backup image is decoupled from the app IMAGE_TAG: it's infra (pg_dump tied to
   # the Postgres major, not the app), so CI keeps a moving :stable tag. This lets
   # the daily timer / on-demand runs work without knowing the deployed app tag.
@@ -129,12 +183,11 @@ services:
       context: .
       dockerfile: docker/backup.Dockerfile
     profiles: ["backup"]
-    env_file: [".env.${DEPLOY_ENV:-prod}"] # DATABASE_URL, BACKUP_ENV, RETENTION_DAYS
-    volumes:
-      - ./backups:/backups
+    env_file: [".env.${DEPLOY_ENV:-prod}"] # DATABASE_URL, S3_*, BACKUP_ENV, RETENTION_DAYS
     depends_on:
       db:
         condition: service_healthy
 
 volumes:
   db_data:
+  minio_data:

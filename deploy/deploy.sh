@@ -36,11 +36,49 @@ main() {
   export DEPLOY_ENV IMAGE_TAG REGISTRY
   local dc=(docker compose -p "rahaaon-$DEPLOY_ENV" --env-file "$env_file" -f docker-compose.prod.yml)
 
+  # MinIO (self-hosted S3) runs in the dev/test stacks only; prod points S3_* at R2.
+  # Empty for prod so the minio profile is never activated there.
+  local storage_profile=()
+  [ "$DEPLOY_ENV" != "prod" ] && storage_profile=(--profile minio)
+
   echo "==> pulling images ($REGISTRY/*:$IMAGE_TAG)"
   # --profile backup: backup is profile-gated so a plain pull skips it, and its
   # :stable tag MOVES — nothing else re-pulls it (compose run only pulls a
   # missing image), so without this the VPS runs a stale backup image forever.
   "${dc[@]}" --profile backup pull db migrate api web backup
+
+  # Bring MinIO up before the pre-migration dump so the test backup — which targets
+  # it (S3_ENDPOINT=http://minio:9000) — has a live endpoint. dev skips backups;
+  # prod has no minio.
+  if [ "${#storage_profile[@]}" -ne 0 ]; then
+    # Fail fast on blank/short MinIO root creds. Blank creds don't stop MinIO (it
+    # falls back to built-in defaults and reports healthy) — minio-init then dies
+    # with an opaque "Access Denied" exit 1. Short creds fail MinIO's own minimums.
+    # Read from the env file (deploy.sh doesn't source it; compose does).
+    local s3_key s3_secret
+    s3_key="$(grep -E '^S3_ACCESS_KEY_ID=' "$env_file" | tail -1 | cut -d= -f2-)"
+    s3_secret="$(grep -E '^S3_SECRET_ACCESS_KEY=' "$env_file" | tail -1 | cut -d= -f2-)"
+    if [ "${#s3_key}" -lt 3 ] || [ "${#s3_secret}" -lt 8 ]; then
+      echo "MinIO needs S3_ACCESS_KEY_ID (>=3 chars) and S3_SECRET_ACCESS_KEY (>=8 chars)" >&2
+      echo "set in $env_file — see the object-storage block in .env.prod.example." >&2
+      exit 1
+    fi
+
+    echo "==> starting MinIO (object storage)"
+    "${dc[@]}" "${storage_profile[@]}" up -d --wait --wait-timeout 60 minio || {
+      echo "MinIO failed to start — aborting deploy" >&2; exit 1;
+    }
+    # `run` (not `up --wait`) for the bucket-init one-shot: up --wait treats any
+    # exited container as failed unless another service depends on it via
+    # service_completed_successfully — nothing depends on minio-init, so even a
+    # successful init (exit 0) would abort the deploy. run returns the real exit
+    # code and auto-enables the service's profile. Ordering: the up --wait above
+    # guarantees minio is healthy (minio-init has no depends_on in prod.yml —
+    # it would drag the profile-gated minio into scope and break this run).
+    "${dc[@]}" run --rm minio-init || {
+      echo "MinIO bucket init failed — aborting deploy" >&2; exit 1;
+    }
+  fi
 
   # Pre-migration safety dump for test/prod (db from the previous deploy is still
   # up, so this captures the pre-migration state). Skipped on the very first
@@ -56,7 +94,8 @@ main() {
   # --wait blocks until services are healthy and returns non-zero if any fail to
   # become healthy within the timeout, so a boot-broken image fails the deploy
   # (and the workflow) instead of reporting green while the API crash-loops.
-  "${dc[@]}" up -d --remove-orphans --wait --wait-timeout 120 || {
+  # storage_profile keeps MinIO in the active set so --remove-orphans won't reap it.
+  "${dc[@]}" "${storage_profile[@]}" up -d --remove-orphans --wait --wait-timeout 120 || {
     # Surface the usual culprit in the workflow log — a failed migration is
     # otherwise invisible without SSHing in.
     echo "==> up failed — migrate logs:" >&2

@@ -12,9 +12,6 @@ coverage/
 !.env.example
 !.env.prod.example
 
-# deployed-stack backups (VPS)
-backups/
-
 # logs
 *.log
 npm-debug.log*

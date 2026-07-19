@@ -9,9 +9,9 @@ cd "$(dirname "$0")/.."
 
 ENV="${1:-}"
 case "$ENV" in
-  dev)  DOMAIN=dev.rahaaon.asmala.fi;  WEB_PORT=8091 ;;
-  test) DOMAIN=test.rahaaon.asmala.fi; WEB_PORT=8092 ;;
-  prod) DOMAIN=rahaaon.asmala.fi;      WEB_PORT=8090 ;;
+  dev)  DOMAIN=dev.rahaaon.samcode.fi;  WEB_PORT=8091; MINIO_CONSOLE_PORT=9093 ;;
+  test) DOMAIN=test.rahaaon.samcode.fi; WEB_PORT=8092; MINIO_CONSOLE_PORT=9094 ;;
+  prod) DOMAIN=rahaaon.samcode.fi;      WEB_PORT=8090 ;;
   *) echo "usage: $0 dev|test|prod" >&2; exit 1 ;;
 esac
 
@@ -36,5 +36,19 @@ sed -i \
   -e "s|^SEED_ADMIN_PASSWORD=.*|SEED_ADMIN_PASSWORD=$(openssl rand -base64 18)|" \
   "$TARGET"
 
+if [ "$ENV" != prod ]; then
+  # dev/test use the bundled MinIO service (profile "minio") instead of R2
+  sed -i \
+    -e "s|^S3_ENDPOINT=.*|S3_ENDPOINT=http://minio:9000|" \
+    -e "s|^S3_ACCESS_KEY_ID=.*|S3_ACCESS_KEY_ID=rahaaon-$ENV|" \
+    -e "s|^S3_SECRET_ACCESS_KEY=.*|S3_SECRET_ACCESS_KEY=$(openssl rand -hex 24)|" \
+    -e "s|^S3_PROVIDER=.*|S3_PROVIDER=Minio|" \
+    -e "s|^# MINIO_CONSOLE_PORT=.*|MINIO_CONSOLE_PORT=$MINIO_CONSOLE_PORT|" \
+    "$TARGET"
+fi
+
 echo "Created $TARGET with generated secrets."
+if [ "$ENV" = prod ]; then
+  echo "Fill in manually: S3_ENDPOINT, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY (Cloudflare R2)."
+fi
 echo "Optional manual fill: BACKUP_PING_URL (dead-man's-switch for backups)."

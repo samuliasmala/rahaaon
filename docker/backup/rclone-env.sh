@@ -1,0 +1,10 @@
+# Configure an rclone S3 remote ("r2") entirely from env — no config file.
+# POSIX sh, sourced by backup.sh AND by manual list/restore commands
+# (see the runbook in DEPLOYMENT.md):
+#   … --entrypoint sh backup -c '. /usr/local/bin/rclone-env.sh && rclone ls …'
+export RCLONE_CONFIG_R2_TYPE=s3
+export RCLONE_CONFIG_R2_PROVIDER="${S3_PROVIDER:-Cloudflare}"
+export RCLONE_CONFIG_R2_ACCESS_KEY_ID="${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID is required}"
+export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY is required}"
+export RCLONE_CONFIG_R2_ENDPOINT="${S3_ENDPOINT}"
+export RCLONE_CONFIG_R2_ACL=private

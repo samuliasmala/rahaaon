@@ -21,9 +21,6 @@ coverage
 !.env.example
 !.env.prod.example
 
-# deployed-stack backups (VPS working dir doubles as build context)
-backups
-
 # test artifacts
 playwright-report
 test-results
