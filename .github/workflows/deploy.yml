@@ -1,0 +1,184 @@
+name: Deploy
+
+# Build images once in CI, push to GHCR, deploy to one of three stacks on the VPS.
+#
+#   push to main        -> dev   (image tag: sha-<short>, + moving :dev)
+#   push tag vX.Y.Z     -> test  (image tag: vX.Y.Z)
+#   manual (dispatch)   -> prod  (reuses the already-built vX.Y.Z image; no rebuild)
+#
+# Prod is a GitHub Environment — add required reviewers to it in repo settings so
+# the manual deploy needs an approval click. main should be branch-protected to
+# require CI green before merge; tags are cut from green main. See DEPLOYMENT.md.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag to deploy to PROD (e.g. v0.2.0). Must already exist / have been deployed to test."
+        required: true
+        type: string
+
+concurrency:
+  # Serialize ALL deploys: every stack shares one /srv/rahaaon checkout on the
+  # VPS, so a dev push, a test tag and a prod dispatch running at once would race
+  # on the working tree (deploy.sh does `git checkout --force`).
+  group: deploy-vps
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+  # ci-gate lists CI workflow runs; without this the API returns "Resource not
+  # accessible by integration" and the gate times out treating it as pending.
+  actions: read
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      env: ${{ steps.ctx.outputs.env }}
+      ref: ${{ steps.ctx.outputs.ref }}
+      image_tag: ${{ steps.ctx.outputs.image_tag }}
+      alias: ${{ steps.ctx.outputs.alias }}
+      do_build: ${{ steps.ctx.outputs.do_build }}
+    steps:
+      - id: ctx
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            v="${{ inputs.version }}"
+            case "$v" in
+              v*.*.*) : ;;
+              *) echo "::error::version must look like vX.Y.Z (got '$v')"; exit 1 ;;
+            esac
+            { echo "env=prod"; echo "ref=$v"; echo "image_tag=$v"; echo "alias="; echo "do_build=false"; } >> "$GITHUB_OUTPUT"
+          elif [ "${{ startsWith(github.ref, 'refs/tags/v') }}" = "true" ]; then
+            v="${{ github.ref_name }}"
+            { echo "env=test"; echo "ref=$v"; echo "image_tag=$v"; echo "alias="; echo "do_build=true"; } >> "$GITHUB_OUTPUT"
+          else
+            sha="${GITHUB_SHA::7}"
+            { echo "env=dev"; echo "ref=${GITHUB_SHA}"; echo "image_tag=sha-$sha"; echo "alias=dev"; echo "do_build=true"; } >> "$GITHUB_OUTPUT"
+          fi
+
+  # Gate the test-tag deploy on CI passing for the commit. dev is exempt: it's a
+  # throwaway preview stack, so a push to main builds + deploys it immediately
+  # without waiting on the ~several-minute CI suite (a broken *build* still fails
+  # the deploy). prod (workflow_dispatch) is exempt too: it redeploys an
+  # already-built tag that passed CI and a test deploy, so no fresh CI run.
+  ci-gate:
+    needs: setup
+    if: ${{ needs.setup.outputs.env == 'test' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require CI success for this commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          sha="${{ github.sha }}"
+          echo "Waiting for CI to conclude on ${sha}…"
+          errs=0
+          for i in $(seq 1 90); do
+            if run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${sha}&per_page=1" \
+                --jq '.workflow_runs[0] | "\(.status) \(.conclusion)"' 2>&1); then
+              errs=0
+              status="${run%% *}"; concl="${run##* }"
+              if [ "${status}" = "completed" ]; then
+                if [ "${concl}" = "success" ]; then echo "CI passed for ${sha}."; exit 0; fi
+                echo "::error::CI concluded '${concl}' for ${sha} — refusing to deploy."; exit 1
+              fi
+              echo "  CI status='${status:-pending}' (${i}/90)…"
+            else
+              # A broken API call (permissions, rate limit) must not read as
+              # "pending" for 30 minutes — surface it and fail fast.
+              errs=$((errs + 1))
+              if [ "${errs}" -ge 5 ]; then echo "::error::CI status check keeps failing: ${run}"; exit 1; fi
+              echo "  API error (${errs}/5): ${run} (${i}/90)…"
+            fi
+            sleep 20
+          done
+          echo "::error::Timed out waiting for CI on ${sha}."; exit 1
+
+  build:
+    needs: [setup, ci-gate]
+    # always() so a skipped ci-gate (dev/prod) doesn't cascade-skip the build;
+    # the explicit result check still blocks it when the gate ran and failed
+    # (test with red CI).
+    if: ${{ always() && needs.setup.outputs.do_build == 'true' && (needs.ci-gate.result == 'success' || needs.ci-gate.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: api
+            dockerfile: docker/api.Dockerfile
+          - name: web
+            dockerfile: docker/web.Dockerfile
+          - name: backup
+            dockerfile: docker/backup.Dockerfile
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: tags
+        run: |
+          set -euo pipefail
+          base="ghcr.io/${{ github.repository_owner }}/rahaaon-${{ matrix.name }}"
+          {
+            echo "tags<<EOF"
+            echo "$base:${{ needs.setup.outputs.image_tag }}"
+            if [ -n "${{ needs.setup.outputs.alias }}" ]; then echo "$base:${{ needs.setup.outputs.alias }}"; fi
+            # backup is infra — keep a moving :stable tag the timer/on-demand runs use.
+            if [ "${{ matrix.name }}" = "backup" ]; then echo "$base:stable"; fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,scope=${{ matrix.name }},mode=max
+
+  deploy:
+    needs: [setup, ci-gate, build]
+    # build is skipped for prod (image reused) and ci-gate is skipped for the prod
+    # dispatch — allow those paths through, but require both when they do run.
+    if: ${{ always() && needs.setup.result == 'success' && (needs.ci-gate.result == 'success' || needs.ci-gate.result == 'skipped') && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    environment: ${{ needs.setup.outputs.env }}
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        env:
+          DEPLOY_ENV: ${{ needs.setup.outputs.env }}
+          DEPLOY_REF: ${{ needs.setup.outputs.ref }}
+          IMAGE_TAG: ${{ needs.setup.outputs.image_tag }}
+          REGISTRY: ghcr.io/${{ github.repository_owner }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
+        with:
+          # Host/user are non-sensitive config → repository *variables*.
+          # Only the private key is a *secret*.
+          host: ${{ vars.VPS_HOST }}
+          username: ${{ vars.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: DEPLOY_ENV,DEPLOY_REF,IMAGE_TAG,REGISTRY,GHCR_USER,GHCR_TOKEN,DEPLOY_DIR
+          # `script_stop` was removed from ssh-action; `set -e` gives the same
+          # abort-on-first-error behaviour over the remote shell.
+          script: |
+            set -e
+            cd "${DEPLOY_DIR:-/srv/rahaaon}"
+            ./deploy/deploy.sh
