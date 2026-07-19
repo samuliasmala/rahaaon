@@ -43,7 +43,8 @@
     },
     "test:e2e": {
       "dependsOn": ["^build"],
-      "cache": false
+      "cache": false,
+      "env": ["E2E_ALLOW_REMOTE_DB"]
     }
   }
 }

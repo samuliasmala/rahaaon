@@ -25,7 +25,9 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  ArchiveTextEdit,
   ErrorResponse,
+  GetApiAdminSubmissionsIdArchiveTextParams,
   PatchApiAdminItemsId200,
   PatchItem,
   PatchSuggestion,
@@ -33,6 +35,7 @@ import type {
   PostApiAdminSubmissionsIdReject200,
   PostApiAdminSuggestionsIdApprove200,
   PostApiAdminSuggestionsIdReject200,
+  PutApiAdminSubmissionsIdArchiveText200,
   RejectedSuggestion,
   RejectedUrlSubmission,
   Suggestion,
@@ -790,16 +793,18 @@ export const usePostApiAdminSubmissionsIdProcess = <TError = ErrorResponse,
       return useMutation(mutationOptions, queryClient);
     }
     /**
- * @summary Download the page text archived at submit time
+ * @summary The page text (Markdown) archived at submit time
  */
 export const getApiAdminSubmissionsIdArchiveText = (
     id: string,
+    params?: GetApiAdminSubmissionsIdArchiveTextParams,
  signal?: AbortSignal
 ) => {
       
       
       return apiFetch<string>(
-      {url: `/api/admin/submissions/${id}/archive/text`, method: 'GET', ...(signal ? { signal }: {})
+      {url: `/api/admin/submissions/${id}/archive/text`, method: 'GET',
+        params, ...(signal ? { signal }: {})
     },
       );
     }
@@ -807,23 +812,25 @@ export const getApiAdminSubmissionsIdArchiveText = (
 
 
 
-export const getGetApiAdminSubmissionsIdArchiveTextQueryKey = (id?: string,) => {
+export const getGetApiAdminSubmissionsIdArchiveTextQueryKey = (id?: string,
+    params?: GetApiAdminSubmissionsIdArchiveTextParams,) => {
     return [
-    `/api/admin/submissions/${id}/archive/text`
+    `/api/admin/submissions/${id}/archive/text`, ...(params ? [params]: [])
     ] as const;
     }
 
     
-export const getGetApiAdminSubmissionsIdArchiveTextQueryOptions = <TData = Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError, TData>>, }
+export const getGetApiAdminSubmissionsIdArchiveTextQueryOptions = <TData = Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError = ErrorResponse>(id: string,
+    params?: GetApiAdminSubmissionsIdArchiveTextParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError, TData>>, }
 ) => {
 
 const {query: queryOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiAdminSubmissionsIdArchiveTextQueryKey(id);
+  const queryKey =  queryOptions?.queryKey ?? getGetApiAdminSubmissionsIdArchiveTextQueryKey(id,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>> = ({ signal }) => getApiAdminSubmissionsIdArchiveText(id, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>> = ({ signal }) => getApiAdminSubmissionsIdArchiveText(id,params, signal);
 
       
 
@@ -837,7 +844,8 @@ export type GetApiAdminSubmissionsIdArchiveTextQueryError = ErrorResponse
 
 
 export function useGetApiAdminSubmissionsIdArchiveText<TData = Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError = ErrorResponse>(
- id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError, TData>> & Pick<
+ id: string,
+    params: undefined |  GetApiAdminSubmissionsIdArchiveTextParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>,
           TError,
@@ -847,7 +855,8 @@ export function useGetApiAdminSubmissionsIdArchiveText<TData = Awaited<ReturnTyp
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiAdminSubmissionsIdArchiveText<TData = Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError = ErrorResponse>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError, TData>> & Pick<
+ id: string,
+    params?: GetApiAdminSubmissionsIdArchiveTextParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>,
           TError,
@@ -857,19 +866,21 @@ export function useGetApiAdminSubmissionsIdArchiveText<TData = Awaited<ReturnTyp
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiAdminSubmissionsIdArchiveText<TData = Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError = ErrorResponse>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError, TData>>, }
+ id: string,
+    params?: GetApiAdminSubmissionsIdArchiveTextParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Download the page text archived at submit time
+ * @summary The page text (Markdown) archived at submit time
  */
 
 export function useGetApiAdminSubmissionsIdArchiveText<TData = Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError = ErrorResponse>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError, TData>>, }
+ id: string,
+    params?: GetApiAdminSubmissionsIdArchiveTextParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsIdArchiveText>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiAdminSubmissionsIdArchiveTextQueryOptions(id,options)
+  const queryOptions = getGetApiAdminSubmissionsIdArchiveTextQueryOptions(id,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -882,6 +893,70 @@ export function useGetApiAdminSubmissionsIdArchiveText<TData = Awaited<ReturnTyp
 
 
 /**
+ * @summary Save a manually edited archive text (e.g. a pasted paywalled article)
+ */
+export const putApiAdminSubmissionsIdArchiveText = (
+    id: string,
+    archiveTextEdit: ArchiveTextEdit,
+ ) => {
+      
+      
+      return apiFetch<PutApiAdminSubmissionsIdArchiveText200>(
+      {url: `/api/admin/submissions/${id}/archive/text`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: archiveTextEdit
+    },
+      );
+    }
+  
+
+
+export const getPutApiAdminSubmissionsIdArchiveTextMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putApiAdminSubmissionsIdArchiveText>>, TError,{id: string;data: ArchiveTextEdit}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof putApiAdminSubmissionsIdArchiveText>>, TError,{id: string;data: ArchiveTextEdit}, TContext> => {
+
+const mutationKey = ['putApiAdminSubmissionsIdArchiveText'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof putApiAdminSubmissionsIdArchiveText>>, {id: string;data: ArchiveTextEdit}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  putApiAdminSubmissionsIdArchiveText(id,data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PutApiAdminSubmissionsIdArchiveTextMutationResult = NonNullable<Awaited<ReturnType<typeof putApiAdminSubmissionsIdArchiveText>>>
+    export type PutApiAdminSubmissionsIdArchiveTextMutationBody = ArchiveTextEdit
+    export type PutApiAdminSubmissionsIdArchiveTextMutationError = ErrorResponse
+
+    /**
+ * @summary Save a manually edited archive text (e.g. a pasted paywalled article)
+ */
+export const usePutApiAdminSubmissionsIdArchiveText = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putApiAdminSubmissionsIdArchiveText>>, TError,{id: string;data: ArchiveTextEdit}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof putApiAdminSubmissionsIdArchiveText>>,
+        TError,
+        {id: string;data: ArchiveTextEdit},
+        TContext
+      > => {
+
+      const mutationOptions = getPutApiAdminSubmissionsIdArchiveTextMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
  * @summary Reject a link out of the Ehdotusjono
  */
 export const postApiAdminSubmissionsIdReject = (

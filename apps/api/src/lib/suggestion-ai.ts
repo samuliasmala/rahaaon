@@ -88,7 +88,7 @@ function buildPrompt(url: string, context: SubmissionContext, pageText: string):
     context.title && `Page title: ${context.title}`,
     context.description && `Page description: ${context.description}`,
     pageText
-      ? `Article text (extracted from HTML, may contain page furniture):\n${pageText}`
+      ? `Article content (as Markdown, may contain page furniture like navigation links):\n${pageText}`
       : "The article text could not be fetched — work from the metadata above and say so in aiNote.",
   ];
   return parts.filter(Boolean).join("\n");

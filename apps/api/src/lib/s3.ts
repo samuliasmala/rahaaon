@@ -24,8 +24,9 @@ function s3(): S3Client {
       accessKeyId: env.S3_ACCESS_KEY_ID!,
       secretAccessKey: env.S3_SECRET_ACCESS_KEY!,
     },
-    // Objects are small (≤15 KB text); a stalled connection must not hang the
-    // admin download or the process endpoint that reads through pageTextFor.
+    // Objects are small (≤30 KB archives, ≤200 KB manual pastes); a stalled
+    // connection must not hang the admin download or the process endpoint
+    // that reads through pageTextFor.
     requestHandler: { connectionTimeout: 3_000, requestTimeout: 10_000 },
   });
   return client;
@@ -37,7 +38,9 @@ export async function putTextObject(key: string, body: string): Promise<void> {
       Bucket: env.S3_BUCKET,
       Key: key,
       Body: body,
-      ContentType: "text/plain; charset=utf-8",
+      ContentType: key.endsWith(".md")
+        ? "text/markdown; charset=utf-8"
+        : "text/plain; charset=utf-8",
     }),
   );
 }

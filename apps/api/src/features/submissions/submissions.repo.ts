@@ -1,11 +1,11 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../../db/client.js";
 import { suggestion, urlSubmission } from "../../db/schema/index.js";
-import { archiveEnabled, archiveSubmission } from "../../lib/article-archive.js";
+import { archiveEnabled, archiveKeyFor, archiveSubmission } from "../../lib/article-archive.js";
 import { notFound, unavailable } from "../../lib/http-errors.js";
 import { logger } from "../../lib/logger.js";
 import { fetchPagePreview, fetchPageText } from "../../lib/page-preview.js";
-import { getTextObject } from "../../lib/s3.js";
+import { getTextObject, putTextObject } from "../../lib/s3.js";
 import { extractArticle } from "../../lib/suggestion-ai.js";
 import type { RejectedUrlSubmissionView, UrlSubmissionView } from "./schemas.js";
 
@@ -93,10 +93,13 @@ export async function restoreSubmission(id: string): Promise<UrlSubmissionView> 
 }
 
 /**
- * The archived page text for the admin download link. Works for any status —
- * the rejected archive keeps its captured text too.
+ * The archived page text for the admin download/view. Works for any status —
+ * the rejected archive keeps its captured text too. The filename extension
+ * follows the stored key (new archives are .md, plain-text-era rows .txt).
  */
-export async function getSubmissionArchiveText(id: string): Promise<string> {
+export async function getSubmissionArchiveText(
+  id: string,
+): Promise<{ text: string; filename: string }> {
   const [row] = await db
     .select({ key: urlSubmission.archiveTextKey })
     .from(urlSubmission)
@@ -104,11 +107,39 @@ export async function getSubmissionArchiveText(id: string): Promise<string> {
     .limit(1);
   if (!row?.key) throw notFound("Arkistoitua tekstiä ei ole");
   try {
-    return await getTextObject(row.key);
+    const text = await getTextObject(row.key);
+    return { text, filename: `ehdotus-${id}${row.key.endsWith(".md") ? ".md" : ".txt"}` };
   } catch (err) {
     logger.error({ id, key: row.key, err: (err as Error).message }, "archive read failed");
     throw unavailable("Arkiston lukeminen epäonnistui — yritä hetken kuluttua uudelleen");
   }
+}
+
+/**
+ * Manual archive edit: the editor pastes/fixes the article text (e.g. the
+ * full body of a paywalled story). Overwrites or creates the S3 object and
+ * marks the archive usable — after this, processing reads the edited text.
+ */
+export async function saveSubmissionArchiveText(id: string, text: string): Promise<void> {
+  if (!archiveEnabled) throw unavailable("Arkistointi ei ole käytössä (S3 puuttuu)");
+  const [row] = await db
+    .select({ key: urlSubmission.archiveTextKey })
+    .from(urlSubmission)
+    .where(eq(urlSubmission.id, id))
+    .limit(1);
+  if (!row) throw notFound("Ehdotusta ei löytynyt");
+
+  const key = row.key ?? archiveKeyFor(id);
+  try {
+    await putTextObject(key, text);
+  } catch (err) {
+    logger.error({ id, key, err: (err as Error).message }, "archive write failed");
+    throw unavailable("Arkiston tallennus epäonnistui — yritä hetken kuluttua uudelleen");
+  }
+  await db
+    .update(urlSubmission)
+    .set({ archiveStatus: "ok", archiveTextKey: key })
+    .where(eq(urlSubmission.id, id));
 }
 
 /**

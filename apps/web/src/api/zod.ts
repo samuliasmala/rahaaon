@@ -294,10 +294,34 @@ export const postApiAdminSubmissionsIdProcessResponse = zod.object({
 
 
 /**
- * @summary Download the page text archived at submit time
+ * @summary The page text (Markdown) archived at submit time
  */
 export const getApiAdminSubmissionsIdArchiveTextParams = zod.object({
   "id": zod.uuid()
+})
+
+export const getApiAdminSubmissionsIdArchiveTextQueryParams = zod.object({
+  "download": zod.string().optional()
+})
+
+
+/**
+ * @summary Save a manually edited archive text (e.g. a pasted paywalled article)
+ */
+export const putApiAdminSubmissionsIdArchiveTextParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const putApiAdminSubmissionsIdArchiveTextBodyTextMax = 200000;
+
+
+
+export const putApiAdminSubmissionsIdArchiveTextBody = zod.object({
+  "text": zod.string().min(1).max(putApiAdminSubmissionsIdArchiveTextBodyTextMax)
+})
+
+export const putApiAdminSubmissionsIdArchiveTextResponse = zod.object({
+  "ok": zod.literal(true)
 })
 
 

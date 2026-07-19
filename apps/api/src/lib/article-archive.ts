@@ -16,9 +16,15 @@ import { urlSubmission } from "../db/schema/index.js";
 /**
  * Below this much page text we assume a paywall or consent wall ate the
  * article: even short news items exceed this once page furniture (nav,
- * cookie banners, related links) is included.
+ * cookie banners, related links) is included. Measured on the Markdown with
+ * link targets removed — URLs would otherwise inflate a link-heavy but
+ * content-free page past any threshold.
  */
 const PAYWALL_TEXT_THRESHOLD = 600;
+
+function contentLength(markdown: string): number {
+  return markdown.replace(/\]\([^)]*\)/g, "]").length;
+}
 
 /** Whether submissions should attempt archiving at all. */
 export const archiveEnabled = s3Configured;
@@ -46,14 +52,15 @@ async function withArchiveSlot(job: () => Promise<void>): Promise<void> {
   }
 }
 
+/** New archives are Markdown; rows from the plain-text era keep `.txt` keys. */
 export function archiveKeyFor(submissionId: string): string {
-  return `archive/submissions/${submissionId}.txt`;
+  return `archive/submissions/${submissionId}.md`;
 }
 
 /** Pure classification of a fetch result, exported for tests. */
 export function classifyArchive(fetched: boolean, text: string): "ok" | "paywalled" | "failed" {
   if (!fetched) return "failed";
-  return text.length < PAYWALL_TEXT_THRESHOLD ? "paywalled" : "ok";
+  return contentLength(text) < PAYWALL_TEXT_THRESHOLD ? "paywalled" : "ok";
 }
 
 /**

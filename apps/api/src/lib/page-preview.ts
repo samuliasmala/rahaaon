@@ -214,30 +214,156 @@ function stripBlocks(html: string, open: string, close: string): string {
 
 const NON_CONTENT_TAGS = ["script", "style", "noscript", "svg", "template"];
 
-/** Strip an HTML document down to its readable text, whitespace-collapsed. */
-function htmlToText(html: string): string {
-  let text = stripBlocks(html, "<!--", "-->");
+/** Tags whose boundaries don't separate words ("bo<b>ld</b>" is one word). */
+// prettier-ignore
+const INLINE_TAGS = new Set([
+  "a", "abbr", "b", "bdi", "bdo", "cite", "code", "data", "dfn", "em", "i",
+  "kbd", "mark", "q", "s", "samp", "small", "span", "strong", "sub", "sup",
+  "time", "u", "var", "wbr",
+]);
+
+const EMPHASIS_MARK: Record<string, string> = { strong: "**", b: "**", em: "*", i: "*" };
+
+/** First http(s) href in a tag's attributes; "" for relative/other schemes. */
+function hrefOf(tag: string): string {
+  const m = /\shref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(tag);
+  const href = decodeEntities(m?.[1] ?? m?.[2] ?? m?.[3] ?? "");
+  return /^https?:\/\//i.test(href) ? href : "";
+}
+
+/**
+ * Convert an HTML document to light Markdown (headings, links, lists,
+ * emphasis, blockquotes) for the archive and the LLM prompt. Deliberately
+ * hand-rolled as a single linear pass: submitted pages are attacker-chosen,
+ * and a real converter library (turndown + its DOM) measured multi-second
+ * synchronous stalls on adversarial 512 KB inputs, which this in-process,
+ * shared-event-loop server can't afford. Fidelity degrades gracefully —
+ * tables and unknown structures fall back to plain text blocks.
+ */
+export function htmlToMarkdown(html: string): string {
+  let cleaned = stripBlocks(html, "<!--", "-->");
   for (const tag of NON_CONTENT_TAGS) {
-    text = stripBlocks(text, `<${tag}`, `</${tag}`);
+    cleaned = stripBlocks(cleaned, `<${tag}`, `</${tag}`);
   }
-  return decodeEntities(text.replace(/<[^>]+>/g, " "))
-    .replace(/\s+/g, " ")
-    .trim();
+
+  const blocks: string[] = [];
+  // The current block accumulates as an array of chunks, joined only at
+  // flush. Appending to a growing string and slicing it back (closeLink)
+  // forces V8 to flatten the rope on every slice — measured quadratic on
+  // link-heavy input.
+  let chunks: string[] = [];
+  // Index of the last chunk holding non-whitespace text. Lets closeLink
+  // decide "did this link capture any text" in O(1) — materializing the tail
+  // (chunks.slice().join()) measured quadratic on nested unclosed <a> tags.
+  let lastContentIndex = -1;
+  let prefix = "";
+  let quoteDepth = 0;
+  const listStack: ("ul" | "ol")[] = [];
+  const openLinks: { href: string; index: number }[] = [];
+  const openMarks: string[] = [];
+
+  const pushText = (text: string) => {
+    chunks.push(text);
+    if (text.trim()) lastContentIndex = chunks.length - 1;
+  };
+
+  /** Close a link: `](url)` when it captured text, otherwise drop the `[`. */
+  const closeLink = () => {
+    const link = openLinks.pop();
+    if (!link) return;
+    if (lastContentIndex > link.index) chunks.push(`](${link.href})`);
+    else chunks.length = link.index;
+  };
+
+  const flush = (nextPrefix = "") => {
+    while (openMarks.length) chunks.push(openMarks.pop()!);
+    while (openLinks.length) closeLink();
+    const text = chunks.join("").replace(/\s+/g, " ").trim();
+    if (text) blocks.push("> ".repeat(quoteDepth) + prefix + text);
+    chunks = [];
+    lastContentIndex = -1;
+    prefix = nextPrefix;
+  };
+
+  const handleTag = (token: string) => {
+    const parsed = /^<(\/?)([a-zA-Z][a-zA-Z0-9-]*)/.exec(token);
+    if (!parsed) return; // <!doctype …> and other non-elements
+    const closing = parsed[1] === "/";
+    const name = parsed[2]!.toLowerCase();
+
+    if (/^h[1-6]$/.test(name)) {
+      flush(closing ? "" : "#".repeat(Number(name[1])) + " ");
+    } else if (name === "li") {
+      flush(closing ? "" : listStack.at(-1) === "ol" ? "1. " : "- ");
+    } else if (name === "ul" || name === "ol") {
+      flush();
+      if (closing) listStack.pop();
+      else listStack.push(name);
+    } else if (name === "blockquote") {
+      flush();
+      quoteDepth = Math.max(0, quoteDepth + (closing ? -1 : 1));
+    } else if (name === "a") {
+      if (closing) {
+        closeLink();
+      } else {
+        const href = hrefOf(token);
+        if (href) {
+          openLinks.push({ href, index: chunks.length });
+          chunks.push("[");
+        }
+      }
+    } else if (name in EMPHASIS_MARK) {
+      const mark = EMPHASIS_MARK[name]!;
+      if (!closing) {
+        openMarks.push(mark);
+        chunks.push(mark);
+      } else if (openMarks.at(-1) === mark) {
+        openMarks.pop();
+        chunks.push(mark);
+      }
+    } else if (INLINE_TAGS.has(name)) {
+      // word-internal boundary — no separator
+    } else if (name === "td" || name === "th") {
+      if (closing) chunks.push(" ");
+    } else {
+      flush(); // p, div, br, tr, figure, … and anything unknown: block boundary
+    }
+  };
+
+  // Manual indexOf tokenizer: a `(<[^>]*>)` split looks equivalent but its
+  // backtracking goes quadratic on adversarial `>`-free input (measured
+  // >1.5 s on 512 KB); indexOf keeps the whole pass linear.
+  let pos = 0;
+  while (pos < cleaned.length) {
+    const lt = cleaned.indexOf("<", pos);
+    if (lt === -1) {
+      pushText(decodeEntities(cleaned.slice(pos)));
+      break;
+    }
+    if (lt > pos) pushText(decodeEntities(cleaned.slice(pos, lt)));
+    const gt = cleaned.indexOf(">", lt + 1);
+    if (gt === -1) break; // truncated trailing tag — drop it
+    handleTag(cleaned.slice(lt, gt + 1));
+    pos = gt + 1;
+  }
+  flush();
+  return blocks.join("\n\n");
 }
 
 export interface PageText {
   /** False when the page couldn't be read at all (network, non-HTML, blocked). */
   fetched: boolean;
+  /** The page content as Markdown (headings/links/lists preserved). */
   text: string;
 }
 
 /**
- * Fetch a page and reduce it to plain text for the archive/AI pipeline. Same
+ * Fetch a page and reduce it to Markdown for the archive/AI pipeline. Same
  * guarded fetch as the preview (SSRF check per redirect hop, timeout, size
  * cap). Best-effort like the preview: `fetched: false` with empty text when
  * the page can't be read — callers fall back to the submit-time metadata.
  */
-export async function fetchPageText(url: string, maxChars = 15_000): Promise<PageText> {
+export async function fetchPageText(url: string, maxChars = 30_000): Promise<PageText> {
   try {
     const res = await fetchGuarded(url);
     if (!res) return { fetched: false, text: "" };
@@ -247,7 +373,7 @@ export async function fetchPageText(url: string, maxChars = 15_000): Promise<Pag
       return { fetched: false, text: "" };
     }
     const html = await readBodyCapped(res, MAX_HTML_BYTES);
-    return { fetched: true, text: htmlToText(html).slice(0, maxChars) };
+    return { fetched: true, text: htmlToMarkdown(html).slice(0, maxChars) };
   } catch (err) {
     logger.debug({ url, err: (err as Error).message }, "page text fetch failed");
     return { fetched: false, text: "" };

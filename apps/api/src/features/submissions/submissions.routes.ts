@@ -13,6 +13,7 @@ import {
   processSubmission,
   rejectSubmission,
   restoreSubmission,
+  saveSubmissionArchiveText,
 } from "./submissions.repo.js";
 import { commonErrorResponses, createRouter } from "../../lib/openapi.js";
 import { fetchPagePreview } from "../../lib/page-preview.js";
@@ -115,23 +116,64 @@ submissionRoutes.openapi(
   createRoute({
     method: "get",
     path: "/admin/submissions/{id}/archive/text",
-    summary: "Download the page text archived at submit time",
+    summary: "The page text (Markdown) archived at submit time",
     tags: ["Admin"],
     middleware: [requireAuth] as const,
-    request: { params: idParam },
+    request: {
+      params: idParam,
+      // ?download=1 adds the attachment disposition; without it the text is
+      // served inline for the in-app viewer/editor.
+      query: z.object({ download: z.string().optional() }),
+    },
     responses: {
       200: {
-        description: "The archived text, as a file attachment",
-        content: { "text/plain": { schema: z.string() } },
+        description: "The archived text",
+        content: { "text/markdown": { schema: z.string() } },
       },
       ...commonErrorResponses,
     },
   }),
   async (c) => {
     const { id } = c.req.valid("param");
-    const text = await getSubmissionArchiveText(id);
-    c.header("Content-Disposition", `attachment; filename="ehdotus-${id}.txt"`);
-    return c.text(text, 200);
+    const { download } = c.req.valid("query");
+    const { text, filename } = await getSubmissionArchiveText(id);
+    const type = filename.endsWith(".md") ? "text/markdown" : "text/plain";
+    c.header("Content-Type", `${type}; charset=utf-8`);
+    if (download === "1") c.header("Content-Disposition", `attachment; filename="${filename}"`);
+    return c.body(text, 200);
+  },
+);
+
+submissionRoutes.openapi(
+  createRoute({
+    method: "put",
+    path: "/admin/submissions/{id}/archive/text",
+    summary: "Save a manually edited archive text (e.g. a pasted paywalled article)",
+    tags: ["Admin"],
+    middleware: [requireAuth] as const,
+    request: {
+      params: idParam,
+      body: {
+        content: {
+          "application/json": {
+            schema: z.object({ text: z.string().min(1).max(200_000) }).openapi("ArchiveTextEdit"),
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: "Saved",
+        content: { "application/json": { schema: z.object({ ok: z.literal(true) }) } },
+      },
+      ...commonErrorResponses,
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const { text } = c.req.valid("json");
+    await saveSubmissionArchiveText(id, text);
+    return c.json({ ok: true as const }, 200);
   },
 );
 

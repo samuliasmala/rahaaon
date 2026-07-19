@@ -164,14 +164,22 @@ describe("article archive", () => {
     expect(entry.archiveStatus).toBe("ok");
     expect(entry.hasArchivedText).toBe(true);
 
-    const download = await app.request(`/api/admin/submissions/${id}/archive/text`, {
+    // Inline for the in-app viewer by default…
+    const inline = await app.request(`/api/admin/submissions/${id}/archive/text`, {
+      headers: { cookie: editorCookie },
+    });
+    expect(inline.status).toBe(200);
+    expect(inline.headers.get("content-disposition")).toBeNull();
+    const text = await inline.text();
+    expect(text).toContain(`# ${ARTICLE_MARKER}`); // Markdown, not stripped text
+    expect(text).not.toContain("ignored"); // scripts are stripped
+
+    // …attachment with ?download=1.
+    const download = await app.request(`/api/admin/submissions/${id}/archive/text?download=1`, {
       headers: { cookie: editorCookie },
     });
     expect(download.status).toBe(200);
-    expect(download.headers.get("content-disposition")).toContain(`ehdotus-${id}.txt`);
-    const text = await download.text();
-    expect(text).toContain(ARTICLE_MARKER);
-    expect(text).not.toContain("ignored"); // scripts are stripped
+    expect(download.headers.get("content-disposition")).toContain(`ehdotus-${id}.md`);
 
     // Processing consumes the archive (and must not depend on a live page).
     const processed = await app.request(`/api/admin/submissions/${id}/process`, {
@@ -204,6 +212,32 @@ describe("article archive", () => {
       headers: { cookie: editorCookie },
     });
     expect(download.status).toBe(404);
+  });
+
+  it("accepts a manually pasted text for a failed archive", async () => {
+    const id = await submit("/missing");
+    await waitForArchive(id);
+
+    const pasted = "# Käsin liitetty juttu\n\nMaksumuurin takaa kopioitu leipäteksti.";
+    const save = await app.request(`/api/admin/submissions/${id}/archive/text`, {
+      method: "PUT",
+      headers: { cookie: editorCookie, "content-type": "application/json" },
+      body: JSON.stringify({ text: pasted }),
+    });
+    expect(save.status).toBe(200);
+
+    const list = await app.request("/api/admin/submissions", {
+      headers: { cookie: editorCookie },
+    });
+    const entry = ((await list.json()) as { id: string; archiveStatus: string }[]).find(
+      (s) => s.id === id,
+    );
+    expect(entry?.archiveStatus).toBe("ok");
+
+    const read = await app.request(`/api/admin/submissions/${id}/archive/text`, {
+      headers: { cookie: editorCookie },
+    });
+    expect(await read.text()).toBe(pasted);
   });
 
   it("requires auth for the archive download", async () => {

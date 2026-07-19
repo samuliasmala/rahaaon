@@ -6,9 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './archiveTextEdit';
 export * from './category';
 export * from './errorResponse';
 export * from './errorResponseError';
+export * from './getApiAdminSubmissionsIdArchiveTextParams';
 export * from './getApiMe200';
 export * from './health';
 export * from './healthStatus';
@@ -23,6 +25,7 @@ export * from './postApiAdminSubmissionsIdReject200';
 export * from './postApiAdminSuggestionsIdApprove200';
 export * from './postApiAdminSuggestionsIdReject200';
 export * from './postApiSubmissions201';
+export * from './putApiAdminSubmissionsIdArchiveText200';
 export * from './readiness';
 export * from './readinessDb';
 export * from './readinessStatus';
