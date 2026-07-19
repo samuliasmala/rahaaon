@@ -1,0 +1,13 @@
+# Daily backup timer — pairs with rahaaon-backup@.service. Fires 03:35 local
+# (offset from the vesi timers on the same VPS), with a jitter so multiple envs
+# don't dump at the exact same instant.
+[Unit]
+Description=Daily Rahaaon Postgres backup (%i)
+
+[Timer]
+OnCalendar=*-*-* 03:35:00
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

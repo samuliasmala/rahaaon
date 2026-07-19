@@ -1,9 +1,10 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-  // server.ts is the app; migrate.ts is built too so a prod image can run
-  // migrations (`node dist/db/migrate.js`) without tsx/source.
-  entry: ["src/server.ts", "src/db/migrate.ts"],
+  // server.ts is the app; migrate.ts and seed.ts are built too so a prod image
+  // can run migrations and seed the editorial user (`node dist/db/migrate.js`,
+  // `node dist/db/seed.js`) without tsx/source.
+  entry: ["src/server.ts", "src/db/migrate.ts", "src/db/seed.ts"],
   format: ["esm"],
   target: "node24",
   platform: "node",

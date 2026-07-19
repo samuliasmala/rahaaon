@@ -7,7 +7,7 @@ COMPOSE := docker compose -f docker-compose.yml -f docker-compose.dev.yml
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env up down restart build logs ps shell migrate seed psql clean
+.PHONY: help env env-deploy up down restart build logs ps shell migrate seed psql clean
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
@@ -20,6 +20,9 @@ env: ## Create .env from .env.example with a generated secret (no-op if .env exi
 		sed -i "s|^AUTH_SECRET=.*|AUTH_SECRET=$$(openssl rand -base64 32)|" .env; \
 		echo "Created .env from .env.example with a generated AUTH_SECRET — review URLs/ports if needed."; \
 	fi
+
+env-deploy: ## Create .env.$(ENV) for a deployed stack (ENV=dev|test|prod; run on the VPS)
+	@./deploy/init-env.sh $(ENV)
 
 up: ## Start the dev stack (app + db), detached
 	$(COMPOSE) up -d

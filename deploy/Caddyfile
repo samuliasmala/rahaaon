@@ -1,0 +1,43 @@
+# Host Caddy blocks for the rahaaon stacks. The LIVE /etc/caddy/Caddyfile on
+# the VPS is a superset that also hosts the vesi stacks and other sites — the
+# global options (ACME email, trusted_proxies) are owned there. Keep the
+# rahaaon blocks below in sync with it.
+#
+# NOTE: rahaaon.asmala.fi currently points at the host Vite dev server (:5174).
+# Deploying the prod stack means replacing that block with the one below.
+#
+# DNS: point rahaaon / dev.rahaaon / test.rahaaon A (or AAAA) records at this
+# VPS's IP.
+
+# Shared config for every rahaaon stack: compression + security response headers.
+(rahaaon_site) {
+	encode zstd gzip
+	header {
+		# HTTPS only, for a year, including subdomains.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# No MIME sniffing; deny framing (clickjacking); trim referrer leakage.
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Don't advertise the server software.
+		-Server
+	}
+}
+
+# prod  (WEB_PORT=8090)
+rahaaon.asmala.fi {
+	import rahaaon_site
+	reverse_proxy 127.0.0.1:8090
+}
+
+# test  (WEB_PORT=8092)
+test.rahaaon.asmala.fi {
+	import rahaaon_site
+	reverse_proxy 127.0.0.1:8092
+}
+
+# dev   (WEB_PORT=8091)
+dev.rahaaon.asmala.fi {
+	import rahaaon_site
+	reverse_proxy 127.0.0.1:8091
+}

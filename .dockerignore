@@ -1,0 +1,30 @@
+# Keep build contexts small and never leak local state/secrets into images.
+node_modules
+**/node_modules
+.pnpm-store
+dist
+**/dist
+build
+**/build
+.git
+.github
+.turbo
+**/.turbo
+coverage
+**/coverage
+*.tsbuildinfo
+*.log
+
+# secrets / local env (the example is kept)
+.env
+.env.*
+!.env.example
+!.env.prod.example
+
+# deployed-stack backups (VPS working dir doubles as build context)
+backups
+
+# test artifacts
+playwright-report
+test-results
+blob-report

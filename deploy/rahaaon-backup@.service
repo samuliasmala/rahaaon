@@ -1,0 +1,20 @@
+# Templated daily backup unit — %i is the environment (prod|test).
+#   sudo cp deploy/rahaaon-backup@.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now rahaaon-backup@prod.timer rahaaon-backup@test.timer
+[Unit]
+Description=Rahaaon Postgres backup (%i) -> local disk
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+# Run as the same non-root deploy user as CI deploys (must be in the docker group).
+User=deploy
+Group=deploy
+WorkingDirectory=/srv/rahaaon
+Environment=DEPLOY_ENV=%i
+# Best-effort refresh of the moving :stable image ("-" prefix ignores failure —
+# if GHCR is unreachable, still run the backup with the local image).
+ExecStartPre=-/usr/bin/docker compose -p rahaaon-%i --env-file .env.%i -f docker-compose.prod.yml --profile backup pull backup
+ExecStart=/usr/bin/docker compose -p rahaaon-%i --env-file .env.%i -f docker-compose.prod.yml --profile backup run --rm backup daily
