@@ -6,6 +6,7 @@ import betterTailwindcss from "eslint-plugin-better-tailwindcss";
 import importX from "eslint-plugin-import-x";
 import jsxA11y from "eslint-plugin-jsx-a11y";
 import nodePlugin from "eslint-plugin-n";
+import playwright from "eslint-plugin-playwright";
 import prettierPlugin from "eslint-plugin-prettier";
 import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
@@ -27,6 +28,9 @@ export default tseslint.config(
       "**/coverage/**",
       "**/.turbo/**",
       "**/node_modules/**",
+      "**/playwright-report/**",
+      "**/test-results/**",
+      "**/blob-report/**",
       "**/*.gen.ts",
       "**/routeTree.gen.ts",
       "apps/web/src/api/**",
@@ -201,6 +205,17 @@ export default tseslint.config(
       // Flags every computed key (`arr[i]`, `col[field]`) — all hits here are
       // TS-typed loop indices or static-map lookups, never user-controlled.
       "security/detect-object-injection": "off",
+    },
+  },
+
+  // 07 — testing: Playwright (e2e)
+  {
+    ...playwright.configs["flat/recommended"],
+    files: ["apps/web/e2e/**/*.ts"],
+    rules: {
+      ...playwright.configs["flat/recommended"].rules,
+      // loginAsAdmin asserts the admin heading — count it as an assertion.
+      "playwright/expect-expect": ["warn", { assertFunctionNames: ["loginAsAdmin"] }],
     },
   },
 
