@@ -1,19 +1,12 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import {
-  patchSuggestionSchema,
-  suggestionPreviewSchema,
-  suggestionSchema,
-  suggestUrlSchema,
-} from "./schemas.js";
+import { patchSuggestionSchema, suggestionSchema } from "./schemas.js";
 import {
   approveSuggestion,
-  createSuggestion,
   listPendingSuggestions,
   rejectSuggestion,
   updateSuggestion,
 } from "./suggestions.repo.js";
 import { commonErrorResponses, createRouter } from "../../lib/openapi.js";
-import { extractArticle } from "../../lib/suggestion-ai.js";
 import { requireAuth } from "../../middleware/auth.js";
 
 const idParam = z.object({ id: z.uuid() });
@@ -22,52 +15,9 @@ export const suggestionRoutes = createRouter();
 
 suggestionRoutes.openapi(
   createRoute({
-    method: "post",
-    path: "/suggestions/preview",
-    summary: "Run the AI extraction for a link, without submitting anything",
-    tags: ["Suggestions"],
-    request: { body: { content: { "application/json": { schema: suggestUrlSchema } } } },
-    responses: {
-      200: {
-        description: "What the AI read from the article",
-        content: { "application/json": { schema: suggestionPreviewSchema } },
-      },
-      ...commonErrorResponses,
-    },
-  }),
-  (c) => {
-    const { url } = c.req.valid("json");
-    return c.json(extractArticle(url), 200);
-  },
-);
-
-suggestionRoutes.openapi(
-  createRoute({
-    method: "post",
-    path: "/suggestions",
-    summary: "Submit a link to the editorial queue (anonymous)",
-    tags: ["Suggestions"],
-    request: { body: { content: { "application/json": { schema: suggestUrlSchema } } } },
-    responses: {
-      201: {
-        description: "Queued for editorial review",
-        content: { "application/json": { schema: z.object({ id: z.uuid() }) } },
-      },
-      ...commonErrorResponses,
-    },
-  }),
-  async (c) => {
-    const { url } = c.req.valid("json");
-    const created = await createSuggestion(url);
-    return c.json({ id: created.id }, 201);
-  },
-);
-
-suggestionRoutes.openapi(
-  createRoute({
     method: "get",
     path: "/admin/suggestions",
-    summary: "The editorial queue: pending suggestions, newest first",
+    summary: "The AI queue: pending suggestions, newest first",
     tags: ["Admin"],
     middleware: [requireAuth] as const,
     responses: {

@@ -29,9 +29,11 @@ import type {
   PatchApiAdminItemsId200,
   PatchItem,
   PatchSuggestion,
+  PostApiAdminSubmissionsIdProcess200,
   PostApiAdminSuggestionsIdApprove200,
   PostApiAdminSuggestionsIdReject200,
   Suggestion,
+  UrlSubmission,
   WasteItem
 } from '.././model';
 
@@ -197,7 +199,7 @@ export const usePatchApiAdminItemsId = <TError = ErrorResponse,
       return useMutation(mutationOptions, queryClient);
     }
     /**
- * @summary The editorial queue: pending suggestions, newest first
+ * @summary The AI queue: pending suggestions, newest first
  */
 export const getApiAdminSuggestions = (
     
@@ -268,7 +270,7 @@ export function useGetApiAdminSuggestions<TData = Awaited<ReturnType<typeof getA
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary The editorial queue: pending suggestions, newest first
+ * @summary The AI queue: pending suggestions, newest first
  */
 
 export function useGetApiAdminSuggestions<TData = Awaited<ReturnType<typeof getApiAdminSuggestions>>, TError = ErrorResponse>(
@@ -473,6 +475,160 @@ export const usePostApiAdminSuggestionsIdReject = <TError = ErrorResponse,
       > => {
 
       const mutationOptions = getPostApiAdminSuggestionsIdRejectMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary The Ehdotusjono: unprocessed reader links, newest first
+ */
+export const getApiAdminSubmissions = (
+    
+ signal?: AbortSignal
+) => {
+      
+      
+      return apiFetch<UrlSubmission[]>(
+      {url: `/api/admin/submissions`, method: 'GET', ...(signal ? { signal }: {})
+    },
+      );
+    }
+  
+
+
+
+export const getGetApiAdminSubmissionsQueryKey = () => {
+    return [
+    `/api/admin/submissions`
+    ] as const;
+    }
+
+    
+export const getGetApiAdminSubmissionsQueryOptions = <TData = Awaited<ReturnType<typeof getApiAdminSubmissions>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissions>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetApiAdminSubmissionsQueryKey();
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiAdminSubmissions>>> = ({ signal }) => getApiAdminSubmissions(signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiAdminSubmissionsQueryResult = NonNullable<Awaited<ReturnType<typeof getApiAdminSubmissions>>>
+export type GetApiAdminSubmissionsQueryError = ErrorResponse
+
+
+export function useGetApiAdminSubmissions<TData = Awaited<ReturnType<typeof getApiAdminSubmissions>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAdminSubmissions>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAdminSubmissions>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAdminSubmissions<TData = Awaited<ReturnType<typeof getApiAdminSubmissions>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAdminSubmissions>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAdminSubmissions>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAdminSubmissions<TData = Awaited<ReturnType<typeof getApiAdminSubmissions>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissions>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The Ehdotusjono: unprocessed reader links, newest first
+ */
+
+export function useGetApiAdminSubmissions<TData = Awaited<ReturnType<typeof getApiAdminSubmissions>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissions>>, TError, TData>>, }
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetApiAdminSubmissionsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
+ * @summary Send a submission to the AI queue (creates a pending suggestion)
+ */
+export const postApiAdminSubmissionsIdProcess = (
+    id: string,
+ signal?: AbortSignal
+) => {
+      
+      
+      return apiFetch<PostApiAdminSubmissionsIdProcess200>(
+      {url: `/api/admin/submissions/${id}/process`, method: 'POST', ...(signal ? { signal }: {})
+    },
+      );
+    }
+  
+
+
+export const getPostApiAdminSubmissionsIdProcessMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdProcess>>, TError,{id: string}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdProcess>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['postApiAdminSubmissionsIdProcess'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiAdminSubmissionsIdProcess>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  postApiAdminSubmissionsIdProcess(id,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiAdminSubmissionsIdProcessMutationResult = NonNullable<Awaited<ReturnType<typeof postApiAdminSubmissionsIdProcess>>>
+    
+    export type PostApiAdminSubmissionsIdProcessMutationError = ErrorResponse
+
+    /**
+ * @summary Send a submission to the AI queue (creates a pending suggestion)
+ */
+export const usePostApiAdminSubmissionsIdProcess = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdProcess>>, TError,{id: string}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiAdminSubmissionsIdProcess>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+
+      const mutationOptions = getPostApiAdminSubmissionsIdProcessMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }

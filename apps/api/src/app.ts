@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { auth } from "./auth/auth.js";
 import { env } from "./config/env.js";
 import { itemRoutes } from "./features/items/items.routes.js";
+import { submissionRoutes } from "./features/submissions/submissions.routes.js";
 import { suggestionRoutes } from "./features/suggestions/suggestions.routes.js";
 import { notFound } from "./lib/http-errors.js";
 import { createRouter } from "./lib/openapi.js";
@@ -37,6 +38,7 @@ export function createApp() {
   app.route("/api", meRoutes);
   app.route("/api", itemRoutes);
   app.route("/api", suggestionRoutes);
+  app.route("/api", submissionRoutes);
 
   // OpenAPI document (consumed by orval to generate the typed web client) + UI.
   app.doc31("/api/openapi.json", {

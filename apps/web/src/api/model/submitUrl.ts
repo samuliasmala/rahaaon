@@ -6,7 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface SuggestUrl {
+export interface SubmitUrl {
   /** @maxLength 2000 */
   url: string;
 }

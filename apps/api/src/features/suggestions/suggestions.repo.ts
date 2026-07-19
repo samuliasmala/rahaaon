@@ -2,7 +2,6 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "../../db/client.js";
 import { suggestion, wasteItem } from "../../db/schema/index.js";
 import { notFound } from "../../lib/http-errors.js";
-import { extractArticle } from "../../lib/suggestion-ai.js";
 import type { SuggestionView, patchSuggestionSchema } from "./schemas.js";
 import type { z } from "@hono/zod-openapi";
 
@@ -26,21 +25,7 @@ function toView(row: SuggestionRow): SuggestionView {
   };
 }
 
-/**
- * Run the AI extraction for a submitted link and store the result as a pending
- * queue entry. The extraction happens server-side — the client's preview is
- * informational and never trusted.
- */
-export async function createSuggestion(url: string): Promise<SuggestionView> {
-  const extraction = extractArticle(url);
-  const [row] = await db
-    .insert(suggestion)
-    .values({ url, ...extraction })
-    .returning();
-  return toView(row!);
-}
-
-/** The editorial queue: pending suggestions, newest first. */
+/** The AI queue: pending suggestions, newest first. */
 export async function listPendingSuggestions(): Promise<SuggestionView[]> {
   const rows = await db
     .select()

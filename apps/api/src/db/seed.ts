@@ -210,9 +210,36 @@ const SUGGESTIONS: SeedSuggestion[] = [
   },
 ];
 
+interface SeedSubmission {
+  url: string;
+  title: string;
+  description: string;
+  siteName: string;
+  hoursAgo: number;
+}
+
+const SUBMISSIONS: SeedSubmission[] = [
+  {
+    url: "https://www.hs.fi/kaupunki/valoinstallaatio-sammutettu",
+    title: "Asematunnelin valoinstallaatio on ollut sammuksissa puoli vuotta",
+    description:
+      "Kaupungin 120 000 euron valoteos pimeni takuuriidan vuoksi. Korjausaikataulusta ei ole tietoa.",
+    siteName: "hs.fi",
+    hoursAgo: 1,
+  },
+  {
+    url: "https://yle.fi/a/kunta-osti-drooneja",
+    title: "Kunta osti kymmenen droonia — lupia lentämiseen ei haettu",
+    description: "Droonit ovat odottaneet varastossa kaksi vuotta ilmailulupien puuttuessa.",
+    siteName: "yle.fi",
+    hoursAgo: 7,
+  },
+];
+
 async function main() {
   console.log("[seed] wiping content tables…");
   await db.delete(s.itemVote);
+  await db.delete(s.urlSubmission);
   await db.delete(s.suggestion);
   await db.delete(s.wasteItem);
   await db.delete(s.user).where(eq(s.user.email, ADMIN_EMAIL));
@@ -261,6 +288,17 @@ async function main() {
     })),
   );
 
+  console.log("[seed] inserting url submissions…");
+  await db.insert(s.urlSubmission).values(
+    SUBMISSIONS.map((sub) => ({
+      url: sub.url,
+      title: sub.title,
+      description: sub.description,
+      siteName: sub.siteName,
+      createdAt: new Date(now - sub.hoursAgo * HOUR_MS),
+    })),
+  );
+
   console.log("[seed] creating editorial user…");
   // Public sign-up is disabled, so go through better-auth's internal adapter —
   // it hashes the password the same way the sign-in endpoint verifies it.
@@ -282,6 +320,7 @@ async function main() {
     items: ITEMS.length,
     votes: ITEMS.reduce((n, i) => n + i.votes, 0),
     suggestions: SUGGESTIONS.length,
+    submissions: SUBMISSIONS.length,
   });
   console.log(`[seed] admin login: ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`);
 }

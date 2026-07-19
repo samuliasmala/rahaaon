@@ -1,14 +1,19 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { useGetApiAdminItems, useGetApiAdminSuggestions } from "../api/admin/admin.js";
+import {
+  useGetApiAdminItems,
+  useGetApiAdminSubmissions,
+  useGetApiAdminSuggestions,
+} from "../api/admin/admin.js";
 import { PublishedTable } from "../components/admin/published-table.js";
 import { QueueCard } from "../components/admin/queue-card.js";
+import { SubmissionCard } from "../components/admin/submission-card.js";
 import { signOut } from "../lib/auth-client.js";
 import { cn } from "../lib/cn.js";
 import { ensureMe, invalidateMe, meQueryOptions } from "../lib/session.js";
 
-type AdminTab = "queue" | "published";
+type AdminTab = "submissions" | "queue" | "published";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async ({ context }) => {
@@ -22,9 +27,10 @@ function AdminPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: me } = useQuery(meQueryOptions);
+  const { data: submissions = [] } = useGetApiAdminSubmissions();
   const { data: queue = [] } = useGetApiAdminSuggestions();
   const { data: items = [] } = useGetApiAdminItems();
-  const [tab, setTab] = useState<AdminTab>("queue");
+  const [tab, setTab] = useState<AdminTab>("submissions");
 
   async function handleSignOut() {
     await signOut();
@@ -49,13 +55,29 @@ function AdminPage() {
       </div>
 
       <div role="tablist" className="mb-6 flex gap-1 border-b border-hairline">
+        <TabButton active={tab === "submissions"} onClick={() => setTab("submissions")}>
+          Ehdotusjono ({submissions.length})
+        </TabButton>
         <TabButton active={tab === "queue"} onClick={() => setTab("queue")}>
-          Ehdotusjono ({queue.length})
+          Tekoälyn käsittelemät ({queue.length})
         </TabButton>
         <TabButton active={tab === "published"} onClick={() => setTab("published")}>
           Julkaistut ({items.length})
         </TabButton>
       </div>
+
+      {tab === "submissions" && (
+        <div className="flex flex-col gap-5">
+          {submissions.length === 0 && (
+            <p className="py-14 text-center text-[15px] text-muted">
+              Ei uusia linkkiehdotuksia. ☕
+            </p>
+          )}
+          {submissions.map((entry) => (
+            <SubmissionCard key={entry.id} entry={entry} />
+          ))}
+        </div>
+      )}
 
       {tab === "queue" && (
         <div className="flex flex-col gap-5">

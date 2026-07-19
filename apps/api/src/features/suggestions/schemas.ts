@@ -1,22 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import { categorySchema } from "../items/schemas.js";
 
-export const suggestUrlSchema = z.object({ url: z.url().max(2000) }).openapi("SuggestUrl");
-
-/** What the AI extracted from the article — shown to the reader for a sanity check. */
-export const suggestionPreviewSchema = z
-  .object({
-    title: z.string(),
-    amountEur: z.number().int(),
-    entity: z.string(),
-    category: categorySchema,
-    sourceName: z.string(),
-    summary: z.string(),
-    aiNote: z.string(),
-    confidence: z.number().int().min(0).max(100),
-  })
-  .openapi("SuggestionPreview");
-
 /** A queue entry as the editorial UI sees it. */
 export const suggestionSchema = z
   .object({

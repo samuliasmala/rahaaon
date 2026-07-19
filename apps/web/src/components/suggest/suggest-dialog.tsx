@@ -1,26 +1,33 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { Globe } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { getGetApiAdminSuggestionsQueryKey } from "../../api/admin/admin.js";
+import { getGetApiAdminSubmissionsQueryKey } from "../../api/admin/admin.js";
 import {
-  usePostApiSuggestions,
-  usePostApiSuggestionsPreview,
-} from "../../api/suggestions/suggestions.js";
-import { cn } from "../../lib/cn.js";
-import { formatEur } from "../../lib/format.js";
-import { AI_STEP_INTERVAL_MS, AI_STEPS, isLikelyUrl } from "../../lib/suggestion-ai.js";
+  usePostApiSubmissions,
+  usePostApiSubmissionsPreview,
+} from "../../api/submissions/submissions.js";
+import { isLikelyUrl } from "../../lib/suggest-url.js";
 import { useUiStore } from "../../store/ui-store.js";
 import { Button } from "../ui/button.js";
 import { Dialog, DialogHeader } from "../ui/dialog.js";
 import { Input } from "../ui/input.js";
-import { Pill } from "../ui/pill.js";
 
-type Step = "input" | "processing" | "preview" | "done";
+type Step = "input" | "preview" | "done";
+
+function hostnameOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
 
 /**
- * The reader suggestion flow: paste a link → the API's AI pipeline extracts the
- * facts (the step list animates while it runs) → check the extraction → submit
- * to the editorial queue.
+ * The reader suggestion flow: paste a link → check the page preview (a
+ * google-like result card) → confirm → the link lands in the editorial
+ * Ehdotusjono for AI processing. Step transitions happen only in mutation
+ * callbacks so the dialog can never wedge between steps.
  */
 export function SuggestDialog() {
   const open = useUiStore((s) => s.suggestOpen);
@@ -30,14 +37,18 @@ export function SuggestDialog() {
   const [step, setStep] = useState<Step>("input");
   const [url, setUrl] = useState("");
   const [urlError, setUrlError] = useState(false);
-  const [doneSteps, setDoneSteps] = useState(0);
 
-  const previewMutation = usePostApiSuggestionsPreview();
-  const submitMutation = usePostApiSuggestions({
+  const previewMutation = usePostApiSubmissionsPreview({
+    mutation: {
+      onSuccess: () => setStep("preview"),
+      onError: () => toast("Esikatselun haku epäonnistui. Yritä hetken päästä uudelleen."),
+    },
+  });
+  const submitMutation = usePostApiSubmissions({
     mutation: {
       onSuccess: () => {
-        // The header badge and the admin queue list are now stale.
-        void queryClient.invalidateQueries({ queryKey: getGetApiAdminSuggestionsQueryKey() });
+        // The header badge and the admin Ehdotusjono list are now stale.
+        void queryClient.invalidateQueries({ queryKey: getGetApiAdminSubmissionsQueryKey() });
         setStep("done");
       },
       onError: () => toast("Lähetys epäonnistui. Yritä hetken päästä uudelleen."),
@@ -50,42 +61,19 @@ export function SuggestDialog() {
       setStep("input");
       setUrl("");
       setUrlError(false);
-      setDoneSteps(0);
       previewMutation.reset();
       submitMutation.reset();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; resetting on open is the intent
   }, [open]);
 
-  // Animate the pipeline steps while the preview request runs.
-  useEffect(() => {
-    if (step !== "processing") return;
-    const timer = setInterval(() => {
-      setDoneSteps((n) => Math.min(n + 1, AI_STEPS.length));
-    }, AI_STEP_INTERVAL_MS);
-    return () => clearInterval(timer);
-  }, [step]);
-
-  // Show the preview once the animation has played out AND the API answered.
-  useEffect(() => {
-    if (step !== "processing") return;
-    if (previewMutation.isError) {
-      toast("Artikkelin luku epäonnistui. Yritä uudelleen.");
-      setStep("input");
-      return;
-    }
-    if (doneSteps >= AI_STEPS.length && previewMutation.isSuccess) setStep("preview");
-  }, [step, doneSteps, previewMutation.isError, previewMutation.isSuccess]);
-
   const preview = previewMutation.data;
 
-  function submitUrl() {
+  function requestPreview() {
     if (!isLikelyUrl(url)) {
       setUrlError(true);
       return;
     }
-    setDoneSteps(0);
-    setStep("processing");
     previewMutation.mutate({ data: { url: url.trim() } });
   }
 
@@ -98,8 +86,9 @@ export function SuggestDialog() {
       {step === "input" && (
         <div className="flex flex-col gap-4.5 p-4.5 md:p-8">
           <p className="text-[15px]/[1.6] text-body">
-            Liitä linkki lehtijuttuun tai uutiseen. Tekoäly lukee jutun, poimii summan ja tahon,
-            kategorisoi ja tiivistää — toimitus tarkistaa ennen julkaisua.
+            Liitä linkki lehtijuttuun tai uutiseen. Näytämme sivun esikatselun — vahvistuksen
+            jälkeen linkki siirtyy jonoon tekoälyn luettavaksi, ja toimitus tarkistaa poiminnat
+            ennen julkaisua.
           </p>
           <Input
             autoFocus
@@ -110,7 +99,7 @@ export function SuggestDialog() {
               setUrlError(false);
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") submitUrl();
+              if (e.key === "Enter") requestPreview();
             }}
             placeholder="https://esimerkiksi.hs.fi/juttu…"
             aria-invalid={urlError}
@@ -121,8 +110,8 @@ export function SuggestDialog() {
               Lisää kelvollinen linkki (alkaa http…).
             </p>
           )}
-          <Button size="lg" onClick={submitUrl}>
-            Lähetä tekoälyn luettavaksi
+          <Button size="lg" disabled={previewMutation.isPending} onClick={requestPreview}>
+            {previewMutation.isPending ? "Haetaan esikatselua…" : "Lähetä tekoälyn luettavaksi"}
           </Button>
           <p className="text-center text-xs/normal text-muted">
             Ehdotus käsitellään nimettömänä. Vain julkiset lähteet kelpaavat.
@@ -130,55 +119,45 @@ export function SuggestDialog() {
         </div>
       )}
 
-      {step === "processing" && (
-        <div className="flex flex-col items-center gap-4.5 px-8 py-10">
-          <div
-            aria-hidden
-            className="size-9 animate-spin rounded-full border-[3px] border-hairline border-t-accent"
-          />
-          <ul className="flex w-full max-w-[360px] flex-col gap-2.5">
-            {AI_STEPS.map((label, i) => (
-              <li
-                key={label}
-                className={cn(
-                  "flex items-center gap-2.5 text-sm font-medium",
-                  i < doneSteps ? "text-ok" : i === doneSteps ? "text-ink" : "text-faint",
-                )}
-              >
-                <span aria-hidden className="w-4.5 text-center">
-                  {i < doneSteps ? "✓" : i === doneSteps ? "●" : "○"}
-                </span>
-                {label}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {step === "preview" && preview && (
         <div className="flex flex-col gap-4 p-4.5 md:p-8">
-          <div className="flex items-center gap-2.5">
-            <Pill className="bg-ok-wash text-ok">Tekoäly luki jutun</Pill>
-            <span className="text-[13px] text-muted">Tarkista poimitut tiedot</span>
-          </div>
-          <div className="flex flex-col gap-3 rounded-lg border border-hairline bg-surface px-5.5 py-5">
-            <p className="font-display text-[26px] font-bold text-accent tabular">
-              {formatEur(preview.amountEur)}
+          <p className="text-[15px]/[1.6] text-body">
+            Tarkista, että linkki osoittaa oikeaan juttuun.
+          </p>
+          <div className="flex flex-col gap-2 rounded-lg border border-hairline bg-surface px-5.5 py-5">
+            <div className="flex items-center gap-2.5">
+              <span
+                aria-hidden
+                className="flex size-7 items-center justify-center rounded-full border border-hairline bg-wash-soft text-muted"
+              >
+                <Globe className="size-4" strokeWidth={1.5} />
+              </span>
+              <span className="flex min-w-0 flex-col">
+                <span className="text-[13px] font-medium text-ink">
+                  {preview.siteName || hostnameOf(preview.url)}
+                </span>
+                <span className="truncate text-xs text-muted">{preview.url}</span>
+              </span>
+            </div>
+            <p className="text-[18px]/[1.3] font-semibold text-accent">
+              {preview.title || hostnameOf(preview.url)}
             </p>
-            <p className="text-[17px]/[1.35] font-semibold">{preview.title}</p>
-            <p className="text-[13px] text-muted">
-              {preview.entity} · {preview.category} · {preview.sourceName}
-            </p>
-            <p className="border-t border-hairline-soft pt-3 text-sm/[1.6] text-body">
-              {preview.summary}
-            </p>
+            {preview.description && (
+              <p className="text-sm/[1.55] text-body">{preview.description}</p>
+            )}
+            {!preview.fetched && (
+              <p className="text-[13px] text-muted italic">
+                Sivun sisältöä ei saatu luettua. Voit silti lähettää linkin — toimitus avaa sen
+                käsin.
+              </p>
+            )}
           </div>
           <Button
             size="lg"
             disabled={submitMutation.isPending}
             onClick={() => submitMutation.mutate({ data: { url: url.trim() } })}
           >
-            {submitMutation.isPending ? "Lähetetään…" : "Näyttää oikealta — lähetä toimitukselle"}
+            {submitMutation.isPending ? "Lähetetään…" : "Vahvista ja lähetä jonoon"}
           </Button>
           <Button variant="ghost" onClick={() => setStep("input")}>
             Vaihda linkkiä
@@ -196,8 +175,8 @@ export function SuggestDialog() {
           </div>
           <p className="font-display text-[21px] font-bold">Kiitos! Ehdotus on jonossa.</p>
           <p className="max-w-[380px] text-sm/[1.6] text-body">
-            Toimitus tarkistaa tekoälyn poiminnat ja julkaisee jutun, jos raha todella on mennyt
-            harakoille.
+            Tekoäly lukee jutun ja toimitus tarkistaa poiminnat. Juttu julkaistaan, jos raha todella
+            on mennyt harakoille.
           </p>
           <Button variant="dark" onClick={closeSuggest} className="mt-1.5 px-7">
             Selvä

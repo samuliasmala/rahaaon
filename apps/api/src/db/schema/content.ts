@@ -30,6 +30,8 @@ export const suggestionStatusEnum = pgEnum("suggestion_status", [
   "rejected",
 ]);
 
+export const urlSubmissionStatusEnum = pgEnum("url_submission_status", ["new", "processed"]);
+
 /** A published waste-of-money story on the public feed. */
 export const wasteItem = pgTable("waste_item", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -69,6 +71,27 @@ export const suggestion = pgTable("suggestion", {
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   /** Set when approved — the feed item this suggestion became. */
   publishedItemId: uuid("published_item_id").references(() => wasteItem.id, {
+    onDelete: "set null",
+  }),
+});
+
+/**
+ * A raw reader-submitted link (the public "Ehdota kohde" flow). Lands here as
+ * `status = 'new'`; an editor sends it onward to the AI queue ("process"),
+ * which creates a {@link suggestion} row and marks this one `processed`.
+ */
+export const urlSubmission = pgTable("url_submission", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  url: text("url").notNull(),
+  /** Page metadata captured at submit time (the preview the reader confirmed). */
+  title: text("title").notNull().default(""),
+  description: text("description").notNull().default(""),
+  siteName: text("site_name").notNull().default(""),
+  status: urlSubmissionStatusEnum("status").notNull().default("new"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+  /** Set when processed — the AI-queue entry this submission became. */
+  suggestionId: uuid("suggestion_id").references(() => suggestion.id, {
     onDelete: "set null",
   }),
 });

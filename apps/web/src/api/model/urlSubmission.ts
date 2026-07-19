@@ -6,6 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type PostApiSuggestions201 = {
+export interface UrlSubmission {
   id: string;
-};
+  url: string;
+  title: string;
+  description: string;
+  siteName: string;
+  createdAt: string;
+}

@@ -108,47 +108,7 @@ export const patchApiAdminItemsIdResponse = zod.object({
 
 
 /**
- * @summary Run the AI extraction for a link, without submitting anything
- */
-export const postApiSuggestionsPreviewBodyUrlMax = 2000;
-
-
-
-export const postApiSuggestionsPreviewBody = zod.object({
-  "url": zod.url().max(postApiSuggestionsPreviewBodyUrlMax)
-})
-
-export const postApiSuggestionsPreviewResponseConfidenceMin = 0;
-export const postApiSuggestionsPreviewResponseConfidenceMax = 100;
-
-
-
-export const postApiSuggestionsPreviewResponse = zod.object({
-  "title": zod.string(),
-  "amountEur": zod.number(),
-  "entity": zod.string(),
-  "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']),
-  "sourceName": zod.string(),
-  "summary": zod.string(),
-  "aiNote": zod.string(),
-  "confidence": zod.number().min(postApiSuggestionsPreviewResponseConfidenceMin).max(postApiSuggestionsPreviewResponseConfidenceMax)
-})
-
-
-/**
- * @summary Submit a link to the editorial queue (anonymous)
- */
-export const postApiSuggestionsBodyUrlMax = 2000;
-
-
-
-export const postApiSuggestionsBody = zod.object({
-  "url": zod.url().max(postApiSuggestionsBodyUrlMax)
-})
-
-
-/**
- * @summary The editorial queue: pending suggestions, newest first
+ * @summary The AI queue: pending suggestions, newest first
  */
 export const getApiAdminSuggestionsResponseItem = zod.object({
   "id": zod.uuid(),
@@ -227,4 +187,62 @@ export const postApiAdminSuggestionsIdRejectParams = zod.object({
 
 export const postApiAdminSuggestionsIdRejectResponse = zod.object({
   "ok": zod.literal(true)
+})
+
+
+/**
+ * @summary Fetch the google-like page preview for a link, without submitting anything
+ */
+export const postApiSubmissionsPreviewBodyUrlMax = 2000;
+
+
+
+export const postApiSubmissionsPreviewBody = zod.object({
+  "url": zod.url().max(postApiSubmissionsPreviewBodyUrlMax)
+})
+
+export const postApiSubmissionsPreviewResponse = zod.object({
+  "url": zod.string(),
+  "siteName": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "fetched": zod.boolean()
+})
+
+
+/**
+ * @summary Submit a confirmed link to the Ehdotusjono (anonymous)
+ */
+export const postApiSubmissionsBodyUrlMax = 2000;
+
+
+
+export const postApiSubmissionsBody = zod.object({
+  "url": zod.url().max(postApiSubmissionsBodyUrlMax)
+})
+
+
+/**
+ * @summary The Ehdotusjono: unprocessed reader links, newest first
+ */
+export const getApiAdminSubmissionsResponseItem = zod.object({
+  "id": zod.uuid(),
+  "url": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "siteName": zod.string(),
+  "createdAt": zod.iso.datetime({})
+})
+export const getApiAdminSubmissionsResponse = zod.array(getApiAdminSubmissionsResponseItem)
+
+
+/**
+ * @summary Send a submission to the AI queue (creates a pending suggestion)
+ */
+export const postApiAdminSubmissionsIdProcessParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const postApiAdminSubmissionsIdProcessResponse = zod.object({
+  "suggestionId": zod.uuid()
 })

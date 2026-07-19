@@ -9,8 +9,11 @@ import type { Hono } from "hono";
  * End-to-end API integration test against a real Postgres 17. The app's DB
  * singleton is bound to the ephemeral container by setting DATABASE_URL before
  * dynamically importing the app (which transitively loads db/client + env).
- * Exercises the full editorial loop: anonymous suggestion → queue → edit →
- * approve → public feed → votes → hide.
+ * Exercises the full editorial loop: anonymous url submission → Ehdotusjono →
+ * process into the AI queue → edit → approve → public feed → votes → hide.
+ *
+ * Submitted URLs use an unresolvable host (.invalid) so the page-preview fetch
+ * fails fast and deterministically — the flow must work regardless.
  */
 
 const EDITOR_EMAIL = "editor@rahaaon.fi";
@@ -103,28 +106,76 @@ describe("system + auth", () => {
   });
 
   it("guards admin endpoints with 401", async () => {
-    const res = await app.request("/api/admin/suggestions");
-    expect(res.status).toBe(401);
-    const body = (await res.json()) as { error: { code: string } };
-    expect(body.error.code).toBe("unauthorized");
+    for (const path of ["/api/admin/suggestions", "/api/admin/submissions"]) {
+      const res = await app.request(path);
+      expect(res.status).toBe(401);
+      const body = (await res.json()) as { error: { code: string } };
+      expect(body.error.code).toBe("unauthorized");
+    }
   });
 });
 
 describe("editorial loop", () => {
+  let submissionId: string;
   let suggestionId: string;
   let itemId: string;
 
-  it("accepts an anonymous suggestion and queues it", async () => {
-    const res = await app.request("/api/suggestions", json({ url: "https://yle.fi/a/testijuttu" }));
+  it("answers the page preview with a fallback for an unreachable link", async () => {
+    const res = await app.request(
+      "/api/submissions/preview",
+      json({ url: "https://yle.fi.invalid/a/testijuttu" }),
+    );
+    expect(res.status).toBe(200);
+    const preview = (await res.json()) as { siteName: string; fetched: boolean };
+    expect(preview.fetched).toBe(false);
+    expect(preview.siteName).toBe("yle.fi.invalid");
+  });
+
+  it("accepts an anonymous url submission into the Ehdotusjono", async () => {
+    const res = await app.request(
+      "/api/submissions",
+      json({ url: "https://yle.fi.invalid/a/testijuttu" }),
+    );
     expect(res.status).toBe(201);
-    suggestionId = ((await res.json()) as { id: string }).id;
+    submissionId = ((await res.json()) as { id: string }).id;
+
+    const listRes = await app.request("/api/admin/submissions", {
+      headers: { cookie: editorCookie },
+    });
+    const list = (await listRes.json()) as { id: string; url: string }[];
+    expect(list.map((sub) => sub.id)).toContain(submissionId);
+  });
+
+  it("processes a submission into the AI queue and drops it from the Ehdotusjono", async () => {
+    const res = await app.request(`/api/admin/submissions/${submissionId}/process`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(res.status).toBe(200);
+    suggestionId = ((await res.json()) as { suggestionId: string }).suggestionId;
 
     const queueRes = await app.request("/api/admin/suggestions", {
       headers: { cookie: editorCookie },
     });
-    const queue = (await queueRes.json()) as { id: string; sourceName: string }[];
+    const queue = (await queueRes.json()) as { id: string; sourceName: string; url: string }[];
     expect(queue.map((q) => q.id)).toContain(suggestionId);
     expect(queue.find((q) => q.id === suggestionId)?.sourceName).toBe("Yle");
+    expect(queue.find((q) => q.id === suggestionId)?.url).toBe(
+      "https://yle.fi.invalid/a/testijuttu",
+    );
+
+    const listRes = await app.request("/api/admin/submissions", {
+      headers: { cookie: editorCookie },
+    });
+    const list = (await listRes.json()) as { id: string }[];
+    expect(list.map((sub) => sub.id)).not.toContain(submissionId);
+
+    // Processing is one-shot: a second attempt finds nothing in 'new' state.
+    const again = await app.request(`/api/admin/submissions/${submissionId}/process`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(again.status).toBe(404);
   });
 
   it("applies editorial edits", async () => {
@@ -196,10 +247,15 @@ describe("editorial loop", () => {
 
   it("rejects a suggestion out of the queue", async () => {
     const created = await app.request(
-      "/api/suggestions",
-      json({ url: "https://www.hs.fi/huono-juttu" }),
+      "/api/submissions",
+      json({ url: "https://www.hs.fi.invalid/huono-juttu" }),
     );
-    const { id } = (await created.json()) as { id: string };
+    const { id: newSubmissionId } = (await created.json()) as { id: string };
+    const processed = await app.request(`/api/admin/submissions/${newSubmissionId}/process`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    const { suggestionId: id } = (await processed.json()) as { suggestionId: string };
 
     const res = await app.request(`/api/admin/suggestions/${id}/reject`, {
       method: "POST",
