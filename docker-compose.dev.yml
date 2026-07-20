@@ -27,6 +27,10 @@ services:
       # Keep pnpm's content-addressable store off the bind-mounted repo (else it
       # leaks a .pnpm-store/ into the host tree) and in a persistent volume.
       PNPM_STORE_DIR: /pnpm/store
+      # Version footer: the container has no git, so the Makefile computes these
+      # on the host and passes them through (empty when not run via `make`).
+      GIT_DESCRIBE: ${GIT_DESCRIBE:-}
+      GIT_COMMIT_TIME: ${GIT_COMMIT_TIME:-}
     ports:
       # Host ports are overridable to avoid clashes with other local services,
       # e.g. WEB_PORT=5175 API_PORT=3002 docker compose … up

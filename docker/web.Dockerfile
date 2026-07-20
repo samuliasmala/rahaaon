@@ -15,6 +15,16 @@ COPY apps/web/package.json ./apps/web/
 RUN pnpm install --frozen-lockfile
 
 COPY apps/web ./apps/web
+# Build identity for the in-app version footer — the build context has no .git,
+# so vite.config.ts reads these env vars instead. GIT_DESCRIBE is
+# `git describe --tags --always` output; GIT_COMMIT the full SHA;
+# GIT_COMMIT_TIME the commit's ISO 8601 timestamp (`git log -1 --format=%cI`).
+ARG GIT_COMMIT
+ENV GIT_COMMIT=$GIT_COMMIT
+ARG GIT_DESCRIBE
+ENV GIT_DESCRIBE=$GIT_DESCRIBE
+ARG GIT_COMMIT_TIME
+ENV GIT_COMMIT_TIME=$GIT_COMMIT_TIME
 RUN pnpm --filter @rahaaon/web build
 
 # ---- runtime ----------------------------------------------------------------

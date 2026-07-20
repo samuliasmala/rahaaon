@@ -3,6 +3,7 @@ import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { VersionInfo } from "../components/layout/version-info.js";
 import { Button } from "../components/ui/button.js";
 import { Input } from "../components/ui/input.js";
 import { FieldLabel } from "../components/ui/label.js";
@@ -46,7 +47,7 @@ function LoginPage() {
   }
 
   return (
-    <main className="flex flex-1 items-center justify-center px-4 py-14">
+    <main className="flex flex-1 flex-col items-center justify-center px-4 py-14">
       <div className="w-full max-w-[400px] rounded-xl border border-hairline bg-surface p-7 md:p-8">
         <div className="mb-6 flex flex-col gap-2 text-center">
           <h1 className="font-display text-[24px] font-bold tracking-[-0.02em]">Kirjaudu sisään</h1>
@@ -90,6 +91,7 @@ function LoginPage() {
           </Button>
         </form>
       </div>
+      <VersionInfo className="mt-6 text-muted" />
     </main>
   );
 }

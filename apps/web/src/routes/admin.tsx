@@ -13,6 +13,7 @@ import { QueueCard } from "../components/admin/queue-card.js";
 import { RejectedCard } from "../components/admin/rejected-card.js";
 import { RejectedSubmissionCard } from "../components/admin/rejected-submission-card.js";
 import { SubmissionCard } from "../components/admin/submission-card.js";
+import { VersionInfo } from "../components/layout/version-info.js";
 import { signOut } from "../lib/auth-client.js";
 import { cn } from "../lib/cn.js";
 import { ensureMe, invalidateMe, meQueryOptions } from "../lib/session.js";
@@ -123,6 +124,7 @@ function AdminPage() {
           )}
         </div>
       )}
+      <VersionInfo className="mt-12 text-muted" />
     </main>
   );
 }

@@ -25,11 +25,13 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", "build/**"]
+      "outputs": ["dist/**", "build/**"],
+      "env": ["GIT_COMMIT", "GIT_DESCRIBE", "GIT_COMMIT_TIME"]
     },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "passThroughEnv": ["GIT_COMMIT", "GIT_DESCRIBE", "GIT_COMMIT_TIME"]
     },
     "lint": {
       "dependsOn": ["^build"]

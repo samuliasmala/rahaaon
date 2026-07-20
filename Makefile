@@ -5,6 +5,14 @@
 
 COMPOSE := docker compose -f docker-compose.yml -f docker-compose.dev.yml
 
+# Version footer for the in-container dev server — the dev image has no git, so
+# compute `git describe` + the commit time here and hand them to compose
+# (docker-compose.dev.yml). The values are frozen into the container's
+# environment: `make up` recreates the container when they change; `make restart`
+# reuses the old ones.
+export GIT_DESCRIBE := $(shell git describe --tags --always --dirty 2>/dev/null)
+export GIT_COMMIT_TIME := $(shell git log -1 --format=%cI 2>/dev/null)
+
 .DEFAULT_GOAL := help
 
 .PHONY: help env env-deploy up down restart build logs ps shell migrate seed psql clean

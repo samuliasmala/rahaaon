@@ -153,6 +153,12 @@ services:
     build:
       context: .
       dockerfile: docker/web.Dockerfile
+      args:
+        # Version footer; for a local build:
+        #   GIT_COMMIT=$(git rev-parse HEAD) GIT_DESCRIBE=$(git describe --tags --always) GIT_COMMIT_TIME=$(git log -1 --format=%cI) docker compose … build web
+        GIT_COMMIT: ${GIT_COMMIT:-}
+        GIT_DESCRIBE: ${GIT_DESCRIBE:-}
+        GIT_COMMIT_TIME: ${GIT_COMMIT_TIME:-}
     restart: unless-stopped
     logging: *default-logging
     mem_limit: 128m
