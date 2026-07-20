@@ -1,6 +1,23 @@
 import { z } from "@hono/zod-openapi";
 
-export const submitUrlSchema = z.object({ url: z.url().max(2000) }).openapi("SubmitUrl");
+/**
+ * A submitted link. Scheme is restricted to http(s): `z.url()` alone accepts
+ * `javascript:`, `data:`, `file:` … and the raw value is later rendered as an
+ * `href` (admin queue and, once approved, the public feed), where a
+ * `javascript:` URL is an XSS vector. The fetcher already refuses non-http(s),
+ * but validation is the right layer to reject it — and the only one that also
+ * keeps such links out of the database.
+ */
+export const submitUrlSchema = z
+  .object({
+    url: z
+      .url()
+      .max(2000)
+      .refine((value) => /^https?:$/.test(new URL(value).protocol), {
+        message: "Vain http- ja https-osoitteet kelpaavat",
+      }),
+  })
+  .openapi("SubmitUrl");
 
 /** The google-like result card shown to the reader before they confirm. */
 export const pagePreviewSchema = z

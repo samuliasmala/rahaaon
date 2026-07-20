@@ -1,5 +1,9 @@
-import dns from "node:dns/promises";
+import dns from "node:dns";
+import http from "node:http";
+import https from "node:https";
 import net from "node:net";
+import { pipeline, Readable } from "node:stream";
+import zlib from "node:zlib";
 import { logger } from "./logger.js";
 import { env } from "../config/env.js";
 
@@ -46,22 +50,11 @@ function hostnameOf(url: string): string {
 }
 
 /**
- * SSRF guard for the production deployment: refuse to fetch hosts that resolve
- * to private/loopback ranges, so the preview endpoint can't be pointed at
- * internal services. Dev/test skip it (local URLs are used in E2E). Best-effort
- * (the fetch re-resolves DNS) — proportional to what the endpoint exposes:
- * title/description of a page the submitter already controls or can read.
+ * Whether an IP address (v4, v6, or v4-mapped v6) is non-public — private,
+ * loopback, link-local, ULA, multicast or otherwise not global unicast. The
+ * SSRF guard treats a `true` result as "do not connect". Exported for tests.
  */
-async function isPubliclyRoutable(hostname: string): Promise<boolean> {
-  try {
-    const addresses = await dns.lookup(hostname, { all: true, verbatim: true });
-    return addresses.every(({ address }) => !isPrivateAddress(address));
-  } catch {
-    return false; // unresolvable — nothing to fetch anyway
-  }
-}
-
-function isPrivateAddress(address: string): boolean {
+export function isPrivateAddress(address: string): boolean {
   if (net.isIPv4(address)) {
     const [a, b] = address.split(".").map(Number) as [number, number];
     return (
@@ -76,20 +69,31 @@ function isPrivateAddress(address: string): boolean {
       a >= 224 // multicast + reserved + broadcast
     );
   }
+  // IPv6. First unwrap any embedded IPv4 (v4-mapped, either dotted
+  // `::ffff:127.0.0.1` or the hex form `::ffff:7f00:1` that URL normalises to)
+  // and classify that instead. Otherwise treat everything that is not global
+  // unicast (2000::/3) as non-public: loopback (::1), unspecified (::), ULA
+  // (fc00::/7), link-local (fe80::/10), multicast (ff00::/8) and the deprecated
+  // ::a.b.c.d forms all fall outside that range. An allowlist here is far more
+  // robust than trying to enumerate every private-form prefix.
   const lower = address.toLowerCase();
-  // IPv4-mapped IPv6 (::ffff:10.0.0.1, also the expanded form) — check the embedded IPv4.
-  const mapped = /^(?:::|(?:0:){5})ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(lower);
-  if (mapped) return isPrivateAddress(mapped[1]!);
-  return (
-    lower === "::" ||
-    lower === "::1" ||
-    lower.startsWith("fc") ||
-    lower.startsWith("fd") ||
-    lower.startsWith("fe8") ||
-    lower.startsWith("fe9") ||
-    lower.startsWith("fea") ||
-    lower.startsWith("feb")
-  );
+  const mapped =
+    /^(?:::|(?:0:){5})ffff:(?:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})|([0-9a-f]{1,4}):([0-9a-f]{1,4}))$/.exec(
+      lower,
+    );
+  if (mapped) {
+    if (mapped[1]) return isPrivateAddress(mapped[1]);
+    const hi = parseInt(mapped[2]!, 16);
+    const lo = parseInt(mapped[3]!, 16);
+    return isPrivateAddress(`${(hi >> 8) & 255}.${hi & 255}.${(lo >> 8) & 255}.${lo & 255}`);
+  }
+  // "::1" etc. split to a leading "" → NaN → correctly falls outside the range.
+  const firstHextet = parseInt(lower.split(":")[0] ?? "", 16);
+  if (!(firstHextet >= 0x2000 && firstHextet <= 0x3fff)) return true;
+  // Within global unicast, 6to4 (2002::/16) and Teredo (2001:0000::/32) tunnel
+  // an embedded IPv4 that could target an internal host, so reject them too.
+  if (firstHextet === 0x2002) return true;
+  return /^2001:0{1,4}:/.test(lower) || /^2001::/.test(lower);
 }
 
 /** First capture group of the first matching pattern, entity-decoded. */
@@ -158,22 +162,125 @@ async function readBodyCapped(res: Response, max: number): Promise<string> {
 }
 
 /**
- * Fetch the URL following redirects manually, re-applying the SSRF guard to
- * every hop — `redirect: "follow"` would let a public page bounce the request
- * to an internal address unchecked. Also http(s)-only per hop.
+ * DNS resolver used for the guarded fetch's socket connection (production only).
+ * Resolves the hostname, drops every private/loopback address, and hands only
+ * the remaining public address(es) to the connector — so the IP the socket
+ * actually dials is the exact one vetted here. Because this lookup is the
+ * connection's *only* resolution, there is no window between the SSRF check and
+ * the connect for DNS rebinding to swing the target to an internal host (the
+ * TOCTOU that a resolve-then-fetch guard leaves open). Yields an error — which
+ * aborts the connection — when nothing public remains.
+ */
+const guardedLookup: net.LookupFunction = (hostname, options, callback) => {
+  dns.lookup(hostname, { all: true, verbatim: true }, (err, addresses) => {
+    if (err) {
+      callback(err, "", 0);
+      return;
+    }
+    const publicAddrs = addresses.filter((a) => !isPrivateAddress(a.address));
+    if (publicAddrs.length === 0) {
+      callback(new Error(`refusing to connect to non-public host ${hostname}`), "", 0);
+      return;
+    }
+    if (options.all) callback(null, publicAddrs);
+    else callback(null, publicAddrs[0]!.address, publicAddrs[0]!.family);
+  });
+};
+
+/**
+ * Transparently decode a compressed body; pass anything else through. We only
+ * advertise `gzip, br` (see requestOnce), so `deflate` is a defensive branch for
+ * a server that sends it unsolicited — and `deflate` is skipped deliberately in
+ * the request because it is ambiguous (zlib-wrapped vs raw), whereas gzip/br
+ * cover the real web.
+ *
+ * Uses `pipeline`, not `res.pipe(decoder)`: a truncated or reset *compressed*
+ * body must propagate the source's abort/error to the decoder so the stream
+ * ends. With a bare pipe the decoder never sees the source die, the web stream
+ * never closes, and `readBodyCapped`'s `reader.read()` hangs forever — a hang
+ * the request timeout can't cancel once the response has started, and one an
+ * anonymous submitter can trigger by controlling the origin. The callback
+ * swallows the error; it also surfaces on the returned decoder, which the reader
+ * observes and the call sites already catch.
+ */
+function decodeBody(res: http.IncomingMessage): Readable {
+  const decoder =
+    (res.headers["content-encoding"] ?? "").toLowerCase() === "gzip"
+      ? zlib.createGunzip()
+      : (res.headers["content-encoding"] ?? "").toLowerCase() === "br"
+        ? zlib.createBrotliDecompress()
+        : (res.headers["content-encoding"] ?? "").toLowerCase() === "deflate"
+          ? zlib.createInflate()
+          : undefined;
+  if (!decoder) return res;
+  pipeline(res, decoder, () => {});
+  return decoder;
+}
+
+/**
+ * One GET, no auto-redirect, returned as a web `Response` so the rest of the
+ * module keeps its fetch-style API. Uses node http(s) rather than global
+ * `fetch` because only the low-level client exposes a per-connection `lookup`
+ * hook — the mechanism that lets {@link guardedLookup} pin the dialed IP while
+ * TLS still validates against the original hostname (SNI and cert unchanged).
+ * Content-encoding is decoded here since, unlike `fetch`, the raw client does
+ * not; `readBodyCapped` bounds the decoded size, so a decompression bomb can't
+ * blow past the byte budget.
+ */
+function requestOnce(url: string): Promise<Response> {
+  const parsed = new URL(url);
+  const client = parsed.protocol === "https:" ? https : http;
+  return new Promise((resolve, reject) => {
+    const req = client.request(
+      url,
+      {
+        method: "GET",
+        headers: {
+          "User-Agent": USER_AGENT,
+          Accept: "text/html",
+          // Not deflate: it's ambiguous (zlib vs raw) and gzip/br cover the web.
+          "Accept-Encoding": "gzip, br",
+        },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        // Pin the connection to a vetted public IP in production. Dev/test skip
+        // the guard so E2E can reach localhost.
+        ...(env.isProd ? { lookup: guardedLookup } : {}),
+      },
+      (res) => {
+        const headers = new Headers();
+        for (const [key, value] of Object.entries(res.headers)) {
+          if (Array.isArray(value)) for (const v of value) headers.append(key, v);
+          else if (value !== undefined) headers.set(key, value);
+        }
+        const body = Readable.toWeb(decodeBody(res)) as ReadableStream<Uint8Array>;
+        resolve(new Response(body, { status: res.statusCode ?? 502, headers }));
+      },
+    );
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+/**
+ * Fetch the URL following redirects manually, http(s)-only per hop and with the
+ * per-connection SSRF guard ({@link requestOnce} + {@link guardedLookup})
+ * re-applied to every hop — auto-follow would let a public page bounce the
+ * request to an internal address on a connection that never re-ran the check.
  */
 async function fetchGuarded(url: string): Promise<Response | null> {
   let current = url;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     const parsed = new URL(current);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
-    if (env.isProd && !(await isPubliclyRoutable(parsed.hostname))) return null;
+    // A numeric host bypasses the connect-time guard entirely — net.connect
+    // skips `lookup` when the host is already an IP literal — so a private
+    // literal (e.g. 169.254.169.254 or [::1]) must be rejected here. URL keeps
+    // the brackets on IPv6 literals; strip them so net.isIP recognises it.
+    // Hostnames still go through guardedLookup, which vets the address it dials.
+    const literalHost = parsed.hostname.replace(/^\[|\]$/g, "");
+    if (env.isProd && net.isIP(literalHost) && isPrivateAddress(literalHost)) return null;
 
-    const res = await fetch(current, {
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
-      redirect: "manual",
-    });
+    const res = await requestOnce(current);
     if (res.status < 300 || res.status >= 400) return res;
 
     const location = res.headers.get("location");

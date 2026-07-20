@@ -14,9 +14,10 @@ export const auth = betterAuth({
   secret: env.AUTH_SECRET,
   baseURL: env.API_URL,
   basePath: "/api/auth",
-  // The canonical app origin plus the local Vite origin, so sign-in works both
-  // through the published hostname (Caddy) and on localhost.
-  trustedOrigins: [...new Set([env.APP_URL, "http://localhost:5174"])],
+  // The canonical app origin, plus the local Vite origin outside production so
+  // sign-in works on localhost during development. Production trusts only the
+  // published hostname (Caddy) — never localhost.
+  trustedOrigins: [...new Set([env.APP_URL, ...(env.isProd ? [] : ["http://localhost:5174"])])],
 
   database: drizzleAdapter(db, {
     provider: "pg",

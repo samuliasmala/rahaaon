@@ -108,6 +108,13 @@ beforeAll(async () => {
     } else if (req.url?.startsWith("/thin")) {
       res.setHeader("content-type", "text/html; charset=utf-8");
       res.end(THIN_HTML);
+    } else if (req.url?.startsWith("/truncated-gzip")) {
+      // Claims gzip, sends a partial stream, then resets the socket — the
+      // decode-path hang regression. Must end as "failed", not hang forever.
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.setHeader("content-encoding", "gzip");
+      res.write(Buffer.from([0x1f, 0x8b, 0x08, 0x00])); // gzip magic, then die
+      res.destroy();
     } else {
       res.statusCode = 404;
       res.end("not found");
@@ -193,6 +200,15 @@ describe("article archive", () => {
       headers: { cookie: editorCookie },
     });
     expect(after.status).toBe(200);
+  });
+
+  it("marks a truncated compressed body failed instead of hanging", async () => {
+    // Pre-fix this hangs the archive job forever (status stuck 'pending') and
+    // waitForArchive times out; with pipeline-based decode it errors promptly.
+    const id = await submit("/truncated-gzip");
+    const entry = await waitForArchive(id);
+    expect(entry.archiveStatus).toBe("failed");
+    expect(entry.hasArchivedText).toBe(false);
   });
 
   it("flags a thin page as paywalled but keeps what it got", async () => {

@@ -9,6 +9,7 @@ import { notFound } from "./lib/http-errors.js";
 import { createRouter } from "./lib/openapi.js";
 import { onError } from "./middleware/error.js";
 import { requestContext } from "./middleware/request-context.js";
+import { securityHeaders } from "./middleware/security-headers.js";
 import { healthRoutes } from "./routes/health.js";
 import { meRoutes } from "./routes/me.js";
 
@@ -20,10 +21,14 @@ export function createApp() {
   const app = createRouter();
 
   app.use("*", requestContext);
+  app.use("*", securityHeaders);
   app.use(
     "*",
     cors({
-      origin: [...new Set([env.APP_URL, "http://localhost:5174"])],
+      // The local Vite origin is only trusted outside production — with
+      // credentials:true, echoing it back on the live API would let any page on
+      // the visitor's own localhost:5174 make authenticated cross-origin calls.
+      origin: [...new Set([env.APP_URL, ...(env.isProd ? [] : ["http://localhost:5174"])])],
       credentials: true,
       allowHeaders: ["Content-Type", "Authorization"],
       allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],

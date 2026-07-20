@@ -126,6 +126,36 @@ describe("system + auth", () => {
   });
 });
 
+describe("security hardening", () => {
+  it("rejects non-http(s) URL schemes on submit and preview", async () => {
+    for (const url of [
+      "javascript:alert(1)",
+      "data:text/html,<script>alert(1)</script>",
+      "file:///etc/passwd",
+    ]) {
+      for (const path of ["/api/submissions", "/api/submissions/preview"]) {
+        const res = await app.request(path, json({ url }));
+        expect(res.status, `${path} ${url}`).toBe(422);
+        const body = (await res.json()) as { error: { code: string } };
+        expect(body.error.code).toBe("validation_error");
+      }
+    }
+  });
+
+  it("sets baseline security response headers", async () => {
+    const res = await app.request("/api/health");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("content-security-policy")).toContain("default-src 'none'");
+  });
+
+  it("relaxes the CSP only for the Swagger UI page", async () => {
+    const res = await app.request("/api/docs");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("content-security-policy")).toBeNull();
+  });
+});
+
 describe("editorial loop", () => {
   let submissionId: string;
   let suggestionId: string;
