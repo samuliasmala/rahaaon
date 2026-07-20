@@ -180,3 +180,30 @@ untested restore is a hypothesis, not a capability.
 2. **Backup dead-man's-switch**: set `BACKUP_PING_URL` to a healthchecks.io check
    URL; `backup.sh` pings it on success, so a failed dump _or_ a timer that never
    fires is noticed.
+
+## Scaling — single-server assumption
+
+Each stack runs **one `api` replica**. Some state lives in that process's
+memory, so **do not raise the `api` replica count or add a second app host
+without first moving that state to a shared store** — under multiple replicas
+each of these silently misbehaves:
+
+- **Per-IP rate limits** (`api/src/middleware/rate-limit.ts`) — a separate
+  bucket map per process, so N replicas raise every effective limit ~N×.
+- **better-auth's login limiter** (`api/src/auth/auth.ts`) — storage defaults to
+  in-memory (no `secondaryStorage` configured), same ~N× dilution of the
+  brute-force cap.
+- **Page-preview cache** (`api/src/lib/page-preview.ts`) — per process; a submit
+  that lands on a different replica than the preview just re-fetches the page
+  (no correctness issue, only a redundant outbound fetch).
+- **Archive concurrency gate + stale sweep** (`api/src/lib/article-archive.ts`)
+  — `MAX_CONCURRENT_ARCHIVES` is per process (N replicas → N× concurrent
+  outbound fetches), and each replica's boot-time `failStalePendingArchives()`
+  marks **every** `pending` row failed, so restarting one replica would abort
+  another's in-flight archives.
+
+Scale-out path: back the limiters and the preview cache with Redis (or
+Postgres), and make archiving a DB-backed worklist instead of in-process.
+
+Already scale-out-safe: **sessions** live in Postgres (the `session` table), so
+sign-in works across replicas unchanged.
