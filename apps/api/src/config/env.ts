@@ -72,6 +72,17 @@ const rawSchema = z.object({
   S3_BUCKET: z.preprocess(emptyToUndefined, z.string().optional()),
   S3_ACCESS_KEY_ID: z.preprocess(emptyToUndefined, z.string().optional()),
   S3_SECRET_ACCESS_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
+
+  /**
+   * Archive worker (lib/article-archive.ts) tuning. Defaults suit production; the
+   * archive integration test overrides them for fast, deterministic retries.
+   * ATTEMPTS counts claims — a row goes `failed` once it has failed this many
+   * times; RETRY_BASE_MS is the first backoff (doubled per attempt); the worker
+   * also polls every POLL_INTERVAL_MS to pick up due retries and stranded rows.
+   */
+  ARCHIVE_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
+  ARCHIVE_RETRY_BASE_MS: z.coerce.number().int().nonnegative().default(60_000),
+  ARCHIVE_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(30_000),
 });
 
 const DEV_AUTH_SECRET = "dev-only-insecure-auth-secret-0000000000";

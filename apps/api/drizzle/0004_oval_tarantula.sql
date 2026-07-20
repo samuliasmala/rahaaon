@@ -1,0 +1,2 @@
+ALTER TABLE "url_submission" ADD COLUMN "archive_attempts" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "url_submission" ADD COLUMN "archive_next_attempt_at" timestamp with time zone;

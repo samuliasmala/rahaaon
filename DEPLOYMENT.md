@@ -196,14 +196,16 @@ each of these silently misbehaves:
 - **Page-preview cache** (`api/src/lib/page-preview.ts`) — per process; a submit
   that lands on a different replica than the preview just re-fetches the page
   (no correctness issue, only a redundant outbound fetch).
-- **Archive concurrency gate + stale sweep** (`api/src/lib/article-archive.ts`)
-  — `MAX_CONCURRENT_ARCHIVES` is per process (N replicas → N× concurrent
-  outbound fetches), and each replica's boot-time `failStalePendingArchives()`
-  marks **every** `pending` row failed, so restarting one replica would abort
-  another's in-flight archives.
+- **Archive per-drain batch size** (`api/src/lib/article-archive.ts`) —
+  `BATCH_SIZE` bounds concurrent outbound archive fetches _per process_, so N
+  replicas allow up to N× that. Correctness is fine (the worklist is DB-backed
+  and claims rows with `FOR UPDATE SKIP LOCKED`); only the outbound-fetch
+  ceiling multiplies.
 
 Scale-out path: back the limiters and the preview cache with Redis (or
-Postgres), and make archiving a DB-backed worklist instead of in-process.
+Postgres). Nothing else needs restructuring.
 
-Already scale-out-safe: **sessions** live in Postgres (the `session` table), so
-sign-in works across replicas unchanged.
+Already scale-out-safe: **sessions** live in Postgres (the `session` table), and
+**article archiving** is a Postgres worklist claimed with `SKIP LOCKED` +
+per-row leases — multiple workers coordinate correctly and a restart resumes
+outstanding rows rather than losing them.

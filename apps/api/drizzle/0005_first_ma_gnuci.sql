@@ -1,0 +1,1 @@
+CREATE INDEX "url_submission_archive_claim_idx" ON "url_submission" USING btree ("archive_next_attempt_at") WHERE "url_submission"."archive_status" = 'pending';

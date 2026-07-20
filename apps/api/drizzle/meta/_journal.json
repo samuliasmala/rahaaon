@@ -29,6 +29,20 @@
       "when": 1784489676852,
       "tag": "0003_remarkable_sleepwalker",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784540283535,
+      "tag": "0004_oval_tarantula",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784541475760,
+      "tag": "0005_first_ma_gnuci",
+      "breakpoints": true
     }
   ]
 }

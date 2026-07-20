@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../../db/client.js";
 import { suggestion, urlSubmission } from "../../db/schema/index.js";
-import { archiveEnabled, archiveKeyFor, archiveSubmission } from "../../lib/article-archive.js";
+import { archiveEnabled, manualArchiveKeyFor, runArchiveOnce } from "../../lib/article-archive.js";
 import { notFound, unavailable } from "../../lib/http-errors.js";
 import { logger } from "../../lib/logger.js";
 import { fetchPagePreview, fetchPageText } from "../../lib/page-preview.js";
@@ -43,7 +43,9 @@ export async function createSubmission(url: string): Promise<UrlSubmissionView> 
       ...(archiveEnabled ? { archiveStatus: "pending" as const } : {}),
     })
     .returning();
-  if (archiveEnabled) void archiveSubmission(row!.id, url);
+  // The row is now a 'pending' work item; kick an immediate drain so archiving
+  // starts right away (the periodic poll would otherwise pick it up shortly).
+  if (archiveEnabled) void runArchiveOnce();
   return toView(row!);
 }
 
@@ -129,7 +131,10 @@ export async function saveSubmissionArchiveText(id: string, text: string): Promi
     .limit(1);
   if (!row) throw notFound("Ehdotusta ei löytynyt");
 
-  const key = row.key ?? archiveKeyFor(id);
+  // Reuse the existing key when re-editing a terminal row; otherwise use the
+  // manual key, which the worker never writes — so a paste that races an
+  // in-flight worker attempt on a 'pending' row can't be clobbered in S3.
+  const key = row.key ?? manualArchiveKeyFor(id);
   try {
     await putTextObject(key, text);
   } catch (err) {

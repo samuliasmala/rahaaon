@@ -2,15 +2,16 @@ import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { env } from "./config/env.js";
 import { closeDb } from "./db/client.js";
-import { failStalePendingArchives } from "./lib/article-archive.js";
+import { startArchiveWorker, stopArchiveWorker } from "./lib/article-archive.js";
 import { logger } from "./lib/logger.js";
 
 const app = createApp();
 
-// Archives stranded at 'pending' by a restart mid-archive get closed out.
-// Fire-and-forget: a failure here must not stop the server from serving.
-void failStalePendingArchives().catch((err: Error) => {
-  logger.error({ err: err.message }, "stale-archive sweep failed");
+// Background archive worker: resumes rows stranded 'pending' by a restart and
+// polls for retries. Fire-and-forget start: a failure here must not stop the
+// server from serving.
+void startArchiveWorker().catch((err: Error) => {
+  logger.error({ err: err.message }, "archive worker failed to start");
 });
 
 const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
@@ -31,10 +32,14 @@ function shutdown(signal: string): void {
   force.unref();
 
   server.close(() => {
-    void closeDb().finally(() => {
-      clearTimeout(force);
-      process.exit(0);
-    });
+    // Stop the archive worker (and let its in-flight drain finish) before
+    // closing the pool, so a mid-archive query doesn't hit a closed connection.
+    void stopArchiveWorker()
+      .then(() => closeDb())
+      .finally(() => {
+        clearTimeout(force);
+        process.exit(0);
+      });
   });
 }
 

@@ -1,5 +1,7 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  index,
   integer,
   pgEnum,
   pgTable,
@@ -91,30 +93,51 @@ export const suggestion = pgTable("suggestion", {
  * ("process", which creates a {@link suggestion} row) or rejects it into the
  * archive — from where it can be restored back to `new`.
  */
-export const urlSubmission = pgTable("url_submission", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  url: text("url").notNull(),
-  /** Page metadata captured at submit time (the preview the reader confirmed). */
-  title: text("title").notNull().default(""),
-  description: text("description").notNull().default(""),
-  siteName: text("site_name").notNull().default(""),
-  status: urlSubmissionStatusEnum("status").notNull().default("new"),
-  /**
-   * Submit-time page archive: raw text is fetched right after the row is
-   * created and stored to S3 (fire-and-forget). `paywalled` = fetched but
-   * suspiciously little text. The S3 key is set whenever any text was saved —
-   * also for paywalled pages, so the editor can see what little there was.
-   */
-  archiveStatus: archiveStatusEnum("archive_status"),
-  archiveTextKey: text("archive_text_key"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  /** When the entry left the queue — set on process AND reject, cleared on restore. */
-  processedAt: timestamp("processed_at", { withTimezone: true }),
-  /** Set when processed — the AI-queue entry this submission became. */
-  suggestionId: uuid("suggestion_id").references(() => suggestion.id, {
-    onDelete: "set null",
-  }),
-});
+export const urlSubmission = pgTable(
+  "url_submission",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    url: text("url").notNull(),
+    /** Page metadata captured at submit time (the preview the reader confirmed). */
+    title: text("title").notNull().default(""),
+    description: text("description").notNull().default(""),
+    siteName: text("site_name").notNull().default(""),
+    status: urlSubmissionStatusEnum("status").notNull().default("new"),
+    /**
+     * Submit-time page archive: a background worker (lib/article-archive.ts)
+     * claims `pending` rows, fetches the text and stores it to S3. `paywalled` =
+     * fetched but suspiciously little text. The S3 key is set whenever any text
+     * was saved — also for paywalled pages, so the editor can see what little
+     * there was. Null status = archiving was never attempted (S3 not configured).
+     */
+    archiveStatus: archiveStatusEnum("archive_status"),
+    archiveTextKey: text("archive_text_key"),
+    /** How many times the archive worker has claimed this row (retry budget). */
+    archiveAttempts: integer("archive_attempts").notNull().default(0),
+    /**
+     * Earliest time the worker may (re)attempt archiving — set to a backoff in the
+     * future after a failure, and to a short lease when a worker claims the row so
+     * a concurrent/duplicate worker skips it. Null means "claimable now". Only
+     * meaningful while `archive_status = 'pending'`.
+     */
+    archiveNextAttemptAt: timestamp("archive_next_attempt_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    /** When the entry left the queue — set on process AND reject, cleared on restore. */
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    /** Set when processed — the AI-queue entry this submission became. */
+    suggestionId: uuid("suggestion_id").references(() => suggestion.id, {
+      onDelete: "set null",
+    }),
+  },
+  (t) => [
+    // Backs the archive worker's claim query, which the poll runs on an interval
+    // forever. Partial (only 'pending' rows are ever claimed, and terminal rows
+    // dominate the table), so the index stays small.
+    index("url_submission_archive_claim_idx")
+      .on(t.archiveNextAttemptAt)
+      .where(sql`${t.archiveStatus} = 'pending'`),
+  ],
+);
 
 /**
  * One "this is a waste" vote per anonymous visitor per item. The visitor id

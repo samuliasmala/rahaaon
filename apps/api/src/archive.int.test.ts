@@ -35,6 +35,8 @@ let articleServer: Server;
 let articleBase: string;
 let app: Hono;
 let closeDb: () => Promise<void>;
+let startArchiveWorker: () => Promise<void>;
+let stopArchiveWorker: () => Promise<void>;
 let editorCookie: string;
 
 const json = (body: unknown) => ({
@@ -93,6 +95,11 @@ beforeAll(async () => {
   // Stay on the mock extraction. "" rather than delete — loadEnvFile refills
   // deleted vars from the repo .env but leaves present-and-empty ones alone.
   process.env.OPENAI_API_KEY = "";
+  // Fast, deterministic archive retries: give up after 3 attempts, tiny backoff,
+  // and poll frequently so a scheduled retry is picked up within the test budget.
+  process.env.ARCHIVE_MAX_ATTEMPTS = "3";
+  process.env.ARCHIVE_RETRY_BASE_MS = "20";
+  process.env.ARCHIVE_POLL_INTERVAL_MS = "100";
 
   await new S3Client({
     endpoint: s3Endpoint,
@@ -101,6 +108,8 @@ beforeAll(async () => {
     credentials: { accessKeyId: "minioadmin", secretAccessKey: "minioadmin" },
   }).send(new CreateBucketCommand({ Bucket: "archive-test" }));
 
+  // Fails the first two requests, then serves the article — exercises retry.
+  let flakyHits = 0;
   articleServer = createServer((req, res) => {
     if (req.url?.startsWith("/article")) {
       res.setHeader("content-type", "text/html; charset=utf-8");
@@ -108,6 +117,15 @@ beforeAll(async () => {
     } else if (req.url?.startsWith("/thin")) {
       res.setHeader("content-type", "text/html; charset=utf-8");
       res.end(THIN_HTML);
+    } else if (req.url?.startsWith("/flaky")) {
+      flakyHits += 1;
+      if (flakyHits < 3) {
+        res.statusCode = 503;
+        res.end("temporarily unavailable");
+      } else {
+        res.setHeader("content-type", "text/html; charset=utf-8");
+        res.end(ARTICLE_HTML);
+      }
     } else if (req.url?.startsWith("/truncated-gzip")) {
       // Claims gzip, sends a partial stream, then resets the socket — the
       // decode-path hang regression. Must end as "failed", not hang forever.
@@ -131,6 +149,13 @@ beforeAll(async () => {
   app = appMod.createApp() as unknown as Hono;
   const clientMod = await import("./db/client.js");
   closeDb = clientMod.closeDb;
+
+  // server.ts starts the worker in production; the test drives app.js directly,
+  // so start it here (the poll loop is what drives retries).
+  const archiveMod = await import("./lib/article-archive.js");
+  startArchiveWorker = archiveMod.startArchiveWorker;
+  stopArchiveWorker = archiveMod.stopArchiveWorker;
+  await startArchiveWorker();
 
   const { auth } = await import("./auth/auth.js");
   const ctx = await auth.$context;
@@ -158,6 +183,7 @@ beforeAll(async () => {
 }, 240_000);
 
 afterAll(async () => {
+  await stopArchiveWorker?.();
   await closeDb?.();
   await new Promise((r) => articleServer?.close(r));
   await Promise.all([dbContainer?.stop(), minio?.stop()]);
@@ -200,6 +226,14 @@ describe("article archive", () => {
       headers: { cookie: editorCookie },
     });
     expect(after.status).toBe(200);
+  });
+
+  it("retries a transient failure and eventually archives", async () => {
+    // /flaky 503s twice, then serves the article — within the 3-attempt budget.
+    const id = await submit("/flaky");
+    const entry = await waitForArchive(id);
+    expect(entry.archiveStatus).toBe("ok");
+    expect(entry.hasArchivedText).toBe(true);
   });
 
   it("marks a truncated compressed body failed instead of hanging", async () => {
