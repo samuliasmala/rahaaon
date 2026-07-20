@@ -15,15 +15,24 @@ import {
   restoreSubmission,
   saveSubmissionArchiveText,
 } from "./submissions.repo.js";
-import { commonErrorResponses, createRouter } from "../../lib/openapi.js";
+import { commonErrorResponses, createRouter, errorResponse } from "../../lib/openapi.js";
 import { fetchPagePreview } from "../../lib/page-preview.js";
 import { requireAuth } from "../../middleware/auth.js";
+import { rateLimit } from "../../middleware/rate-limit.js";
 
 const idParam = z.object({ id: z.uuid() });
 
-// NOTE: the two public endpoints below are anonymous and unthrottled (accepted
-// MVP scope — same posture as the voting endpoint). If junk floods the
-// Ehdotusjono or the preview fetcher gets abused, add rate limiting here first.
+// The two public endpoints below are anonymous; per-IP rate limits keep the
+// preview fetcher from being used as a fetch proxy and junk from flooding the
+// Ehdotusjono. Both stay well above any honest submitter's pace.
+const previewLimit = rateLimit({ name: "preview", windowMs: 60_000, max: 10 });
+const submitLimit = rateLimit({ name: "submit", windowMs: 60_000, max: 5 });
+const submitDailyLimit = rateLimit({
+  name: "submit-daily",
+  windowMs: 24 * 60 * 60 * 1000,
+  max: 50,
+});
+
 export const submissionRoutes = createRouter();
 
 submissionRoutes.openapi(
@@ -32,12 +41,14 @@ submissionRoutes.openapi(
     path: "/submissions/preview",
     summary: "Fetch the google-like page preview for a link, without submitting anything",
     tags: ["Submissions"],
+    middleware: [previewLimit] as const,
     request: { body: { content: { "application/json": { schema: submitUrlSchema } } } },
     responses: {
       200: {
         description: "Page metadata for the confirmation card",
         content: { "application/json": { schema: pagePreviewSchema } },
       },
+      429: errorResponse("Liikaa pyyntöjä"),
       ...commonErrorResponses,
     },
   }),
@@ -53,12 +64,14 @@ submissionRoutes.openapi(
     path: "/submissions",
     summary: "Submit a confirmed link to the Ehdotusjono (anonymous)",
     tags: ["Submissions"],
+    middleware: [submitLimit, submitDailyLimit] as const,
     request: { body: { content: { "application/json": { schema: submitUrlSchema } } } },
     responses: {
       201: {
         description: "Queued for editorial processing",
         content: { "application/json": { schema: z.object({ id: z.uuid() }) } },
       },
+      429: errorResponse("Liikaa pyyntöjä"),
       ...commonErrorResponses,
     },
   }),

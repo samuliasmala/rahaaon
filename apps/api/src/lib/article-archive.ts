@@ -30,10 +30,10 @@ function contentLength(markdown: string): number {
 export const archiveEnabled = s3Configured;
 
 /**
- * The submit endpoint is anonymous and unthrottled (accepted MVP posture), so
- * the background fetch + S3 write it spawns must not amplify a submission
- * flood into unbounded outbound connections. Excess jobs queue in-process;
- * queued entries are just id+url, so memory stays negligible.
+ * The submit endpoint is anonymous and only per-IP rate-limited, so the
+ * background fetch + S3 write it spawns must not amplify a distributed
+ * submission flood into unbounded outbound connections. Excess jobs queue
+ * in-process; queued entries are just id+url, so memory stays negligible.
  */
 const MAX_CONCURRENT_ARCHIVES = 4;
 let running = 0;

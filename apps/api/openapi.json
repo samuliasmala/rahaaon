@@ -688,6 +688,16 @@
               }
             }
           },
+          "429": {
+            "description": "Liikaa pyyntöjä",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Palvelinvirhe",
             "content": {
@@ -1620,6 +1630,16 @@
               }
             }
           },
+          "429": {
+            "description": "Liikaa pyyntöjä",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Palvelinvirhe",
             "content": {
@@ -1720,6 +1740,16 @@
           },
           "422": {
             "description": "Validointivirhe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Liikaa pyyntöjä",
             "content": {
               "application/json": {
                 "schema": {
