@@ -1,5 +1,5 @@
 import { VoteButton } from "./vote-button.js";
-import { daysSince, formatAge, formatCount, formatEur } from "../../lib/format.js";
+import { daysSince, formatAge, formatCount, formatDate, formatEur } from "../../lib/format.js";
 import { copyLink } from "../../lib/share.js";
 import { useToggleVote } from "../../lib/votes.js";
 import { Button } from "../ui/button.js";
@@ -28,7 +28,12 @@ export function ItemRow({ item, onOpen }: { item: WasteItem; onOpen: () => void 
           <span aria-hidden>·</span>
           <span>Lähde: {item.sourceName}</span>
           <span aria-hidden>·</span>
-          <span>{formatAge(daysSince(item.publishedAt))}</span>
+          {/* The article's own date when the AI (or editor) found one; feed age otherwise. */}
+          <span>
+            {item.articlePublishedAt
+              ? formatDate(item.articlePublishedAt)
+              : formatAge(daysSince(item.publishedAt))}
+          </span>
         </span>
       </button>
       <div className="flex flex-none gap-2.5">

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { formatAge, formatAgeShort, formatCount, formatEur, parseEuroAmount } from "./format.js";
+import {
+  formatAge,
+  formatAgeShort,
+  formatCount,
+  formatDate,
+  formatEur,
+  parseEuroAmount,
+} from "./format.js";
 
 // fi-FI groups digits with a non-breaking space.
 const NBSP = " ";
@@ -23,6 +30,13 @@ describe("formatAge", () => {
     expect(formatAge(0)).toBe("juuri nyt");
     expect(formatAge(3)).toBe("3 pv sitten");
     expect(formatAge(14)).toBe("2 vk sitten");
+  });
+});
+
+describe("formatDate", () => {
+  it("renders a YYYY-MM-DD date in Finnish style without zero-padding", () => {
+    expect(formatDate("2025-11-04")).toBe("4.11.2025");
+    expect(formatDate("2026-01-15")).toBe("15.1.2026");
   });
 });
 

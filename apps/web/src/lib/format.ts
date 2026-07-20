@@ -21,6 +21,12 @@ export function formatAge(days: number): string {
   return `${Math.round(days / 7)} vk sitten`;
 }
 
+/** "4.11.2025" — a YYYY-MM-DD date in Finnish style. String-parsed so no timezone can shift the day. */
+export function formatDate(isoDate: string): string {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return `${d}.${m}.${y}`;
+}
+
 /** Compact age for the admin table: "juuri nyt" / "3 pv". */
 export function formatAgeShort(days: number): string {
   return days === 0 ? "juuri nyt" : `${days} pv`;
