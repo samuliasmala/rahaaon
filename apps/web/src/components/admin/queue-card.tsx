@@ -39,6 +39,7 @@ export function QueueCard({ entry }: { entry: Suggestion }) {
     amount: String(entry.amountEur),
     entity: entry.entity,
     category: entry.category,
+    articlePublishedAt: entry.articlePublishedAt ?? "",
   });
 
   const patchMutation = usePatchApiAdminSuggestionsId();
@@ -53,6 +54,7 @@ export function QueueCard({ entry }: { entry: Suggestion }) {
       amountEur: parseEuroAmount(draft.amount),
       entity: draft.entity,
       category: draft.category,
+      articlePublishedAt: draft.articlePublishedAt || null,
     };
   }
 
@@ -167,6 +169,17 @@ export function QueueCard({ entry }: { entry: Suggestion }) {
                   </option>
                 ))}
               </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <FieldLabel htmlFor={`queue-date-${entry.id}`}>Artikkelin julkaisupäivä</FieldLabel>
+              <Input
+                id={`queue-date-${entry.id}`}
+                type="date"
+                value={draft.articlePublishedAt}
+                onChange={(e) => setDraft((d) => ({ ...d, articlePublishedAt: e.target.value }))}
+                onBlur={saveDraft}
+                className="font-medium"
+              />
             </div>
           </div>
         </div>

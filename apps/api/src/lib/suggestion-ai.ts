@@ -8,8 +8,9 @@ import { CATEGORIES, type Category } from "../db/schema/content.js";
 
 /**
  * The AI ingestion pipeline: have an LLM draft the suggestion (title, amount,
- * entity, category, summary + caveats) for the editorial queue. The article
- * text comes from the caller — normally the submit-time S3 archive, see
+ * entity, category, source, publish date, summary + caveats) for the editorial
+ * queue. The article text comes from the caller — normally the submit-time S3
+ * archive, see
  * `lib/article-archive.ts`. Provider-agnostic via the AI SDK — the model comes
  * from `lib/llm.ts`. Without an API key the extraction falls back to a fixed
  * mock in dev/test (so the flow works offline and in CI) and fails with a
@@ -22,6 +23,8 @@ export interface ArticleExtraction {
   entity: string;
   category: Category;
   sourceName: string;
+  /** The article's own publication date (YYYY-MM-DD); null when the source doesn't state one. */
+  articlePublishedAt: string | null;
   summary: string;
   aiNote: string;
   /** Extraction confidence, 0–100. */
@@ -58,6 +61,12 @@ const extractionSchema = z.object({
   sourceName: z
     .string()
     .describe('Publication name, e.g. "Helsingin Sanomat". Empty string if unknown.'),
+  publishedDate: z
+    .string()
+    .describe(
+      "The article's publication date in YYYY-MM-DD format, only if the article or its " +
+        "metadata states it — never guess or use today's date. Empty string if not stated.",
+    ),
   summary: z
     .string()
     .describe("2–3 sentence summary of the spending case, in Finnish, for the editorial queue"),
@@ -97,13 +106,22 @@ function buildPrompt(url: string, context: SubmissionContext, pageText: string):
 /** Postgres `integer` max — amount_eur would overflow past this at insert. */
 const PG_INT_MAX = 2_147_483_647;
 
+/** Keep only a well-formed calendar date (the format the prompt asks for); anything else → null. */
+function validDateOrNull(value: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(parsed.getTime()) || !parsed.toISOString().startsWith(value) ? null : value;
+}
+
 /** Clamp the model's numbers to what the schema and DB expect. */
 function finishExtraction(raw: z.infer<typeof extractionSchema>, url: string): ArticleExtraction {
+  const { publishedDate, ...rest } = raw;
   return {
-    ...raw,
+    ...rest,
     amountEur: Math.min(PG_INT_MAX, Math.max(0, Math.round(raw.amountEur))),
     confidence: Math.min(100, Math.max(0, Math.round(raw.confidence))),
     sourceName: raw.sourceName || sourceNameFromUrl(url),
+    articlePublishedAt: validDateOrNull(publishedDate),
   };
 }
 
@@ -155,6 +173,7 @@ function mockExtraction(url: string): ArticleExtraction {
     entity: "Vantaa",
     category: "Muu",
     sourceName: sourceNameFromUrl(url),
+    articlePublishedAt: "2025-11-04",
     summary:
       'Kolmivuotinen vuokrasopimus sisältää "kasvillisuuden elinvoimaisuuden ylläpidon". ' +
       "Huoltokäynneillä muovikasvit pyyhitään pölystä. Sopimuksen arvo on 87 000 €.",

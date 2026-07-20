@@ -30,6 +30,7 @@ export async function listItems(opts: {
       quote: wasteItem.quote,
       hidden: wasteItem.hidden,
       publishedAt: wasteItem.publishedAt,
+      articlePublishedAt: wasteItem.articlePublishedAt,
       votes: count(itemVote.voterId),
       voted: votedExpr,
     })

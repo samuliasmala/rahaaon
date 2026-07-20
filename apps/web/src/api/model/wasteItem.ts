@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Category } from './category';
+import type { WasteItemArticlePublishedAt } from './wasteItemArticlePublishedAt';
 
 export interface WasteItem {
   id: string;
@@ -19,6 +20,7 @@ export interface WasteItem {
   quote: string;
   hidden: boolean;
   publishedAt: string;
+  articlePublishedAt: WasteItemArticlePublishedAt;
   votes: number;
   voted: boolean;
 }

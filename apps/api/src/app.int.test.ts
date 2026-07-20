@@ -199,9 +199,16 @@ describe("editorial loop", () => {
     const queueRes = await app.request("/api/admin/suggestions", {
       headers: { cookie: editorCookie },
     });
-    const queue = (await queueRes.json()) as { id: string; sourceName: string; url: string }[];
+    const queue = (await queueRes.json()) as {
+      id: string;
+      sourceName: string;
+      articlePublishedAt: string | null;
+      url: string;
+    }[];
     expect(queue.map((q) => q.id)).toContain(suggestionId);
     expect(queue.find((q) => q.id === suggestionId)?.sourceName).toBe("Yle");
+    // The mock extraction's fixed article date (real runs: AI-extracted, null when unknown).
+    expect(queue.find((q) => q.id === suggestionId)?.articlePublishedAt).toBe("2025-11-04");
     expect(queue.find((q) => q.id === suggestionId)?.url).toBe(
       "https://yle.fi.invalid/a/testijuttu",
     );
@@ -224,12 +231,21 @@ describe("editorial loop", () => {
     const res = await app.request(`/api/admin/suggestions/${suggestionId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json", cookie: editorCookie },
-      body: JSON.stringify({ title: "Muokattu otsikko", amountEur: 123_000 }),
+      body: JSON.stringify({
+        title: "Muokattu otsikko",
+        amountEur: 123_000,
+        articlePublishedAt: "2026-01-15",
+      }),
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { title: string; amountEur: number };
+    const body = (await res.json()) as {
+      title: string;
+      amountEur: number;
+      articlePublishedAt: string | null;
+    };
     expect(body.title).toBe("Muokattu otsikko");
     expect(body.amountEur).toBe(123_000);
+    expect(body.articlePublishedAt).toBe("2026-01-15");
   });
 
   it("publishes on approve and the item appears in the public feed", async () => {
@@ -243,10 +259,12 @@ describe("editorial loop", () => {
     const feed = (await (await app.request("/api/items")).json()) as {
       id: string;
       title: string;
+      articlePublishedAt: string | null;
       votes: number;
     }[];
     const published = feed.find((i) => i.id === itemId);
     expect(published?.title).toBe("Muokattu otsikko");
+    expect(published?.articlePublishedAt).toBe("2026-01-15");
     expect(published?.votes).toBe(0);
 
     // Approved entries leave the queue.

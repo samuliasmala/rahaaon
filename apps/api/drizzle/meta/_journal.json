@@ -43,6 +43,13 @@
       "when": 1784541475760,
       "tag": "0005_first_ma_gnuci",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784576422265,
+      "tag": "0006_last_spectrum",
+      "breakpoints": true
     }
   ]
 }

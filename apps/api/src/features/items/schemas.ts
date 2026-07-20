@@ -17,6 +17,8 @@ export const wasteItemSchema = z
     quote: z.string(),
     hidden: z.boolean(),
     publishedAt: z.iso.datetime(),
+    /** The source article's own publication date; null when unknown. */
+    articlePublishedAt: z.iso.date().nullable(),
     votes: z.number().int(),
     /** Whether the requesting visitor has voted for this item. */
     voted: z.boolean(),

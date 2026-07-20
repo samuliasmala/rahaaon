@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Category } from './category';
+import type { SuggestionArticlePublishedAt } from './suggestionArticlePublishedAt';
 
 export interface Suggestion {
   id: string;
@@ -15,6 +16,7 @@ export interface Suggestion {
   entity: string;
   category: Category;
   sourceName: string;
+  articlePublishedAt: SuggestionArticlePublishedAt;
   summary: string;
   aiNote: string;
   confidence: number;

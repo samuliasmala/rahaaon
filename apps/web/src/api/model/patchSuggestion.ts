@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Category } from './category';
+import type { PatchSuggestionArticlePublishedAt } from './patchSuggestionArticlePublishedAt';
 
 export interface PatchSuggestion {
   /**
@@ -26,4 +27,5 @@ export interface PatchSuggestion {
    */
   entity?: string;
   category?: Category;
+  articlePublishedAt?: PatchSuggestionArticlePublishedAt;
 }

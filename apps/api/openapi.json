@@ -143,6 +143,13 @@
             "type": "string",
             "format": "date-time"
           },
+          "articlePublishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
           "votes": {
             "type": "integer"
           },
@@ -162,6 +169,7 @@
           "quote",
           "hidden",
           "publishedAt",
+          "articlePublishedAt",
           "votes",
           "voted"
         ]
@@ -229,6 +237,13 @@
           "sourceName": {
             "type": "string"
           },
+          "articlePublishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
           "summary": {
             "type": "string"
           },
@@ -251,6 +266,7 @@
           "entity",
           "category",
           "sourceName",
+          "articlePublishedAt",
           "summary",
           "aiNote",
           "confidence",
@@ -281,6 +297,13 @@
           },
           "category": {
             "$ref": "#/components/schemas/Category"
+          },
+          "articlePublishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
           }
         }
       },

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  date,
   index,
   integer,
   pgEnum,
@@ -61,7 +62,10 @@ export const wasteItem = pgTable("waste_item", {
   quote: text("quote").notNull().default(""),
   /** Hidden items stay in the admin list but are removed from the feed and the total. */
   hidden: boolean("hidden").notNull().default(false),
+  /** When the item went live on the feed (approval time). */
   publishedAt: timestamp("published_at", { withTimezone: true }).notNull().defaultNow(),
+  /** The source article's own publication date (AI-extracted); null when unknown. */
+  articlePublishedAt: date("article_published_at", { mode: "string" }),
 });
 
 /** An AI-preprocessed reader suggestion; the editorial queue is `status = 'pending'`. */
@@ -74,6 +78,8 @@ export const suggestion = pgTable("suggestion", {
   category: categoryEnum("category").notNull(),
   sourceName: text("source_name").notNull(),
   summary: text("summary").notNull(),
+  /** The source article's own publication date (AI-extracted); null when unknown. */
+  articlePublishedAt: date("article_published_at", { mode: "string" }),
   /** The AI's caveats for the editor ("summa mainitaan vain otsikossa…"). */
   aiNote: text("ai_note").notNull().default(""),
   /** AI extraction confidence, 0–100. */

@@ -15,6 +15,7 @@ function makeItem(overrides: Partial<WasteItem>): WasteItem {
     quote: "",
     hidden: false,
     publishedAt: "2026-07-17T00:00:00.000Z",
+    articlePublishedAt: null,
     votes: 10,
     voted: false,
     ...overrides,

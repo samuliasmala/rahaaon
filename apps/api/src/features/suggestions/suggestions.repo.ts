@@ -18,6 +18,7 @@ function toView(row: SuggestionRow): SuggestionView {
     entity: row.entity,
     category: row.category,
     sourceName: row.sourceName,
+    articlePublishedAt: row.articlePublishedAt,
     summary: row.summary,
     aiNote: row.aiNote,
     confidence: row.confidence,
@@ -69,6 +70,7 @@ export async function approveSuggestion(id: string): Promise<{ itemId: string }>
         sourceName: entry.sourceName,
         sourceUrl: entry.url,
         summary: entry.summary,
+        articlePublishedAt: entry.articlePublishedAt,
         quote: `Lähde: ${entry.sourceName}.`,
       })
       .returning({ id: wasteItem.id });

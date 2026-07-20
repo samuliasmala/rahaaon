@@ -11,6 +11,8 @@ export const suggestionSchema = z
     entity: z.string(),
     category: categorySchema,
     sourceName: z.string(),
+    /** The source article's own publication date; null when the AI couldn't find one. */
+    articlePublishedAt: z.iso.date().nullable(),
     summary: z.string(),
     aiNote: z.string(),
     confidence: z.number().int(),
@@ -35,6 +37,7 @@ export const patchSuggestionSchema = z
     amountEur: z.number().int().min(0),
     entity: z.string().min(1).max(120),
     category: categorySchema,
+    articlePublishedAt: z.iso.date().nullable(),
   })
   .partial()
   .openapi("PatchSuggestion");

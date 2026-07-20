@@ -18,6 +18,11 @@ const ADMIN_PASSWORD = env.SEED_ADMIN_PASSWORD ?? "rahaaon-dev";
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
+/** YYYY-MM-DD for an epoch moment — the seeds' article publication dates. */
+function isoDate(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
 interface SeedItem {
   title: string;
   amountEur: number;
@@ -286,6 +291,8 @@ async function main() {
         summary: item.summary,
         quote: item.quote,
         publishedAt: new Date(now - item.daysAgo * DAY_MS),
+        // The fictional article ran the day before the item hit the feed.
+        articlePublishedAt: isoDate(now - (item.daysAgo + 1) * DAY_MS),
       })
       .returning({ id: s.wasteItem.id });
 
@@ -311,6 +318,7 @@ async function main() {
       summary: sg.summary,
       aiNote: sg.aiNote,
       confidence: sg.confidence,
+      articlePublishedAt: isoDate(now - sg.hoursAgo * HOUR_MS - DAY_MS),
       createdAt: new Date(now - sg.hoursAgo * HOUR_MS),
     })),
   );
