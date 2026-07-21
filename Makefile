@@ -54,13 +54,14 @@ endif
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env env-deploy up down restart build logs ps shell migrate seed set-admin-password psql clean \
+.PHONY: help env up down restart build logs ps shell migrate seed set-admin-password psql clean \
 	backup-now backup-list backup-status backup-install
 
 help: ## List targets. Append ENV=dev|test|prod to target a deployed stack (default: local)
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-env: ## Create .env from .env.example with a generated secret (local; no-op if .env exists)
+env: ## Create this stack's env file with generated secrets (.env local, .env.$(ENV) deployed; no-op if it exists)
+ifeq ($(ENV),local)
 	@if [ -f .env ]; then \
 		echo ".env already exists — leaving it untouched"; \
 	else \
@@ -68,10 +69,9 @@ env: ## Create .env from .env.example with a generated secret (local; no-op if .
 		sed -i "s|^AUTH_SECRET=.*|AUTH_SECRET=$$(openssl rand -base64 32)|" .env; \
 		echo "Created .env from .env.example with a generated AUTH_SECRET — review URLs/ports if needed."; \
 	fi
-
-env-deploy: ## Create .env.$(ENV) for a deployed stack (ENV=dev|test|prod; run on the VPS)
-	@[ "$(ENV)" != local ] || { echo "env-deploy needs a deployed env, e.g. make env-deploy ENV=test"; exit 1; }
+else
 	@./deploy/init-env.sh $(ENV)
+endif
 
 up: ## Start the dev stack (app + db), detached [local only]
 	@[ "$(ENV)" = local ] || { echo "up is local-only — deployed stacks are brought up by the deploy pipeline (deploy/deploy.sh / CI), not make."; exit 1; }

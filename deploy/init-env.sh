@@ -2,7 +2,7 @@
 # Create .env.<env> for a deployed stack (run on the VPS) from .env.prod.example,
 # generating secrets and filling the per-env values the template documents.
 # Never overwrites an existing file. Usage: deploy/init-env.sh dev|test|prod
-# (or: make env-deploy ENV=...).
+# (or: make env ENV=...).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

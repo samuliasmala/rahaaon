@@ -70,7 +70,7 @@ cd /srv/rahaaon
 # Env files — one per stack (gitignored). deploy/init-env.sh fills the per-env
 # values (domain, WEB_PORT, BACKUP_ENV, MinIO vs R2) and generates the DB
 # password + secrets; then fill in what it lists as manual (prod R2 creds).
-make env-deploy ENV=dev && make env-deploy ENV=test && make env-deploy ENV=prod
+make env ENV=dev && make env ENV=test && make env ENV=prod
 $EDITOR .env.prod
 ```
 
