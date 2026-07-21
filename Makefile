@@ -35,6 +35,17 @@ ifeq ($(ENV),local)
   # DB one-offs run the TS source via pnpm inside the running app container.
   db_run = $(COMPOSE) exec $(APP_SVC) pnpm db:$(1) $(if $(strip $(ARGS)),-- $(ARGS),)
 else
+  # docker-compose.prod.yml needs IMAGE_TAG (normally exported by
+  # deploy/deploy.sh) or `run --rm` one-offs try to pull :latest, which is
+  # never pushed. Derive it from the running api container of this env's
+  # stack; pass IMAGE_TAG=... explicitly to override (or if nothing runs yet).
+  ifndef IMAGE_TAG
+    IMAGE_TAG := $(shell docker ps \
+      --filter label=com.docker.compose.project=rahaaon-$(ENV) \
+      --filter label=com.docker.compose.service=api \
+      --format '{{.Image}}' | head -1 | sed 's/.*://')
+  endif
+  export IMAGE_TAG
   COMPOSE := docker compose -p rahaaon-$(ENV) --env-file .env.$(ENV) -f docker-compose.prod.yml
   APP_SVC := api
   # DB one-offs run the built script in a throwaway container (no source in the image).
