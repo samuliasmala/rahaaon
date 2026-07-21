@@ -43,7 +43,8 @@ endif
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env env-deploy up down restart build logs ps shell migrate seed set-admin-password psql clean
+.PHONY: help env env-deploy up down restart build logs ps shell migrate seed set-admin-password psql clean \
+	backup-now backup-list backup-status backup-install
 
 help: ## List targets. Append ENV=dev|test|prod to target a deployed stack (default: local)
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -101,3 +102,27 @@ psql: ## Open psql against the stack's database
 clean: ## Stop the stack and DELETE all volumes (db data, node_modules) [local only]
 	@[ "$(ENV)" = local ] || { echo "clean is local-only — it runs 'down -v' and DELETES volumes (DB data). Never for deployed stacks."; exit 1; }
 	$(COMPOSE) down -v
+
+# ---- Backups (deployed stacks only; the daily run is a systemd timer, not make) ----
+
+backup-now: ## Take a backup right now to R2/MinIO (ENV=dev|test|prod)
+	@[ "$(ENV)" != local ] || { echo "backups need a deployed stack, e.g. make backup-now ENV=prod (there is no object storage in the local dev stack)."; exit 1; }
+	$(COMPOSE) --profile backup run --rm backup daily
+
+backup-list: ## List the dumps currently in the bucket for this env (ENV=dev|test|prod)
+	@[ "$(ENV)" != local ] || { echo "backups need a deployed stack, e.g. make backup-list ENV=prod."; exit 1; }
+	$(COMPOSE) --profile backup run --rm --entrypoint sh backup -c \
+		'. /usr/local/bin/rclone-env.sh && rclone ls "r2:$$S3_BUCKET/backups/$(ENV)"'
+
+backup-status: ## Show the daily-backup timer schedule + last run (ENV=dev|test|prod; on the VPS)
+	@[ "$(ENV)" != local ] || { echo "the backup timer only exists on deployed stacks, e.g. make backup-status ENV=prod (run on the VPS)."; exit 1; }
+	systemctl list-timers --all --no-pager 'rahaaon-backup@$(ENV).timer'
+	@echo
+	systemctl status --no-pager -n 20 rahaaon-backup@$(ENV).service || true
+
+backup-install: ## First-time: install + enable the daily-backup timer for this env (ENV=dev|test|prod; sudo; on the VPS)
+	@[ "$(ENV)" != local ] || { echo "the backup timer only applies to deployed stacks, e.g. make backup-install ENV=prod (run on the VPS)."; exit 1; }
+	sudo cp deploy/rahaaon-backup@.service deploy/rahaaon-backup@.timer /etc/systemd/system/
+	sudo systemctl daemon-reload
+	sudo systemctl enable --now rahaaon-backup@$(ENV).timer
+	@echo "Enabled rahaaon-backup@$(ENV).timer — verify with: make backup-status ENV=$(ENV)"
