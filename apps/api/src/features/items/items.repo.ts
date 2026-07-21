@@ -22,6 +22,8 @@ export async function listItems(opts: {
       id: wasteItem.id,
       title: wasteItem.title,
       amountEur: wasteItem.amountEur,
+      amountType: wasteItem.amountType,
+      amountMaxEur: wasteItem.amountMaxEur,
       entity: wasteItem.entity,
       category: wasteItem.category,
       sourceName: wasteItem.sourceName,

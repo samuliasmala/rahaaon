@@ -27,6 +27,18 @@ export type Category = (typeof CATEGORIES)[number];
 
 export const categoryEnum = pgEnum("category", CATEGORIES);
 
+/**
+ * How precise `amount_eur` is — must stay in sync with the admin precision
+ * select. `exact` = plainly stated figure; `approx` = qualified ("noin",
+ * "arviolta"); `min` = lower bound only ("yli", "vähintään"); `unknown` = the
+ * source states no amount (amount_eur is 0 by convention).
+ */
+export const AMOUNT_TYPES = ["exact", "approx", "min", "unknown"] as const;
+
+export type AmountType = (typeof AMOUNT_TYPES)[number];
+
+export const amountTypeEnum = pgEnum("amount_type", AMOUNT_TYPES);
+
 export const suggestionStatusEnum = pgEnum("suggestion_status", [
   "pending",
   "approved",
@@ -49,8 +61,11 @@ export const archiveStatusEnum = pgEnum("archive_status", ["pending", "ok", "pay
 export const wasteItem = pgTable("waste_item", {
   id: uuid("id").primaryKey().defaultRandom(),
   title: text("title").notNull(),
-  /** Whole euros. */
+  /** Whole euros; a range's lower bound when amount_max_eur is set; 0 when amount_type = 'unknown'. */
   amountEur: integer("amount_eur").notNull(),
+  amountType: amountTypeEnum("amount_type").notNull().default("exact"),
+  /** Range upper bound in whole euros ("100–200 M€"); null when the source gives no range. */
+  amountMaxEur: integer("amount_max_eur"),
   /** Who spent the money: a municipality or a national body ("Valtio", "ELY-keskus"…). */
   entity: text("entity").notNull(),
   category: categoryEnum("category").notNull(),
@@ -74,6 +89,8 @@ export const suggestion = pgTable("suggestion", {
   url: text("url").notNull(),
   title: text("title").notNull(),
   amountEur: integer("amount_eur").notNull(),
+  amountType: amountTypeEnum("amount_type").notNull().default("exact"),
+  amountMaxEur: integer("amount_max_eur"),
   entity: text("entity").notNull(),
   category: categoryEnum("category").notNull(),
   sourceName: text("source_name").notNull(),

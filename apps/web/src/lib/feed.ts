@@ -59,7 +59,11 @@ export function sortFeedItems(items: WasteItem[], sort: SortOrder): WasteItem[] 
   });
 }
 
-/** Sum of all listed items — the hero counter (the feed endpoint already excludes hidden). */
+/**
+ * Sum of all listed items — the hero counter (the feed endpoint already
+ * excludes hidden). amountEur is a range's lower bound and 0 for unknown
+ * amounts, so the total stays a conservative "at least this much".
+ */
 export function totalRecorded(items: WasteItem[]): number {
   return items.reduce((sum, item) => sum + item.amountEur, 0);
 }

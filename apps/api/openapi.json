@@ -118,6 +118,15 @@
           "amountEur": {
             "type": "integer"
           },
+          "amountType": {
+            "$ref": "#/components/schemas/AmountType"
+          },
+          "amountMaxEur": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "entity": {
             "type": "string"
           },
@@ -161,6 +170,8 @@
           "id",
           "title",
           "amountEur",
+          "amountType",
+          "amountMaxEur",
           "entity",
           "category",
           "sourceName",
@@ -172,6 +183,15 @@
           "articlePublishedAt",
           "votes",
           "voted"
+        ]
+      },
+      "AmountType": {
+        "type": "string",
+        "enum": [
+          "exact",
+          "approx",
+          "min",
+          "unknown"
         ]
       },
       "Category": {
@@ -228,6 +248,15 @@
           "amountEur": {
             "type": "integer"
           },
+          "amountType": {
+            "$ref": "#/components/schemas/AmountType"
+          },
+          "amountMaxEur": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "entity": {
             "type": "string"
           },
@@ -263,6 +292,8 @@
           "url",
           "title",
           "amountEur",
+          "amountType",
+          "amountMaxEur",
           "entity",
           "category",
           "sourceName",
@@ -288,6 +319,16 @@
           },
           "amountEur": {
             "type": "integer",
+            "minimum": 0
+          },
+          "amountType": {
+            "$ref": "#/components/schemas/AmountType"
+          },
+          "amountMaxEur": {
+            "type": [
+              "integer",
+              "null"
+            ],
             "minimum": 0
           },
           "entity": {

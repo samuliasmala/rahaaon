@@ -1,5 +1,5 @@
 import { VoteButton } from "./vote-button.js";
-import { daysSince, formatAge, formatCount, formatDate, formatEur } from "../../lib/format.js";
+import { daysSince, formatAge, formatAmount, formatCount, formatDate } from "../../lib/format.js";
 import { copyLink } from "../../lib/share.js";
 import { useToggleVote } from "../../lib/votes.js";
 import { Button } from "../ui/button.js";
@@ -25,7 +25,7 @@ export function DetailDialog({ item, onClose }: { item: WasteItem | null; onClos
           </DialogHeader>
           <div className="flex flex-col gap-5 p-4.5 md:p-8">
             <p className="font-display text-[34px]/none font-bold text-accent tabular md:text-[52px]/none">
-              {formatEur(item.amountEur)}
+              {formatAmount(item)}
             </p>
             <h2 className="text-[21px]/[1.3] font-bold tracking-[-0.01em] md:text-[27px]/[1.25]">
               {item.title}

@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../../db/client.js";
 import { suggestion, wasteItem } from "../../db/schema/index.js";
+import { normalizeAmount } from "../../lib/amount.js";
 import { notFound } from "../../lib/http-errors.js";
 import type { RejectedSuggestionView, SuggestionView, patchSuggestionSchema } from "./schemas.js";
 import type { z } from "@hono/zod-openapi";
@@ -15,6 +16,8 @@ function toView(row: SuggestionRow): SuggestionView {
     url: row.url,
     title: row.title,
     amountEur: row.amountEur,
+    amountType: row.amountType,
+    amountMaxEur: row.amountMaxEur,
     entity: row.entity,
     category: row.category,
     sourceName: row.sourceName,
@@ -36,18 +39,39 @@ export async function listPendingSuggestions(): Promise<SuggestionView[]> {
   return rows.map(toView);
 }
 
-/** Apply editorial edits to a pending suggestion. */
+/**
+ * Apply editorial edits to a pending suggestion. The amount invariant
+ * (unknown ⟺ 0, upper bound above the lower one) is re-established against the
+ * merged row, so a partial patch can't store a contradiction — e.g. switching
+ * to 'unknown' while the old figure would otherwise keep counting in the feed
+ * total.
+ */
 export async function updateSuggestion(
   id: string,
   patch: SuggestionPatch,
 ): Promise<SuggestionView> {
-  const [row] = await db
-    .update(suggestion)
-    .set(patch)
-    .where(and(eq(suggestion.id, id), eq(suggestion.status, "pending")))
-    .returning();
-  if (!row) throw notFound("Ehdotusta ei löytynyt");
-  return toView(row);
+  return db.transaction(async (tx) => {
+    const [current] = await tx
+      .select()
+      .from(suggestion)
+      .where(and(eq(suggestion.id, id), eq(suggestion.status, "pending")))
+      .limit(1)
+      .for("update");
+    if (!current) throw notFound("Ehdotusta ei löytynyt");
+
+    const amount = normalizeAmount({
+      amountEur: patch.amountEur ?? current.amountEur,
+      amountType: patch.amountType ?? current.amountType,
+      // ?? would swallow an explicit null (= "clear the range").
+      amountMaxEur: patch.amountMaxEur !== undefined ? patch.amountMaxEur : current.amountMaxEur,
+    });
+    const [row] = await tx
+      .update(suggestion)
+      .set({ ...patch, ...amount })
+      .where(eq(suggestion.id, id))
+      .returning();
+    return toView(row!);
+  });
 }
 
 /** Publish a pending suggestion as a feed item; returns the new item's id. */
@@ -65,6 +89,8 @@ export async function approveSuggestion(id: string): Promise<{ itemId: string }>
       .values({
         title: entry.title,
         amountEur: entry.amountEur,
+        amountType: entry.amountType,
+        amountMaxEur: entry.amountMaxEur,
         entity: entry.entity,
         category: entry.category,
         sourceName: entry.sourceName,

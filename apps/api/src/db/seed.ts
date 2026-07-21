@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { closeDb, db, schema as s } from "./client.js";
 import { auth } from "../auth/auth.js";
 import { env } from "../config/env.js";
-import type { Category } from "./schema/content.js";
+import type { AmountType, Category } from "./schema/content.js";
 
 /**
  * Deterministic demo content (from the design prototype — the stories are
@@ -157,6 +157,9 @@ interface SeedSuggestion {
   url: string;
   title: string;
   amountEur: number;
+  /** Omitted = "exact" (the DB default). */
+  amountType?: AmountType;
+  amountMaxEur?: number;
   entity: string;
   category: Category;
   sourceName: string;
@@ -186,6 +189,7 @@ const SUGGESTIONS: SeedSuggestion[] = [
   {
     title: "Kiertoliittymän taideteos jouduttiin siirtämään — näkyvyyshaitta",
     amountEur: 260_000,
+    amountType: "approx",
     entity: "Jyväskylä",
     category: "Kulttuuri",
     sourceName: "Keskisuomalainen",
@@ -312,6 +316,8 @@ async function main() {
       url: sg.url,
       title: sg.title,
       amountEur: sg.amountEur,
+      amountType: sg.amountType,
+      amountMaxEur: sg.amountMaxEur,
       entity: sg.entity,
       category: sg.category,
       sourceName: sg.sourceName,

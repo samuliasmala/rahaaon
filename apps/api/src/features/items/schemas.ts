@@ -1,14 +1,21 @@
 import { z } from "@hono/zod-openapi";
-import { CATEGORIES } from "../../db/schema/content.js";
+import { AMOUNT_TYPES, CATEGORIES } from "../../db/schema/content.js";
 
 export const categorySchema = z.enum(CATEGORIES).openapi("Category");
+
+/** How precise amountEur is; "unknown" items render without a figure. */
+export const amountTypeSchema = z.enum(AMOUNT_TYPES).openapi("AmountType");
 
 /** A feed item as clients see it: vote count folded in, dates as ISO strings. */
 export const wasteItemSchema = z
   .object({
     id: z.uuid(),
     title: z.string(),
+    /** Whole euros; a range's lower bound when amountMaxEur is set; 0 when amountType = "unknown". */
     amountEur: z.number().int(),
+    amountType: amountTypeSchema,
+    /** Range upper bound in whole euros; null when the source gives no range. */
+    amountMaxEur: z.number().int().nullable(),
     entity: z.string(),
     category: categorySchema,
     sourceName: z.string(),

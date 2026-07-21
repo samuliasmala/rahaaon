@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './amountType';
 export * from './archiveTextEdit';
 export * from './category';
 export * from './errorResponse';
@@ -20,6 +21,7 @@ export * from './pagePreview';
 export * from './patchApiAdminItemsId200';
 export * from './patchItem';
 export * from './patchSuggestion';
+export * from './patchSuggestionAmountMaxEur';
 export * from './patchSuggestionArticlePublishedAt';
 export * from './postApiAdminSubmissionsIdProcess200';
 export * from './postApiAdminSubmissionsIdReject200';
@@ -36,9 +38,11 @@ export * from './rejectedUrlSubmission';
 export * from './rejectedUrlSubmissionAllOf';
 export * from './submitUrl';
 export * from './suggestion';
+export * from './suggestionAmountMaxEur';
 export * from './suggestionArticlePublishedAt';
 export * from './urlSubmission';
 export * from './urlSubmissionArchiveStatus';
 export * from './voteResult';
 export * from './wasteItem';
+export * from './wasteItemAmountMaxEur';
 export * from './wasteItemArticlePublishedAt';

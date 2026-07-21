@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getGetApiAdminItemsQueryKey, usePatchApiAdminItemsId } from "../../api/admin/admin.js";
 import { getGetApiItemsQueryKey } from "../../api/items/items.js";
 import { cn } from "../../lib/cn.js";
-import { daysSince, formatAgeShort, formatCount, formatEur } from "../../lib/format.js";
+import { daysSince, formatAgeShort, formatAmount, formatCount } from "../../lib/format.js";
 import { Button } from "../ui/button.js";
 import type { WasteItem } from "../../api/model/index.js";
 
@@ -56,7 +56,7 @@ export function PublishedTable({ items }: { items: WasteItem[] }) {
               </span>
             </div>
             <span className="font-display text-sm font-semibold text-accent tabular">
-              {formatEur(item.amountEur)}
+              {formatAmount(item)}
             </span>
             <span className="text-[13px] font-medium text-body">{item.entity}</span>
             <span className="text-[13px] font-medium text-body tabular">

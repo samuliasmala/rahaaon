@@ -10,7 +10,12 @@ import {
   usePostApiAdminSuggestionsIdReject,
 } from "../../api/admin/admin.js";
 import { getGetApiItemsQueryKey } from "../../api/items/items.js";
-import { Category, type PatchSuggestion, type Suggestion } from "../../api/model/index.js";
+import {
+  type AmountType,
+  Category,
+  type PatchSuggestion,
+  type Suggestion,
+} from "../../api/model/index.js";
 import { cn } from "../../lib/cn.js";
 import { formatTimeAgo, parseEuroAmount } from "../../lib/format.js";
 import { Button } from "../ui/button.js";
@@ -19,6 +24,14 @@ import { FieldLabel } from "../ui/label.js";
 import { Pill } from "../ui/pill.js";
 import { Select } from "../ui/select.js";
 import { Textarea } from "../ui/textarea.js";
+
+/** The public feed renders these as "", "n.", "yli" and "Ei tiedossa". */
+const AMOUNT_TYPE_OPTIONS: { value: AmountType; label: string }[] = [
+  { value: "exact", label: "Tarkka" },
+  { value: "approx", label: "Arvio (noin)" },
+  { value: "min", label: "Vähintään (yli)" },
+  { value: "unknown", label: "Ei tiedossa" },
+];
 
 function confidenceClasses(confidence: number): string {
   if (confidence >= 85) return "bg-ok-wash text-ok";
@@ -37,6 +50,8 @@ export function QueueCard({ entry }: { entry: Suggestion }) {
     title: entry.title,
     summary: entry.summary,
     amount: String(entry.amountEur),
+    amountMax: entry.amountMaxEur === null ? "" : String(entry.amountMaxEur),
+    amountType: entry.amountType,
     entity: entry.entity,
     category: entry.category,
     articlePublishedAt: entry.articlePublishedAt ?? "",
@@ -48,10 +63,18 @@ export function QueueCard({ entry }: { entry: Suggestion }) {
   const busy = approveMutation.isPending || rejectMutation.isPending;
 
   function toPatch(): PatchSuggestion {
+    // Mirror the server's normalisation: no figure ⟺ "Ei tiedossa", and an
+    // upper bound only above the lower one.
+    const figure = draft.amountType === "unknown" ? 0 : parseEuroAmount(draft.amount);
+    const amountType = figure === 0 ? "unknown" : draft.amountType;
+    const amountMax = draft.amountMax.trim() ? parseEuroAmount(draft.amountMax) : null;
     return {
       title: draft.title,
       summary: draft.summary,
-      amountEur: parseEuroAmount(draft.amount),
+      amountEur: figure,
+      amountType,
+      amountMaxEur:
+        amountType !== "unknown" && amountMax !== null && amountMax > figure ? amountMax : null,
       entity: draft.entity,
       category: draft.category,
       articlePublishedAt: draft.articlePublishedAt || null,
@@ -59,7 +82,16 @@ export function QueueCard({ entry }: { entry: Suggestion }) {
   }
 
   function saveDraft() {
-    patchMutation.mutate({ id: entry.id, data: toPatch() });
+    const patch = toPatch();
+    // Sync the amount fields to what actually got saved, so a normalised-away
+    // value (say an upper bound below the amount) can't linger in the editor.
+    setDraft((d) => ({
+      ...d,
+      amount: String(patch.amountEur ?? 0),
+      amountType: patch.amountType ?? d.amountType,
+      amountMax: patch.amountMaxEur == null ? "" : String(patch.amountMaxEur),
+    }));
+    patchMutation.mutate({ id: entry.id, data: patch });
   }
 
   async function refreshQueue() {
@@ -142,6 +174,36 @@ export function QueueCard({ entry }: { entry: Suggestion }) {
                 onBlur={saveDraft}
                 className="font-semibold tabular"
               />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <FieldLabel htmlFor={`queue-amount-max-${entry.id}`}>
+                Yläraja (€), jos haarukka
+              </FieldLabel>
+              <Input
+                id={`queue-amount-max-${entry.id}`}
+                inputMode="numeric"
+                value={draft.amountMax}
+                onChange={(e) => setDraft((d) => ({ ...d, amountMax: e.target.value }))}
+                onBlur={saveDraft}
+                className="font-semibold tabular"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <FieldLabel htmlFor={`queue-amount-type-${entry.id}`}>Summan tarkkuus</FieldLabel>
+              <Select
+                id={`queue-amount-type-${entry.id}`}
+                value={draft.amountType}
+                onChange={(e) => {
+                  setDraft((d) => ({ ...d, amountType: e.target.value as AmountType }));
+                }}
+                onBlur={saveDraft}
+              >
+                {AMOUNT_TYPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
             </div>
             <div className="flex flex-col gap-1.5">
               <FieldLabel htmlFor={`queue-entity-${entry.id}`}>Taho</FieldLabel>

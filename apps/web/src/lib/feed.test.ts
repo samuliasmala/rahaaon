@@ -7,6 +7,8 @@ function makeItem(overrides: Partial<WasteItem>): WasteItem {
     id: "00000000-0000-0000-0000-000000000001",
     title: "Testijuttu",
     amountEur: 1000,
+    amountType: "exact",
+    amountMaxEur: null,
     entity: "Oulu",
     category: "Muu",
     sourceName: "Kaleva",
@@ -86,5 +88,13 @@ describe("sortFeedItems", () => {
 describe("totalRecorded", () => {
   it("sums the listed items", () => {
     expect(totalRecorded(items)).toBe(1500);
+  });
+
+  it("counts a range by its lower bound and an unknown amount as zero", () => {
+    const mixed = [
+      makeItem({ amountEur: 100, amountMaxEur: 900 }),
+      makeItem({ amountEur: 0, amountType: "unknown" }),
+    ];
+    expect(totalRecorded(mixed)).toBe(100);
   });
 });

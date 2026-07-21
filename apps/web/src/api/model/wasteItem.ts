@@ -5,6 +5,8 @@
  * Crowdsourced tracker of wasteful public spending (rahaaon.fi).
  * OpenAPI spec version: 0.1.0
  */
+import type { AmountType } from './amountType';
+import type { WasteItemAmountMaxEur } from './wasteItemAmountMaxEur';
 import type { Category } from './category';
 import type { WasteItemArticlePublishedAt } from './wasteItemArticlePublishedAt';
 
@@ -12,6 +14,8 @@ export interface WasteItem {
   id: string;
   title: string;
   amountEur: number;
+  amountType: AmountType;
+  amountMaxEur: WasteItemAmountMaxEur;
   entity: string;
   category: Category;
   sourceName: string;

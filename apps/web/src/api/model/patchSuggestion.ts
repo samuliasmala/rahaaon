@@ -5,6 +5,8 @@
  * Crowdsourced tracker of wasteful public spending (rahaaon.fi).
  * OpenAPI spec version: 0.1.0
  */
+import type { AmountType } from './amountType';
+import type { PatchSuggestionAmountMaxEur } from './patchSuggestionAmountMaxEur';
 import type { Category } from './category';
 import type { PatchSuggestionArticlePublishedAt } from './patchSuggestionArticlePublishedAt';
 
@@ -21,6 +23,9 @@ export interface PatchSuggestion {
   summary?: string;
   /** @minimum 0 */
   amountEur?: number;
+  amountType?: AmountType;
+  /** @minimum 0 */
+  amountMaxEur?: PatchSuggestionAmountMaxEur;
   /**
    * @minLength 1
    * @maxLength 120

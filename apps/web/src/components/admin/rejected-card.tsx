@@ -5,7 +5,7 @@ import {
   getGetApiAdminSuggestionsRejectedQueryKey,
   usePostApiAdminSuggestionsIdRestore,
 } from "../../api/admin/admin.js";
-import { formatEur, formatTimeAgo } from "../../lib/format.js";
+import { formatAmount, formatTimeAgo } from "../../lib/format.js";
 import { Button } from "../ui/button.js";
 import type { RejectedSuggestion } from "../../api/model/index.js";
 
@@ -46,7 +46,7 @@ export function RejectedCard({ entry }: { entry: RejectedSuggestion }) {
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <p className="text-[15px]/[1.35] font-semibold">{entry.title}</p>
           <p className="text-[13px] text-muted">
-            {formatEur(entry.amountEur)} · {entry.entity} · {entry.category}
+            {formatAmount(entry)} · {entry.entity} · {entry.category}
           </p>
           <a
             href={entry.url}

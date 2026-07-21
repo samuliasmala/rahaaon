@@ -43,6 +43,8 @@ export const getApiItemsResponseItem = zod.object({
   "id": zod.uuid(),
   "title": zod.string(),
   "amountEur": zod.number(),
+  "amountType": zod.enum(['exact', 'approx', 'min', 'unknown']),
+  "amountMaxEur": zod.number().nullable(),
   "entity": zod.string(),
   "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']),
   "sourceName": zod.string(),
@@ -78,6 +80,8 @@ export const getApiAdminItemsResponseItem = zod.object({
   "id": zod.uuid(),
   "title": zod.string(),
   "amountEur": zod.number(),
+  "amountType": zod.enum(['exact', 'approx', 'min', 'unknown']),
+  "amountMaxEur": zod.number().nullable(),
   "entity": zod.string(),
   "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']),
   "sourceName": zod.string(),
@@ -117,6 +121,8 @@ export const getApiAdminSuggestionsResponseItem = zod.object({
   "url": zod.string(),
   "title": zod.string(),
   "amountEur": zod.number(),
+  "amountType": zod.enum(['exact', 'approx', 'min', 'unknown']),
+  "amountMaxEur": zod.number().nullable(),
   "entity": zod.string(),
   "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']),
   "sourceName": zod.string(),
@@ -142,6 +148,8 @@ export const patchApiAdminSuggestionsIdBodySummaryMax = 2000;
 
 export const patchApiAdminSuggestionsIdBodyAmountEurMin = 0;
 
+export const patchApiAdminSuggestionsIdBodyAmountMaxEurMin = 0;
+
 export const patchApiAdminSuggestionsIdBodyEntityMax = 120;
 
 
@@ -150,6 +158,8 @@ export const patchApiAdminSuggestionsIdBody = zod.object({
   "title": zod.string().min(1).max(patchApiAdminSuggestionsIdBodyTitleMax).optional(),
   "summary": zod.string().min(1).max(patchApiAdminSuggestionsIdBodySummaryMax).optional(),
   "amountEur": zod.number().min(patchApiAdminSuggestionsIdBodyAmountEurMin).optional(),
+  "amountType": zod.enum(['exact', 'approx', 'min', 'unknown']).optional(),
+  "amountMaxEur": zod.number().min(patchApiAdminSuggestionsIdBodyAmountMaxEurMin).nullish(),
   "entity": zod.string().min(1).max(patchApiAdminSuggestionsIdBodyEntityMax).optional(),
   "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']).optional(),
   "articlePublishedAt": zod.iso.date().nullish()
@@ -160,6 +170,8 @@ export const patchApiAdminSuggestionsIdResponse = zod.object({
   "url": zod.string(),
   "title": zod.string(),
   "amountEur": zod.number(),
+  "amountType": zod.enum(['exact', 'approx', 'min', 'unknown']),
+  "amountMaxEur": zod.number().nullable(),
   "entity": zod.string(),
   "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']),
   "sourceName": zod.string(),
@@ -203,6 +215,8 @@ export const getApiAdminSuggestionsRejectedResponseItem = zod.object({
   "url": zod.string(),
   "title": zod.string(),
   "amountEur": zod.number(),
+  "amountType": zod.enum(['exact', 'approx', 'min', 'unknown']),
+  "amountMaxEur": zod.number().nullable(),
   "entity": zod.string(),
   "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']),
   "sourceName": zod.string(),
@@ -229,6 +243,8 @@ export const postApiAdminSuggestionsIdRestoreResponse = zod.object({
   "url": zod.string(),
   "title": zod.string(),
   "amountEur": zod.number(),
+  "amountType": zod.enum(['exact', 'approx', 'min', 'unknown']),
+  "amountMaxEur": zod.number().nullable(),
   "entity": zod.string(),
   "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']),
   "sourceName": zod.string(),

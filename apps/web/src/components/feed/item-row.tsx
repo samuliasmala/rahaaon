@@ -1,5 +1,5 @@
 import { VoteButton } from "./vote-button.js";
-import { daysSince, formatAge, formatCount, formatDate, formatEur } from "../../lib/format.js";
+import { daysSince, formatAge, formatAmount, formatCount, formatDate } from "../../lib/format.js";
 import { copyLink } from "../../lib/share.js";
 import { useToggleVote } from "../../lib/votes.js";
 import { Button } from "../ui/button.js";
@@ -11,7 +11,7 @@ export function ItemRow({ item, onOpen }: { item: WasteItem; onOpen: () => void 
   return (
     <article className="flex animate-in flex-wrap items-center gap-2.5 border-b border-hairline py-6 duration-250 fade-in slide-in-from-bottom-[10px] md:flex-nowrap md:gap-6">
       <p className="w-full flex-none font-display text-2xl font-bold text-accent tabular md:w-[185px] md:text-[28px]">
-        {formatEur(item.amountEur)}
+        {formatAmount(item)}
       </p>
       <button
         type="button"

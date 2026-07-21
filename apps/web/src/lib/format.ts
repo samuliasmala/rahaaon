@@ -1,6 +1,29 @@
+import type { AmountType } from "../api/model/index.js";
+
 /** "1 240 000 €" — space-grouped euros, Finnish locale. */
 export function formatEur(amount: number): string {
   return `${amount.toLocaleString("fi-FI")} €`;
+}
+
+/** The amount fields shared by feed items and suggestions. */
+export interface AmountFields {
+  amountEur: number;
+  amountType: AmountType;
+  amountMaxEur: number | null;
+}
+
+/** "1 240 000 €" / "n. 40 000 €" / "yli 40 000 €" / "100 000–200 000 €" / "Ei tiedossa". */
+export function formatAmount(item: AmountFields): string {
+  // 0 means "no amount stated" throughout the app — never render "0 €".
+  if (item.amountType === "unknown" || item.amountEur === 0) return "Ei tiedossa";
+  // A malformed upper bound (≤ the lower one) is ignored rather than rendered.
+  if (item.amountMaxEur !== null && item.amountMaxEur > item.amountEur) {
+    const range = `${item.amountEur.toLocaleString("fi-FI")}–${formatEur(item.amountMaxEur)}`;
+    return item.amountType === "approx" ? `n. ${range}` : range;
+  }
+  if (item.amountType === "approx") return `n. ${formatEur(item.amountEur)}`;
+  if (item.amountType === "min") return `yli ${formatEur(item.amountEur)}`;
+  return formatEur(item.amountEur);
 }
 
 /** "2 041" — space-grouped count, Finnish locale. */
@@ -40,8 +63,12 @@ export function formatTimeAgo(iso: string): string {
   return `${Math.floor(hours / 24)} pv sitten`;
 }
 
-/** Best-effort whole euros from a free-text amount field ("400 000", "400000 €"). */
+/**
+ * Best-effort whole euros from a free-text amount field ("400 000", "400000 €").
+ * A pasted range ("100 000–200 000") yields its first figure, not the digits
+ * concatenated — the upper bound has its own field.
+ */
 export function parseEuroAmount(raw: string): number {
-  const digits = raw.replace(/\D/g, "");
+  const digits = (raw.split(/[-–—]/, 1)[0] ?? "").replace(/\D/g, "");
   return digits ? Number.parseInt(digits, 10) : 0;
 }

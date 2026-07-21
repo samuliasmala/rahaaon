@@ -227,6 +227,20 @@ describe("editorial loop", () => {
     expect(again.status).toBe(404);
   });
 
+  it("normalises a partial patch that breaks the amount invariant", async () => {
+    // Only the type flips to 'unknown' — the old figure must not survive to
+    // keep counting in the feed total.
+    const res = await app.request(`/api/admin/suggestions/${suggestionId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie: editorCookie },
+      body: JSON.stringify({ amountType: "unknown" }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { amountEur: number; amountType: string };
+    expect(body.amountEur).toBe(0);
+    expect(body.amountType).toBe("unknown");
+  });
+
   it("applies editorial edits", async () => {
     const res = await app.request(`/api/admin/suggestions/${suggestionId}`, {
       method: "PATCH",
@@ -234,6 +248,8 @@ describe("editorial loop", () => {
       body: JSON.stringify({
         title: "Muokattu otsikko",
         amountEur: 123_000,
+        amountType: "approx",
+        amountMaxEur: 180_000,
         articlePublishedAt: "2026-01-15",
       }),
     });
@@ -241,10 +257,14 @@ describe("editorial loop", () => {
     const body = (await res.json()) as {
       title: string;
       amountEur: number;
+      amountType: string;
+      amountMaxEur: number | null;
       articlePublishedAt: string | null;
     };
     expect(body.title).toBe("Muokattu otsikko");
     expect(body.amountEur).toBe(123_000);
+    expect(body.amountType).toBe("approx");
+    expect(body.amountMaxEur).toBe(180_000);
     expect(body.articlePublishedAt).toBe("2026-01-15");
   });
 
@@ -259,11 +279,16 @@ describe("editorial loop", () => {
     const feed = (await (await app.request("/api/items")).json()) as {
       id: string;
       title: string;
+      amountType: string;
+      amountMaxEur: number | null;
       articlePublishedAt: string | null;
       votes: number;
     }[];
     const published = feed.find((i) => i.id === itemId);
     expect(published?.title).toBe("Muokattu otsikko");
+    // The amount qualifier travels from the edited suggestion onto the feed item.
+    expect(published?.amountType).toBe("approx");
+    expect(published?.amountMaxEur).toBe(180_000);
     expect(published?.articlePublishedAt).toBe("2026-01-15");
     expect(published?.votes).toBe(0);
 

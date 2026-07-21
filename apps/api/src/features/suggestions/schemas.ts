@@ -1,5 +1,5 @@
 import { z } from "@hono/zod-openapi";
-import { categorySchema } from "../items/schemas.js";
+import { amountTypeSchema, categorySchema } from "../items/schemas.js";
 
 /** A queue entry as the editorial UI sees it. */
 export const suggestionSchema = z
@@ -7,7 +7,11 @@ export const suggestionSchema = z
     id: z.uuid(),
     url: z.string(),
     title: z.string(),
+    /** Whole euros; a range's lower bound when amountMaxEur is set; 0 when amountType = "unknown". */
     amountEur: z.number().int(),
+    amountType: amountTypeSchema,
+    /** Range upper bound in whole euros; null when the source gives no range. */
+    amountMaxEur: z.number().int().nullable(),
     entity: z.string(),
     category: categorySchema,
     sourceName: z.string(),
@@ -35,6 +39,9 @@ export const patchSuggestionSchema = z
     title: z.string().min(1).max(300),
     summary: z.string().min(1).max(2000),
     amountEur: z.number().int().min(0),
+    amountType: amountTypeSchema,
+    /** Null clears the range; the repo drops a bound that isn't above amountEur. */
+    amountMaxEur: z.number().int().min(0).nullable(),
     entity: z.string().min(1).max(120),
     category: categorySchema,
     articlePublishedAt: z.iso.date().nullable(),
