@@ -88,8 +88,8 @@ build: ## Rebuild the dev image (only needed when dev.Dockerfile changes) [local
 	@[ "$(ENV)" = local ] || { echo "build is local-only — deployed stacks run pulled images built by CI."; exit 1; }
 	$(COMPOSE) build
 
-logs: ## Follow app/api logs; SVC=db (or several: SVC="api db") for other services, SVC=all for the whole stack
-	$(COMPOSE) logs -f $(if $(filter all,$(SVC)),,$(or $(SVC),$(APP_SVC)))
+logs: ## Follow app/api logs; SERVICE=db (or several: SERVICE="api db") for other services, SERVICE=all for the whole stack
+	$(COMPOSE) logs -f $(if $(filter all,$(SERVICE)),,$(or $(SERVICE),$(APP_SVC)))
 
 ps: ## Show stack status
 	$(COMPOSE) ps
