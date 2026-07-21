@@ -27,13 +27,15 @@ export function ItemRow({ item, onOpen }: { item: WasteItem; onOpen: () => void 
           <span>{item.category}</span>
           <span aria-hidden>·</span>
           <span>Lähde: {item.sourceName}</span>
+          {/* The article's own date, when the AI (or editor) found one. */}
+          {item.articlePublishedAt && (
+            <>
+              <span aria-hidden>·</span>
+              <span>{formatDate(item.articlePublishedAt)}</span>
+            </>
+          )}
           <span aria-hidden>·</span>
-          {/* The article's own date when the AI (or editor) found one; feed age otherwise. */}
-          <span>
-            {item.articlePublishedAt
-              ? formatDate(item.articlePublishedAt)
-              : formatAge(daysSince(item.publishedAt))}
-          </span>
+          <span>{formatAge(daysSince(item.publishedAt))}</span>
         </span>
       </button>
       <div className="flex flex-none gap-2.5">

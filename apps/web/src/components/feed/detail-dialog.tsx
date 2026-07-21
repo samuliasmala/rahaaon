@@ -32,13 +32,15 @@ export function DetailDialog({ item, onClose }: { item: WasteItem | null; onClos
             </h2>
             <p className="flex flex-wrap items-center gap-2.5 text-[13px] text-muted">
               <span className="font-semibold text-body">{item.entity}</span>
+              {/* The article's own date, when the AI (or editor) found one. */}
+              {item.articlePublishedAt && (
+                <>
+                  <span aria-hidden>·</span>
+                  <span>{formatDate(item.articlePublishedAt)}</span>
+                </>
+              )}
               <span aria-hidden>·</span>
-              {/* The article's own date when the AI (or editor) found one; feed age otherwise. */}
-              <span>
-                {item.articlePublishedAt
-                  ? formatDate(item.articlePublishedAt)
-                  : formatAge(daysSince(item.publishedAt))}
-              </span>
+              <span>{formatAge(daysSince(item.publishedAt))}</span>
               <span aria-hidden>·</span>
               <span>Lähde: {item.sourceName}</span>
             </p>
