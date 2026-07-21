@@ -26,16 +26,13 @@ export function ItemRow({ item, onOpen }: { item: WasteItem; onOpen: () => void 
           <span aria-hidden>·</span>
           <span>{item.category}</span>
           <span aria-hidden>·</span>
-          <span>Lähde: {item.sourceName}</span>
-          {/* The article's own date, when the AI (or editor) found one. */}
-          {item.articlePublishedAt && (
-            <>
-              <span aria-hidden>·</span>
-              <span>{formatDate(item.articlePublishedAt)}</span>
-            </>
-          )}
+          {/* The article's date (when known) is part of the source citation. */}
+          <span>
+            Lähde: {item.sourceName}
+            {item.articlePublishedAt && ` ${formatDate(item.articlePublishedAt)}`}
+          </span>
           <span aria-hidden>·</span>
-          <span>{formatAge(daysSince(item.publishedAt))}</span>
+          <span>lisätty {formatAge(daysSince(item.publishedAt))}</span>
         </span>
       </button>
       <div className="flex flex-none gap-2.5">

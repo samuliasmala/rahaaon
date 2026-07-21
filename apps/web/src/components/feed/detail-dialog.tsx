@@ -32,17 +32,14 @@ export function DetailDialog({ item, onClose }: { item: WasteItem | null; onClos
             </h2>
             <p className="flex flex-wrap items-center gap-2.5 text-[13px] text-muted">
               <span className="font-semibold text-body">{item.entity}</span>
-              {/* The article's own date, when the AI (or editor) found one. */}
-              {item.articlePublishedAt && (
-                <>
-                  <span aria-hidden>·</span>
-                  <span>{formatDate(item.articlePublishedAt)}</span>
-                </>
-              )}
               <span aria-hidden>·</span>
-              <span>{formatAge(daysSince(item.publishedAt))}</span>
+              {/* The article's date (when known) is part of the source citation. */}
+              <span>
+                Lähde: {item.sourceName}
+                {item.articlePublishedAt && ` ${formatDate(item.articlePublishedAt)}`}
+              </span>
               <span aria-hidden>·</span>
-              <span>Lähde: {item.sourceName}</span>
+              <span>lisätty {formatAge(daysSince(item.publishedAt))}</span>
             </p>
             <div className="flex flex-col gap-2 rounded-lg border border-hairline bg-surface px-5.5 py-5">
               <p className="text-[11px] font-semibold tracking-[0.08em] text-muted uppercase">
