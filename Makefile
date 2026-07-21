@@ -54,7 +54,7 @@ endif
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env up down restart build logs ps shell migrate seed set-admin-password psql clean \
+.PHONY: help env up down restart build logs ps shell migrate seed set-admin-password set-db-password psql clean \
 	backup-now backup-list backup-status backup-install
 
 help: ## List targets. Append ENV=dev|test|prod to target a deployed stack (default: local)
@@ -106,6 +106,20 @@ seed: ## Seed the database — WIPES content, so refused on prod
 
 set-admin-password: ## Rotate the admin password from SEED_ADMIN_PASSWORD (non-destructive; ARGS=--revoke-sessions to sign out too)
 	$(call db_run,set-admin-password)
+
+# The postgres image applies POSTGRES_PASSWORD only when the data volume is
+# first initialized; regenerating .env.<env> afterwards leaves the volume on the
+# old password and every TCP client fails with 28P01. This re-syncs the stored
+# password to the env file over the container's local socket (no password needed).
+# SQL goes via stdin, not -c: psql only interpolates the :'pw' variable (which
+# quote-escapes the password) when reading input, never in -c strings.
+set-db-password: ## Sync Postgres's stored password to POSTGRES_PASSWORD in .env.$(ENV) (fixes auth failures after env-file regen)
+	@[ "$(ENV)" != local ] || { echo "set-db-password is deployed-only — the local stack's db password is hardcoded in docker-compose.yml."; exit 1; }
+	@PW=$$(grep -m1 '^POSTGRES_PASSWORD=' .env.$(ENV) | cut -d= -f2-); \
+	[ -n "$$PW" ] || { echo "POSTGRES_PASSWORD not set in .env.$(ENV)"; exit 1; }; \
+	$(COMPOSE) exec -T -e NEW_PW="$$PW" db sh -c \
+		'echo "ALTER USER \"$$POSTGRES_USER\" WITH PASSWORD :'\''pw'\''" | psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -v pw="$$NEW_PW" -v ON_ERROR_STOP=1 -f -'
+	@echo "db password now matches .env.$(ENV) — if api/migrate containers predate the env change, recreate them (deploy pipeline) so DATABASE_URL matches too."
 
 psql: ## Open psql against the stack's database
 	$(COMPOSE) exec db sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
