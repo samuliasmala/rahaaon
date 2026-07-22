@@ -58,7 +58,7 @@ endif
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env up down restart build logs ps shell migrate seed set-admin-password set-db-password psql clean \
+.PHONY: help env up down restart recreate build logs ps shell migrate seed set-admin-password set-db-password psql clean \
 	backup-now backup-list backup-status backup-install
 
 help: ## List targets. Append ENV=dev|test|prod to target a deployed stack (default: local)
@@ -87,6 +87,13 @@ down: ## Stop the dev stack (volumes are kept) [local only]
 
 restart: ## Restart the app/api service (db untouched)
 	$(COMPOSE) restart $(APP_SVC)
+
+# `restart` reuses the container and its baked-in env; only recreating re-reads
+# the env file. Mirrors deploy.sh's up flags, on the image already running
+# (IMAGE_TAG is derived from the live api container above).
+recreate: ## Recreate migrate+api so they re-read .env.$(ENV) after env-file edits (brief api restart) [deployed only]
+	@[ "$(ENV)" != local ] || { echo "recreate is deployed-only — the local stack re-reads .env on make down && make up."; exit 1; }
+	$(COMPOSE) up -d --force-recreate --wait --wait-timeout 120 migrate api
 
 build: ## Rebuild the dev image (only needed when dev.Dockerfile changes) [local only]
 	@[ "$(ENV)" = local ] || { echo "build is local-only — deployed stacks run pulled images built by CI."; exit 1; }
@@ -123,7 +130,7 @@ set-db-password: ## Sync Postgres's stored password to POSTGRES_PASSWORD in .env
 	[ -n "$$PW" ] || { echo "POSTGRES_PASSWORD not set in .env.$(ENV)"; exit 1; }; \
 	$(COMPOSE) exec -T -e NEW_PW="$$PW" db sh -c \
 		'echo "ALTER USER \"$$POSTGRES_USER\" WITH PASSWORD :'\''pw'\''" | psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -v pw="$$NEW_PW" -v ON_ERROR_STOP=1 -f -'
-	@echo "db password now matches .env.$(ENV) — if api/migrate containers predate the env change, recreate them (deploy pipeline) so DATABASE_URL matches too."
+	@echo "db password now matches .env.$(ENV) — if api/migrate containers predate the env change, run 'make recreate ENV=$(ENV)' so DATABASE_URL matches too."
 
 psql: ## Open psql against the stack's database
 	$(COMPOSE) exec db sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
