@@ -7,7 +7,7 @@ import { env } from "../config/env.js";
  * middleware.
  */
 export const logger: Logger = pino({
-  level: env.isTest ? "silent" : (process.env.LOG_LEVEL ?? (env.isProd ? "info" : "debug")),
+  level: env.isTest ? "silent" : (env.LOG_LEVEL ?? (env.isProd ? "info" : "debug")),
   redact: {
     paths: ["req.headers.authorization", "req.headers.cookie", "*.password", "*.token"],
     remove: true,

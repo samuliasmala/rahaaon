@@ -39,6 +39,12 @@ const rawSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(3001),
 
+  /** Pino level override; unset → info in production, debug in dev (tests are forced silent). */
+  LOG_LEVEL: z.preprocess(
+    emptyToUndefined,
+    z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).optional(),
+  ),
+
   APP_URL: z.string().url().default("http://localhost:5174"),
   API_URL: z.string().url().default("http://localhost:3001"),
 
