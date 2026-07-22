@@ -46,6 +46,10 @@ else
       --format '{{.Image}}' | head -1 | sed 's/.*://')
   endif
   export IMAGE_TAG
+  # docker-compose.prod.yml resolves env_file from ${DEPLOY_ENV:-prod}; deploy.sh
+  # exports it, but make-run one-offs (migrate, seed, …) must too — otherwise the
+  # containers they create load .env.prod regardless of ENV.
+  export DEPLOY_ENV := $(ENV)
   COMPOSE := docker compose -p rahaaon-$(ENV) --env-file .env.$(ENV) -f docker-compose.prod.yml
   APP_SVC := api
   # DB one-offs run the built script in a throwaway container (no source in the image).
