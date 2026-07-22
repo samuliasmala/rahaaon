@@ -6,6 +6,4 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type PostApiAdminSubmissionsIdProcess200 = {
-  suggestionId: string;
-};
+export type UrlSubmissionProcessError = string | null;

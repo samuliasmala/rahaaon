@@ -57,6 +57,13 @@
       "when": 1784663982699,
       "tag": "0007_aromatic_the_leader",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784750343616,
+      "tag": "0008_natural_proudstar",
+      "breakpoints": true
     }
   ]
 }

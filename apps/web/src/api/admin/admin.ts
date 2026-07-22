@@ -31,7 +31,6 @@ import type {
   PatchApiAdminItemsId200,
   PatchItem,
   PatchSuggestion,
-  PostApiAdminSubmissionsIdProcess200,
   PostApiAdminSubmissionsIdReject200,
   PostApiAdminSuggestionsIdApprove200,
   PostApiAdminSuggestionsIdReject200,
@@ -731,7 +730,7 @@ export function useGetApiAdminSubmissions<TData = Awaited<ReturnType<typeof getA
 
 
 /**
- * @summary Send a submission to the AI queue (creates a pending suggestion)
+ * @summary Queue a submission for AI processing (runs in the background)
  */
 export const postApiAdminSubmissionsIdProcess = (
     id: string,
@@ -739,7 +738,7 @@ export const postApiAdminSubmissionsIdProcess = (
 ) => {
       
       
-      return apiFetch<PostApiAdminSubmissionsIdProcess200>(
+      return apiFetch<UrlSubmission>(
       {url: `/api/admin/submissions/${id}/process`, method: 'POST', ...(signal ? { signal }: {})
     },
       );
@@ -777,7 +776,7 @@ const {mutation: mutationOptions} = options ?
     export type PostApiAdminSubmissionsIdProcessMutationError = ErrorResponse
 
     /**
- * @summary Send a submission to the AI queue (creates a pending suggestion)
+ * @summary Queue a submission for AI processing (runs in the background)
  */
 export const usePostApiAdminSubmissionsIdProcess = <TError = ErrorResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdProcess>>, TError,{id: string}, TContext>, }

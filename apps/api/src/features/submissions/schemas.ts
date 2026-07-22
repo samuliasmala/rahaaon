@@ -46,6 +46,14 @@ export const urlSubmissionSchema = z
     archiveStatus: z.enum(["pending", "ok", "paywalled", "failed"]).nullable(),
     /** True when archived page text exists — the archive/text download works. */
     hasArchivedText: z.boolean(),
+    /**
+     * True while the background AI extraction runs for this entry. The queue
+     * card renders these rows locked ("Käsitellään…") and the admin view polls
+     * until the entry moves to the AI queue.
+     */
+    processing: z.boolean(),
+    /** Why the last processing run failed (attempts exhausted); null otherwise. */
+    processError: z.string().nullable(),
   })
   .openapi("UrlSubmission");
 

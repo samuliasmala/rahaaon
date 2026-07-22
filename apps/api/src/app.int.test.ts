@@ -30,6 +30,24 @@ const json = (body: unknown) => ({
   body: JSON.stringify(body),
 });
 
+/**
+ * Poll the Ehdotusjono until the background processor finishes the entry and
+ * drops it from the list (or time out). Queuing kicks the worker, so no poll
+ * loop is needed — the mock extraction resolves on the first attempt.
+ */
+async function waitUntilProcessed(submissionId: string, timeoutMs = 15_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const res = await app.request("/api/admin/submissions", {
+      headers: { cookie: editorCookie },
+    });
+    const list = (await res.json()) as { id: string }[];
+    if (!list.some((sub) => sub.id === submissionId)) return;
+    if (Date.now() > deadline) throw new Error("processing did not finish in time");
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
 beforeAll(async () => {
   container = await new PostgreSqlContainer("postgres:17").start();
   process.env.DATABASE_URL = container.getConnectionUri();
@@ -188,13 +206,20 @@ describe("editorial loop", () => {
     expect(list.map((sub) => sub.id)).toContain(submissionId);
   });
 
-  it("processes a submission into the AI queue and drops it from the Ehdotusjono", async () => {
+  it("queues a submission and the background worker moves it to the AI queue", async () => {
     const res = await app.request(`/api/admin/submissions/${submissionId}/process`, {
       method: "POST",
       headers: { cookie: editorCookie },
     });
-    expect(res.status).toBe(200);
-    suggestionId = ((await res.json()) as { suggestionId: string }).suggestionId;
+    expect(res.status).toBe(202);
+    const queued = (await res.json()) as { id: string; processing: boolean };
+    expect(queued.id).toBe(submissionId);
+    expect(queued.processing).toBe(true);
+
+    // The extraction runs in the background (the mock, instantly here); the
+    // entry stays listed as processing until the worker finalizes it, then
+    // leaves the Ehdotusjono.
+    await waitUntilProcessed(submissionId);
 
     const queueRes = await app.request("/api/admin/suggestions", {
       headers: { cookie: editorCookie },
@@ -205,19 +230,12 @@ describe("editorial loop", () => {
       articlePublishedAt: string | null;
       url: string;
     }[];
-    expect(queue.map((q) => q.id)).toContain(suggestionId);
-    expect(queue.find((q) => q.id === suggestionId)?.sourceName).toBe("Yle");
+    const entry = queue.find((q) => q.url === "https://yle.fi.invalid/a/testijuttu");
+    expect(entry).toBeDefined();
+    suggestionId = entry!.id;
+    expect(entry!.sourceName).toBe("Yle");
     // The mock extraction's fixed article date (real runs: AI-extracted, null when unknown).
-    expect(queue.find((q) => q.id === suggestionId)?.articlePublishedAt).toBe("2025-11-04");
-    expect(queue.find((q) => q.id === suggestionId)?.url).toBe(
-      "https://yle.fi.invalid/a/testijuttu",
-    );
-
-    const listRes = await app.request("/api/admin/submissions", {
-      headers: { cookie: editorCookie },
-    });
-    const list = (await listRes.json()) as { id: string }[];
-    expect(list.map((sub) => sub.id)).not.toContain(submissionId);
+    expect(entry!.articlePublishedAt).toBe("2025-11-04");
 
     // Processing is one-shot: a second attempt finds nothing in 'new' state.
     const again = await app.request(`/api/admin/submissions/${submissionId}/process`, {
@@ -340,7 +358,14 @@ describe("editorial loop", () => {
       method: "POST",
       headers: { cookie: editorCookie },
     });
-    const { suggestionId: id } = (await processed.json()) as { suggestionId: string };
+    expect(processed.status).toBe(202);
+
+    // Wait for the background worker to finish, then pick the suggestion it created.
+    await waitUntilProcessed(newSubmissionId);
+    const createdQueue = (await (
+      await app.request("/api/admin/suggestions", { headers: { cookie: editorCookie } })
+    ).json()) as { id: string; url: string }[];
+    const id = createdQueue.find((q) => q.url === "https://www.hs.fi.invalid/huono-juttu")!.id;
 
     const res = await app.request(`/api/admin/suggestions/${id}/reject`, {
       method: "POST",

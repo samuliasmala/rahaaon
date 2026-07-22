@@ -215,11 +215,22 @@ describe("article archive", () => {
     expect(download.headers.get("content-disposition")).toContain(`ehdotus-${id}.md`);
 
     // Processing consumes the archive (and must not depend on a live page).
+    // It runs in the background — wait for the entry to leave the queue.
     const processed = await app.request(`/api/admin/submissions/${id}/process`, {
       method: "POST",
       headers: { cookie: editorCookie },
     });
-    expect(processed.status).toBe(200);
+    expect(processed.status).toBe(202);
+    const deadline = Date.now() + 15_000;
+    for (;;) {
+      const listRes = await app.request("/api/admin/submissions", {
+        headers: { cookie: editorCookie },
+      });
+      const ids = ((await listRes.json()) as { id: string }[]).map((s) => s.id);
+      if (!ids.includes(id)) break;
+      if (Date.now() > deadline) throw new Error("processing did not finish in time");
+      await new Promise((r) => setTimeout(r, 100));
+    }
 
     // The download still works for processed rows.
     const after = await app.request(`/api/admin/submissions/${id}/archive/text`, {

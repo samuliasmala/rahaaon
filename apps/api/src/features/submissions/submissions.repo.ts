@@ -1,12 +1,12 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "../../db/client.js";
-import { suggestion, urlSubmission } from "../../db/schema/index.js";
+import { urlSubmission } from "../../db/schema/index.js";
 import { archiveEnabled, manualArchiveKeyFor, runArchiveOnce } from "../../lib/article-archive.js";
 import { notFound, unavailable } from "../../lib/http-errors.js";
 import { logger } from "../../lib/logger.js";
-import { fetchPagePreview, fetchPageText } from "../../lib/page-preview.js";
+import { fetchPagePreview } from "../../lib/page-preview.js";
 import { getTextObject, putTextObject } from "../../lib/s3.js";
-import { extractArticle } from "../../lib/suggestion-ai.js";
+import { runProcessorOnce } from "../../lib/submission-processor.js";
 import type { RejectedUrlSubmissionView, UrlSubmissionView } from "./schemas.js";
 
 type SubmissionRow = typeof urlSubmission.$inferSelect;
@@ -21,6 +21,8 @@ function toView(row: SubmissionRow): UrlSubmissionView {
     createdAt: row.createdAt.toISOString(),
     archiveStatus: row.archiveStatus,
     hasArchivedText: row.archiveTextKey !== null,
+    processing: row.status === "processing",
+    processError: row.processError,
   };
 }
 
@@ -49,12 +51,16 @@ export async function createSubmission(url: string): Promise<UrlSubmissionView> 
   return toView(row!);
 }
 
-/** The admin Ehdotusjono: unprocessed reader links, newest first. */
+/**
+ * The admin Ehdotusjono: unprocessed reader links, newest first. Rows the
+ * background processor is working on stay in the list (`processing: true`) so
+ * the queue card can show a persistent "Käsitellään…" state.
+ */
 export async function listNewSubmissions(): Promise<UrlSubmissionView[]> {
   const rows = await db
     .select()
     .from(urlSubmission)
-    .where(eq(urlSubmission.status, "new"))
+    .where(inArray(urlSubmission.status, ["new", "processing"]))
     .orderBy(desc(urlSubmission.createdAt));
   return rows.map(toView);
 }
@@ -87,7 +93,8 @@ export async function listRejectedSubmissions(): Promise<RejectedUrlSubmissionVi
 export async function restoreSubmission(id: string): Promise<UrlSubmissionView> {
   const [row] = await db
     .update(urlSubmission)
-    .set({ status: "new", processedAt: null })
+    // A pre-rejection processing failure is stale context by now — clear it.
+    .set({ status: "new", processedAt: null, processError: null })
     .where(and(eq(urlSubmission.id, id), eq(urlSubmission.status, "rejected")))
     .returning();
   if (!row) throw notFound("Ehdotusta ei löytynyt");
@@ -148,68 +155,26 @@ export async function saveSubmissionArchiveText(id: string, text: string): Promi
 }
 
 /**
- * The article text for the extraction: the submit-time S3 archive when one
- * exists (the page as the reader saw it — no second download), otherwise one
- * live fetch attempt (pre-archive rows, failed archives, archiving disabled).
+ * Send a submission onward to the AI queue: flip it to `processing` and kick
+ * the background processor (lib/submission-processor.ts), which runs the
+ * extraction and finalizes the row off the request. The conditional update is
+ * the concurrency guard — a second click (or a reject that raced this) finds a
+ * non-'new' status and 404s.
  */
-async function pageTextFor(entry: SubmissionRow): Promise<string> {
-  if (entry.archiveTextKey) {
-    try {
-      return await getTextObject(entry.archiveTextKey);
-    } catch (err) {
-      logger.warn(
-        { id: entry.id, key: entry.archiveTextKey, err: (err as Error).message },
-        "archived text unavailable, falling back to live fetch",
-      );
-    }
-  }
-  return (await fetchPageText(entry.url)).text;
-}
-
-/**
- * Send a submission onward to the AI queue: run the extraction and store the
- * result as a pending suggestion. The submission is kept, marked `processed`
- * and linked to the suggestion it became.
- */
-export async function processSubmission(id: string): Promise<{ suggestionId: string }> {
-  // The extraction (text retrieval + LLM call) can take seconds, so it runs
-  // before the transaction — never while holding a row lock and a pool
-  // connection. On failure the submission stays 'new' and the editor can retry.
-  const [entry] = await db
-    .select()
-    .from(urlSubmission)
+export async function queueSubmissionForProcessing(id: string): Promise<UrlSubmissionView> {
+  const [row] = await db
+    .update(urlSubmission)
+    .set({
+      status: "processing",
+      processAttempts: 0,
+      processNextAttemptAt: null,
+      processError: null,
+    })
     .where(and(eq(urlSubmission.id, id), eq(urlSubmission.status, "new")))
-    .limit(1);
-  if (!entry) throw notFound("Ehdotusta ei löytynyt");
-
-  const extraction = await extractArticle(
-    entry.url,
-    { title: entry.title, description: entry.description, siteName: entry.siteName },
-    await pageTextFor(entry),
-  );
-
-  return db.transaction(async (tx) => {
-    // Row lock + status re-check so two concurrent process calls can't both
-    // insert a suggestion; the loser (or a reject that raced the extraction)
-    // sees a non-'new' status and 404s, wasting only its LLM call.
-    const [locked] = await tx
-      .select({ id: urlSubmission.id })
-      .from(urlSubmission)
-      .where(and(eq(urlSubmission.id, id), eq(urlSubmission.status, "new")))
-      .limit(1)
-      .for("update");
-    if (!locked) throw notFound("Ehdotusta ei löytynyt");
-
-    const [created] = await tx
-      .insert(suggestion)
-      .values({ url: entry.url, ...extraction })
-      .returning({ id: suggestion.id });
-
-    await tx
-      .update(urlSubmission)
-      .set({ status: "processed", processedAt: new Date(), suggestionId: created!.id })
-      .where(eq(urlSubmission.id, id));
-
-    return { suggestionId: created!.id };
-  });
+    .returning();
+  if (!row) throw notFound("Ehdotusta ei löytynyt");
+  // The row is now claimable work; kick an immediate drain so the extraction
+  // starts right away (the periodic poll would otherwise pick it up shortly).
+  void runProcessorOnce();
+  return toView(row);
 }

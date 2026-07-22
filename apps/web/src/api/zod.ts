@@ -299,20 +299,18 @@ export const getApiAdminSubmissionsResponseItem = zod.object({
   "siteName": zod.string(),
   "createdAt": zod.iso.datetime({}),
   "archiveStatus": zod.union([zod.literal('pending'),zod.literal('ok'),zod.literal('paywalled'),zod.literal('failed'),zod.literal(null)]).nullable(),
-  "hasArchivedText": zod.boolean()
+  "hasArchivedText": zod.boolean(),
+  "processing": zod.boolean(),
+  "processError": zod.string().nullable()
 })
 export const getApiAdminSubmissionsResponse = zod.array(getApiAdminSubmissionsResponseItem)
 
 
 /**
- * @summary Send a submission to the AI queue (creates a pending suggestion)
+ * @summary Queue a submission for AI processing (runs in the background)
  */
 export const postApiAdminSubmissionsIdProcessParams = zod.object({
   "id": zod.uuid()
-})
-
-export const postApiAdminSubmissionsIdProcessResponse = zod.object({
-  "suggestionId": zod.uuid()
 })
 
 
@@ -371,7 +369,9 @@ export const getApiAdminSubmissionsRejectedResponseItem = zod.object({
   "siteName": zod.string(),
   "createdAt": zod.iso.datetime({}),
   "archiveStatus": zod.union([zod.literal('pending'),zod.literal('ok'),zod.literal('paywalled'),zod.literal('failed'),zod.literal(null)]).nullable(),
-  "hasArchivedText": zod.boolean()
+  "hasArchivedText": zod.boolean(),
+  "processing": zod.boolean(),
+  "processError": zod.string().nullable()
 }).and(zod.object({
   "rejectedAt": zod.iso.datetime({})
 }))
@@ -393,5 +393,7 @@ export const postApiAdminSubmissionsIdRestoreResponse = zod.object({
   "siteName": zod.string(),
   "createdAt": zod.iso.datetime({}),
   "archiveStatus": zod.union([zod.literal('pending'),zod.literal('ok'),zod.literal('paywalled'),zod.literal('failed'),zod.literal(null)]).nullable(),
-  "hasArchivedText": zod.boolean()
+  "hasArchivedText": zod.boolean(),
+  "processing": zod.boolean(),
+  "processError": zod.string().nullable()
 })

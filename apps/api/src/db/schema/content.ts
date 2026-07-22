@@ -49,6 +49,10 @@ export const urlSubmissionStatusEnum = pgEnum("url_submission_status", [
   "new",
   "processed",
   "rejected",
+  // Claimed by the background processor (lib/submission-processor.ts): the
+  // extraction is running or awaiting a retry. Appended after the original
+  // values — the migration is a plain ALTER TYPE … ADD VALUE.
+  "processing",
 ]);
 
 /**
@@ -144,6 +148,21 @@ export const urlSubmission = pgTable(
      * meaningful while `archive_status = 'pending'`.
      */
     archiveNextAttemptAt: timestamp("archive_next_attempt_at", { withTimezone: true }),
+    /** How many times the processor has claimed this row (retry budget). */
+    processAttempts: integer("process_attempts").notNull().default(0),
+    /**
+     * Earliest time the processor may (re)attempt the extraction — a backoff
+     * after a failure, a short lease while an attempt is in flight (so a
+     * concurrent worker or restart skips it). Null means "claimable now". Only
+     * meaningful while `status = 'processing'`.
+     */
+    processNextAttemptAt: timestamp("process_next_attempt_at", { withTimezone: true }),
+    /**
+     * Why the last processing run gave up — set when the processor exhausts its
+     * attempts and returns the row to `new`, cleared when processing starts
+     * again. Shown to the editor on the queue card.
+     */
+    processError: text("process_error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     /** When the entry left the queue — set on process AND reject, cleared on restore. */
     processedAt: timestamp("processed_at", { withTimezone: true }),
@@ -159,6 +178,11 @@ export const urlSubmission = pgTable(
     index("url_submission_archive_claim_idx")
       .on(t.archiveNextAttemptAt)
       .where(sql`${t.archiveStatus} = 'pending'`),
+    // Backs the processor's claim query. Composite instead of partial like the
+    // archive index above: a partial predicate would reference the enum value
+    // 'processing' in the same migration transaction that ADDs it, which
+    // Postgres forbids.
+    index("url_submission_process_claim_idx").on(t.status, t.processNextAttemptAt),
   ],
 );
 

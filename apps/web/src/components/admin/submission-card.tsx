@@ -4,7 +4,6 @@ import { ArchiveInfo } from "./archive-info.js";
 import {
   getGetApiAdminSubmissionsQueryKey,
   getGetApiAdminSubmissionsRejectedQueryKey,
-  getGetApiAdminSuggestionsQueryKey,
   usePostApiAdminSubmissionsIdProcess,
   usePostApiAdminSubmissionsIdReject,
 } from "../../api/admin/admin.js";
@@ -14,15 +13,18 @@ import type { UrlSubmission } from "../../api/model/index.js";
 
 /**
  * One reader-submitted link in the Ehdotusjono: the page metadata captured at
- * submit time plus the verdict — onward to the AI queue ("Käsittele"; runs the
- * LLM extraction, see the API's suggestion-ai module) or into the rejected
- * archive ("Hylkää").
+ * submit time plus the verdict — onward to the AI queue ("Käsittele"; queues
+ * the LLM extraction, which runs in the background — see the API's
+ * submission-processor module) or into the rejected archive ("Hylkää"). While
+ * the extraction runs the entry stays here as `processing: true` (a state that
+ * survives page refreshes) and the admin view polls until it moves on.
  */
 export function SubmissionCard({ entry }: { entry: UrlSubmission }) {
   const queryClient = useQueryClient();
   const processMutation = usePostApiAdminSubmissionsIdProcess();
   const rejectMutation = usePostApiAdminSubmissionsIdReject();
-  const busy = processMutation.isPending || rejectMutation.isPending;
+  const processing = entry.processing || processMutation.isPending;
+  const busy = processing || rejectMutation.isPending;
 
   async function refreshSubmissions() {
     await queryClient.invalidateQueries({ queryKey: getGetApiAdminSubmissionsQueryKey() });
@@ -35,12 +37,10 @@ export function SubmissionCard({ entry }: { entry: UrlSubmission }) {
       toast("Käsittely epäonnistui. Yritä uudelleen.");
       return;
     }
-    // The entry left this queue and appeared in the AI queue.
-    await Promise.all([
-      refreshSubmissions(),
-      queryClient.invalidateQueries({ queryKey: getGetApiAdminSuggestionsQueryKey() }),
-    ]);
-    toast("Siirretty tekoälyn käsiteltäväksi");
+    // The entry is queued; the refetch re-renders this card locked
+    // ("Käsitellään…") until the background extraction finishes.
+    await refreshSubmissions();
+    toast("Käsittely aloitettu");
   }
 
   async function reject() {
@@ -83,10 +83,13 @@ export function SubmissionCard({ entry }: { entry: UrlSubmission }) {
             {entry.url}
           </a>
           <ArchiveInfo entry={entry} />
+          {entry.processError && !processing && (
+            <p className="text-[13px] text-accent">Käsittely epäonnistui: {entry.processError}</p>
+          )}
         </div>
         <div className="flex shrink-0 gap-2.5 md:self-center">
           <Button disabled={busy} onClick={() => void process()}>
-            {processMutation.isPending ? "Käsitellään…" : "Käsittele"}
+            {processing ? "Käsitellään…" : "Käsittele"}
           </Button>
           <Button variant="outlineDanger" disabled={busy} onClick={() => void reject()}>
             Hylkää

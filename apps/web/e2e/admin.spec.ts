@@ -78,11 +78,16 @@ test("processing a submission moves it to the AI queue", async ({ page }) => {
   const url = await firstCard.getByRole("link").innerText();
   await firstCard.getByRole("button", { name: "Käsittele" }).click();
 
+  // The extraction runs in the background: the card locks into "Käsitellään…"
+  // and the view polls until the entry moves on. Generous timeouts — with a
+  // real OPENAI_API_KEY in .env this waits on an actual LLM call.
+  await expect(firstCard.getByRole("button", { name: "Käsitellään…" })).toBeVisible();
+
   await expect(
     page.getByRole("tab", { name: `Ehdotusjono (${submissionsBefore - 1})` }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 60_000 });
   const queueTabName = `Tekoälyn käsittelemät (${queueBefore + 1})`;
-  await expect(page.getByRole("tab", { name: queueTabName })).toBeVisible();
+  await expect(page.getByRole("tab", { name: queueTabName })).toBeVisible({ timeout: 10_000 });
 
   // The processed entry now sits in the AI queue with its source link intact.
   await page.getByRole("tab", { name: queueTabName }).click();

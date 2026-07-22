@@ -1,7 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  getGetApiAdminSuggestionsQueryKey,
   useGetApiAdminItems,
   useGetApiAdminSubmissions,
   useGetApiAdminSubmissionsRejected,
@@ -28,12 +29,34 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
+/** How often the Ehdotusjono refetches while a background extraction runs. */
+const PROCESSING_POLL_MS = 2500;
+
 function AdminPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: me } = useQuery(meQueryOptions);
-  const { data: submissions = [] } = useGetApiAdminSubmissions();
+  // Poll while any entry is being processed in the background, so the queue
+  // updates the moment the extraction finishes — also after a page refresh.
+  const { data: submissions = [] } = useGetApiAdminSubmissions({
+    query: {
+      refetchInterval: (query) =>
+        query.state.data?.some((entry) => entry.processing) ? PROCESSING_POLL_MS : false,
+    },
+  });
   const { data: queue = [] } = useGetApiAdminSuggestions();
+
+  // When a processing run finishes, the entry either moved to the AI queue or
+  // returned to 'new' with an error — refetch the AI queue on that transition
+  // (the drop in processing count) so its tab count keeps up.
+  const processingCount = submissions.filter((entry) => entry.processing).length;
+  const prevProcessingCount = useRef(0);
+  useEffect(() => {
+    if (processingCount < prevProcessingCount.current) {
+      void queryClient.invalidateQueries({ queryKey: getGetApiAdminSuggestionsQueryKey() });
+    }
+    prevProcessingCount.current = processingCount;
+  }, [processingCount, queryClient]);
   const { data: rejectedSuggestions = [] } = useGetApiAdminSuggestionsRejected();
   const { data: rejectedSubmissions = [] } = useGetApiAdminSubmissionsRejected();
   const { data: items = [] } = useGetApiAdminItems();

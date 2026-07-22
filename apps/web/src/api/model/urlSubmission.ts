@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { UrlSubmissionArchiveStatus } from './urlSubmissionArchiveStatus';
+import type { UrlSubmissionProcessError } from './urlSubmissionProcessError';
 
 export interface UrlSubmission {
   id: string;
@@ -16,4 +17,6 @@ export interface UrlSubmission {
   createdAt: string;
   archiveStatus: UrlSubmissionArchiveStatus;
   hasArchivedText: boolean;
+  processing: boolean;
+  processError: UrlSubmissionProcessError;
 }

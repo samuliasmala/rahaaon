@@ -10,7 +10,7 @@ import {
   getSubmissionArchiveText,
   listNewSubmissions,
   listRejectedSubmissions,
-  processSubmission,
+  queueSubmissionForProcessing,
   rejectSubmission,
   restoreSubmission,
   saveSubmissionArchiveText,
@@ -107,21 +107,22 @@ submissionRoutes.openapi(
   createRoute({
     method: "post",
     path: "/admin/submissions/{id}/process",
-    summary: "Send a submission to the AI queue (creates a pending suggestion)",
+    summary: "Queue a submission for AI processing (runs in the background)",
     tags: ["Admin"],
     middleware: [requireAuth] as const,
     request: { params: idParam },
     responses: {
-      200: {
-        description: "Moved to the AI queue",
-        content: { "application/json": { schema: z.object({ suggestionId: z.uuid() }) } },
+      202: {
+        description:
+          "Queued — the entry returns with processing: true until the extraction finishes",
+        content: { "application/json": { schema: urlSubmissionSchema } },
       },
       ...commonErrorResponses,
     },
   }),
   async (c) => {
-    const result = await processSubmission(c.req.valid("param").id);
-    return c.json(result, 200);
+    const queued = await queueSubmissionForProcessing(c.req.valid("param").id);
+    return c.json(queued, 202);
   },
 );
 

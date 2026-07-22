@@ -89,6 +89,15 @@ const rawSchema = z.object({
   ARCHIVE_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
   ARCHIVE_RETRY_BASE_MS: z.coerce.number().int().nonnegative().default(60_000),
   ARCHIVE_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(30_000),
+
+  /**
+   * Submission processor (lib/submission-processor.ts) tuning, same semantics
+   * as the ARCHIVE_* knobs above. The editor is watching the queue while this
+   * runs, so retries are few and quick and the poll is tighter.
+   */
+  PROCESS_MAX_ATTEMPTS: z.coerce.number().int().positive().default(3),
+  PROCESS_RETRY_BASE_MS: z.coerce.number().int().nonnegative().default(15_000),
+  PROCESS_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(15_000),
 });
 
 const DEV_AUTH_SECRET = "dev-only-insecure-auth-secret-0000000000";

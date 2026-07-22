@@ -445,6 +445,15 @@
           },
           "hasArchivedText": {
             "type": "boolean"
+          },
+          "processing": {
+            "type": "boolean"
+          },
+          "processError": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -455,7 +464,9 @@
           "siteName",
           "createdAt",
           "archiveStatus",
-          "hasArchivedText"
+          "hasArchivedText",
+          "processing",
+          "processError"
         ]
       },
       "ArchiveTextEdit": {
@@ -1940,7 +1951,7 @@
     },
     "/api/admin/submissions/{id}/process": {
       "post": {
-        "summary": "Send a submission to the AI queue (creates a pending suggestion)",
+        "summary": "Queue a submission for AI processing (runs in the background)",
         "tags": [
           "Admin"
         ],
@@ -1956,21 +1967,12 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Moved to the AI queue",
+          "202": {
+            "description": "Queued — the entry returns with processing: true until the extraction finishes",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "suggestionId": {
-                      "type": "string",
-                      "format": "uuid"
-                    }
-                  },
-                  "required": [
-                    "suggestionId"
-                  ]
+                  "$ref": "#/components/schemas/UrlSubmission"
                 }
               }
             }
