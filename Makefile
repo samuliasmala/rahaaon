@@ -115,7 +115,7 @@ seed: ## Seed the database — WIPES content, so refused on prod
 	@[ "$(ENV)" != prod ] || { echo "refusing to seed prod — the seed WIPES all content tables (allowed: local/dev/test)."; exit 1; }
 	$(call db_run,seed)
 
-set-admin-password: ## Rotate the admin password from SEED_ADMIN_PASSWORD (non-destructive; ARGS=--revoke-sessions to sign out too)
+set-admin-password: ## Ensure the admin user exists with the password from SEED_ADMIN_PASSWORD (non-destructive; ARGS=--revoke-sessions to sign out too)
 	$(call db_run,set-admin-password)
 
 # The postgres image applies POSTGRES_PASSWORD only when the data volume is

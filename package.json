@@ -23,6 +23,7 @@
     "db:generate": "pnpm --filter @rahaaon/api db:generate",
     "db:migrate": "pnpm --filter @rahaaon/api db:migrate",
     "db:seed": "pnpm --filter @rahaaon/api db:seed",
+    "db:set-admin-password": "pnpm --filter @rahaaon/api db:set-admin-password",
     "prepare": "husky"
   },
   "devDependencies": {
