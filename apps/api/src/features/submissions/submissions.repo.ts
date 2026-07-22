@@ -65,12 +65,22 @@ export async function listNewSubmissions(): Promise<UrlSubmissionView[]> {
   return rows.map(toView);
 }
 
-/** Reject a link out of the queue (kept in the rejected archive). */
+/**
+ * Reject a link out of the queue (kept in the rejected archive). Also allowed
+ * mid-processing — it doubles as the editor's way to cancel a run (the worker
+ * discards a finished extraction for a row that is no longer `processing`),
+ * and the escape hatch should the worker be down and the row stuck.
+ */
 export async function rejectSubmission(id: string): Promise<void> {
   const updated = await db
     .update(urlSubmission)
-    .set({ status: "rejected", processedAt: new Date() })
-    .where(and(eq(urlSubmission.id, id), eq(urlSubmission.status, "new")))
+    .set({
+      status: "rejected",
+      processedAt: new Date(),
+      processNextAttemptAt: null,
+      processError: null,
+    })
+    .where(and(eq(urlSubmission.id, id), inArray(urlSubmission.status, ["new", "processing"])))
     .returning({ id: urlSubmission.id });
   if (updated.length === 0) throw notFound("Ehdotusta ei löytynyt");
 }

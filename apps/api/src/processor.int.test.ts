@@ -50,6 +50,7 @@ let sql: ReturnType<typeof postgres>;
 let closeDb: () => Promise<void>;
 let queueSubmissionForProcessing: (id: string) => Promise<SubmissionView>;
 let listNewSubmissions: () => Promise<SubmissionView[]>;
+let rejectSubmission: (id: string) => Promise<void>;
 let stopSubmissionProcessor: () => Promise<void>;
 let extractArticleMock: ReturnType<typeof vi.fn>;
 
@@ -108,6 +109,7 @@ beforeAll(async () => {
   const repo = await import("./features/submissions/submissions.repo.js");
   queueSubmissionForProcessing = repo.queueSubmissionForProcessing;
   listNewSubmissions = repo.listNewSubmissions;
+  rejectSubmission = repo.rejectSubmission;
   extractArticleMock = vi.mocked((await import("./lib/suggestion-ai.js")).extractArticle);
 
   // server.ts starts the worker in production; the test drives the modules
@@ -192,5 +194,38 @@ describe("submission processor", () => {
 
     await queueSubmissionForProcessing(id);
     await expect(queueSubmissionForProcessing(id)).rejects.toThrow("Ehdotusta ei löytynyt");
+  });
+
+  it("rejecting mid-run cancels: the late extraction is discarded", async () => {
+    // Block the extraction on a gate so the reject reliably lands mid-attempt.
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    extractArticleMock.mockImplementation(async () => {
+      await gate;
+      return EXTRACTION;
+    });
+    const url = "https://example.invalid/peruttu";
+    const id = await insertSubmission(url);
+    await queueSubmissionForProcessing(id);
+
+    // Wait until the worker has claimed the row and is inside the extraction.
+    const deadline = Date.now() + 5_000;
+    while (extractArticleMock.mock.calls.length === 0) {
+      if (Date.now() > deadline) throw new Error("worker never claimed the row");
+      await new Promise((r) => setTimeout(r, 20));
+    }
+
+    await rejectSubmission(id);
+    release();
+    // Let the worker run its finalize attempt against the now-rejected row.
+    await new Promise((r) => setTimeout(r, 300));
+
+    const row = await submissionById(id);
+    expect(row.status).toBe("rejected");
+    expect(row.suggestion_id).toBeNull();
+    const created = await sql<{ id: string }[]>`select id from suggestion where url = ${url}`;
+    expect(created.length).toBe(0);
   });
 });

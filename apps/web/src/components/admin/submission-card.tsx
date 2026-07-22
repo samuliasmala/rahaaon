@@ -4,6 +4,7 @@ import { ArchiveInfo } from "./archive-info.js";
 import {
   getGetApiAdminSubmissionsQueryKey,
   getGetApiAdminSubmissionsRejectedQueryKey,
+  getGetApiAdminSuggestionsQueryKey,
   usePostApiAdminSubmissionsIdProcess,
   usePostApiAdminSubmissionsIdReject,
 } from "../../api/admin/admin.js";
@@ -17,14 +18,15 @@ import type { UrlSubmission } from "../../api/model/index.js";
  * the LLM extraction, which runs in the background — see the API's
  * submission-processor module) or into the rejected archive ("Hylkää"). While
  * the extraction runs the entry stays here as `processing: true` (a state that
- * survives page refreshes) and the admin view polls until it moves on.
+ * survives page refreshes) and the admin view polls until it moves on. Hylkää
+ * stays available even then — it doubles as the way to cancel a processing run.
  */
 export function SubmissionCard({ entry }: { entry: UrlSubmission }) {
   const queryClient = useQueryClient();
   const processMutation = usePostApiAdminSubmissionsIdProcess();
   const rejectMutation = usePostApiAdminSubmissionsIdReject();
   const processing = entry.processing || processMutation.isPending;
-  const busy = processing || rejectMutation.isPending;
+  const busy = processMutation.isPending || rejectMutation.isPending;
 
   async function refreshSubmissions() {
     await queryClient.invalidateQueries({ queryKey: getGetApiAdminSubmissionsQueryKey() });
@@ -38,8 +40,13 @@ export function SubmissionCard({ entry }: { entry: UrlSubmission }) {
       return;
     }
     // The entry is queued; the refetch re-renders this card locked
-    // ("Käsitellään…") until the background extraction finishes.
-    await refreshSubmissions();
+    // ("Käsitellään…") until the background extraction finishes. The AI queue
+    // is invalidated too in case the extraction beat this refetch — then the
+    // finish would never be observed as a processing → done transition.
+    await Promise.all([
+      refreshSubmissions(),
+      queryClient.invalidateQueries({ queryKey: getGetApiAdminSuggestionsQueryKey() }),
+    ]);
     toast("Käsittely aloitettu");
   }
 
@@ -88,9 +95,11 @@ export function SubmissionCard({ entry }: { entry: UrlSubmission }) {
           )}
         </div>
         <div className="flex shrink-0 gap-2.5 md:self-center">
-          <Button disabled={busy} onClick={() => void process()}>
+          <Button disabled={processing || busy} onClick={() => void process()}>
             {processing ? "Käsitellään…" : "Käsittele"}
           </Button>
+          {/* Enabled while processing: rejecting cancels the run (the worker
+              discards a finished extraction for a non-processing row). */}
           <Button variant="outlineDanger" disabled={busy} onClick={() => void reject()}>
             Hylkää
           </Button>

@@ -347,7 +347,7 @@ export const putApiAdminSubmissionsIdArchiveTextResponse = zod.object({
 
 
 /**
- * @summary Reject a link out of the Ehdotusjono
+ * @summary Reject a link out of the Ehdotusjono (also cancels an in-flight processing run)
  */
 export const postApiAdminSubmissionsIdRejectParams = zod.object({
   "id": zod.uuid()

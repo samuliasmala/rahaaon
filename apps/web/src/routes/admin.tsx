@@ -47,16 +47,26 @@ function AdminPage() {
   const { data: queue = [] } = useGetApiAdminSuggestions();
 
   // When a processing run finishes, the entry either moved to the AI queue or
-  // returned to 'new' with an error — refetch the AI queue on that transition
-  // (the drop in processing count) so its tab count keeps up.
-  const processingCount = submissions.filter((entry) => entry.processing).length;
-  const prevProcessingCount = useRef(0);
+  // returned to 'new' with an error — refetch the AI queue whenever an id
+  // leaves the processing set, so its tab count keeps up. Tracked as an id set
+  // (not a count): a finish and a fresh click landing in the same poll delta
+  // would leave the count unchanged and hide the transition.
+  const processingIds = submissions
+    .filter((entry) => entry.processing)
+    .map((entry) => entry.id)
+    .sort()
+    .join(",");
+  const prevProcessingIds = useRef("");
   useEffect(() => {
-    if (processingCount < prevProcessingCount.current) {
+    const current = new Set(processingIds.split(","));
+    const finished = prevProcessingIds.current
+      .split(",")
+      .some((id) => id !== "" && !current.has(id));
+    prevProcessingIds.current = processingIds;
+    if (finished) {
       void queryClient.invalidateQueries({ queryKey: getGetApiAdminSuggestionsQueryKey() });
     }
-    prevProcessingCount.current = processingCount;
-  }, [processingCount, queryClient]);
+  }, [processingIds, queryClient]);
   const { data: rejectedSuggestions = [] } = useGetApiAdminSuggestionsRejected();
   const { data: rejectedSubmissions = [] } = useGetApiAdminSubmissionsRejected();
   const { data: items = [] } = useGetApiAdminItems();

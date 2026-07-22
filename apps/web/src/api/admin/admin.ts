@@ -956,7 +956,7 @@ export const usePutApiAdminSubmissionsIdArchiveText = <TError = ErrorResponse,
       return useMutation(mutationOptions, queryClient);
     }
     /**
- * @summary Reject a link out of the Ehdotusjono
+ * @summary Reject a link out of the Ehdotusjono (also cancels an in-flight processing run)
  */
 export const postApiAdminSubmissionsIdReject = (
     id: string,
@@ -1002,7 +1002,7 @@ const {mutation: mutationOptions} = options ?
     export type PostApiAdminSubmissionsIdRejectMutationError = ErrorResponse
 
     /**
- * @summary Reject a link out of the Ehdotusjono
+ * @summary Reject a link out of the Ehdotusjono (also cancels an in-flight processing run)
  */
 export const usePostApiAdminSubmissionsIdReject = <TError = ErrorResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdReject>>, TError,{id: string}, TContext>, }

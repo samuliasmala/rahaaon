@@ -2280,7 +2280,7 @@
     },
     "/api/admin/submissions/{id}/reject": {
       "post": {
-        "summary": "Reject a link out of the Ehdotusjono",
+        "summary": "Reject a link out of the Ehdotusjono (also cancels an in-flight processing run)",
         "tags": [
           "Admin"
         ],

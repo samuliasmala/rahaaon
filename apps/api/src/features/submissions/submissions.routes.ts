@@ -195,7 +195,7 @@ submissionRoutes.openapi(
   createRoute({
     method: "post",
     path: "/admin/submissions/{id}/reject",
-    summary: "Reject a link out of the Ehdotusjono",
+    summary: "Reject a link out of the Ehdotusjono (also cancels an in-flight processing run)",
     tags: ["Admin"],
     middleware: [requireAuth] as const,
     request: { params: idParam },

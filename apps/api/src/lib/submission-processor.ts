@@ -30,6 +30,13 @@ const BATCH_SIZE = 2;
 const LEASE_MS = 5 * 60_000;
 /** Cap on the exponential backoff between retries. */
 const MAX_BACKOFF_MS = 10 * 60_000;
+/**
+ * Hard cap on one attempt (text retrieval + LLM call), safely under LEASE_MS.
+ * The drain loop is single-flighted and awaits the whole batch, so without
+ * this a hung request would stall the entire processor — no other rows would
+ * ever be claimed again.
+ */
+const ATTEMPT_TIMEOUT_MS = 4 * 60_000;
 
 type SubmissionRow = typeof urlSubmission.$inferSelect;
 
@@ -168,12 +175,32 @@ async function scheduleRetry(id: string, retryAt: Date): Promise<void> {
  * then return the row to `new` with the error recorded. Never throws; the
  * worker treats every row independently.
  */
+/** Reject with a (Finnish, editor-visible) timeout error if `work` outlives the attempt cap. */
+async function withAttemptTimeout<T>(work: Promise<T>): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error("AI-käsittely aikakatkaistiin — yritä uudelleen")),
+      ATTEMPT_TIMEOUT_MS,
+    );
+    timer.unref();
+  });
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function processRow(row: SubmissionRow, attempts: number): Promise<void> {
   try {
-    const extraction = await extractArticle(
-      row.url,
-      { title: row.title, description: row.description, siteName: row.siteName },
-      await pageTextFor(row),
+    const extraction = await withAttemptTimeout(
+      (async () =>
+        extractArticle(
+          row.url,
+          { title: row.title, description: row.description, siteName: row.siteName },
+          await pageTextFor(row),
+        ))(),
     );
     await finalize(row, extraction);
   } catch (err) {
