@@ -22,13 +22,13 @@ import { urlSubmission } from "../db/schema/index.js";
  */
 
 /**
- * Below this much page text we assume a paywall or consent wall ate the
- * article. The Markdown is the page's main-content slice (see
- * `extractArticleMarkdown`), so the measure is mostly article text: even a
- * paywalled hs.fi page still renders an ~800–1100-char teaser (headline,
- * standfirst, captions), while a consent wall or bot block leaves next to
- * nothing. Measured with link targets removed — URLs would otherwise inflate
- * a link-heavy but content-free page past any threshold.
+ * Below this much page text we assume a wall of some kind ate the article.
+ * Pages that *declare* their paywall are caught upstream by the schema.org
+ * marking (see {@link classifyArchive}); this heuristic covers the rest —
+ * consent walls, bot blocks, unmarked paywalls. The Markdown is the page's
+ * main-content slice (see `extractArticleMarkdown`), so the measure is mostly
+ * article text. Measured with link targets removed — URLs would otherwise
+ * inflate a link-heavy but content-free page past any threshold.
  */
 const PAYWALL_TEXT_THRESHOLD = 600;
 
@@ -57,9 +57,21 @@ export function manualArchiveKeyFor(submissionId: string): string {
   return `archive/submissions/${submissionId}-manual.md`;
 }
 
-/** Pure classification of a fetch result, exported for tests. */
-export function classifyArchive(fetched: boolean, text: string): "ok" | "paywalled" | "failed" {
+/**
+ * Pure classification of a fetch result, exported for tests. The page's own
+ * schema.org marking (`accessibleForFree`, see `isAccessibleForFree` in
+ * lib/page-preview.ts) beats the length heuristic when it says paywalled — a
+ * paywalled hs.fi page still renders a teaser long enough to sail past the
+ * threshold. Marked-free and unmarked pages take the length check: a consent
+ * wall or bot block can eat a page whose markup calls it free.
+ */
+export function classifyArchive(
+  fetched: boolean,
+  text: string,
+  accessibleForFree: boolean | null,
+): "ok" | "paywalled" | "failed" {
   if (!fetched) return "failed";
+  if (accessibleForFree === false) return "paywalled";
   return markdownContentLength(text) < PAYWALL_TEXT_THRESHOLD ? "paywalled" : "ok";
 }
 
@@ -149,8 +161,8 @@ async function scheduleRetry(id: string, retryAt: Date): Promise<void> {
  */
 async function archiveRow(id: string, url: string, attempts: number): Promise<void> {
   try {
-    const { fetched, text } = await fetchPageText(url);
-    const status = classifyArchive(fetched, text);
+    const { fetched, text, accessibleForFree } = await fetchPageText(url);
+    const status = classifyArchive(fetched, text, accessibleForFree);
     if (status !== "failed") {
       // ok / paywalled: store what we got (paywalled pages carry a little text)
       // and finish. A throw here (S3 down) falls through to the retry path.

@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 // env.ts (imported transitively) demands DATABASE_URL at module load; give a
 // throwaway value so the pure functions can be tested without a database.
 process.env.DATABASE_URL ??= "postgres://unit:unit@localhost:5432/unit";
-const { extractArticleMarkdown, htmlToMarkdown, isPrivateAddress } =
+const { extractArticleMarkdown, htmlToMarkdown, isAccessibleForFree, isPrivateAddress } =
   await import("./page-preview.js");
 
 describe("isPrivateAddress (SSRF guard classification)", () => {
@@ -200,5 +200,52 @@ describe("extractArticleMarkdown", () => {
     extractArticleMarkdown(nearMisses);
     extractArticleMarkdown(deepNest);
     expect(performance.now() - start).toBeLessThan(500);
+  });
+});
+
+describe("isAccessibleForFree (schema.org paywall marking)", () => {
+  const ldJson = (json: string) => `<script type="application/ld+json">${json}</script>`;
+  // The shape Sanoma pages carry: the article-level flag, plus Google's
+  // paywall-section markup — a nested WebPageElement whose flag is false
+  // even on free articles.
+  const sanomaLike = (free: boolean) =>
+    ldJson(
+      JSON.stringify([
+        {
+          "@type": "NewsArticle",
+          isAccessibleForFree: free,
+          hasPart: { "@type": "WebPageElement", isAccessibleForFree: false, cssSelector: ".w" },
+        },
+      ]),
+    );
+
+  it("reads the article node's flag, not the WebPageElement paywall-part decoy", () => {
+    expect(isAccessibleForFree(`<html><head>${sanomaLike(true)}</head>x</html>`)).toBe(true);
+    expect(isAccessibleForFree(`<html><head>${sanomaLike(false)}</head>x</html>`)).toBe(false);
+  });
+
+  it("returns null when no article node states the flag", () => {
+    expect(isAccessibleForFree("<p>ei metadataa</p>")).toBeNull();
+    expect(isAccessibleForFree(ldJson('{"@type":"NewsArticle","headline":"x"}'))).toBeNull();
+    // The paywalled-section part alone says nothing about the article itself.
+    expect(
+      isAccessibleForFree(ldJson('{"@type":"WebPageElement","isAccessibleForFree":false}')),
+    ).toBeNull();
+    expect(isAccessibleForFree(ldJson("{broken json"))).toBeNull();
+  });
+
+  it("finds the article under @graph and accepts array types and string flags", () => {
+    const html = ldJson(
+      '{"@graph":[{"@type":"WebSite"},{"@type":["ReportageNewsArticle"],"isAccessibleForFree":"False"}]}',
+    );
+    expect(isAccessibleForFree(html)).toBe(false);
+  });
+
+  it("ignores lookalike data outside application/ld+json scripts", () => {
+    expect(
+      isAccessibleForFree(
+        '<script>var s = {"@type":"NewsArticle","isAccessibleForFree":false};</script>',
+      ),
+    ).toBeNull();
   });
 });

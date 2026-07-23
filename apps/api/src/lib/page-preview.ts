@@ -543,11 +543,95 @@ export function extractArticleMarkdown(html: string): string {
   return htmlToMarkdown(cleaned);
 }
 
+/**
+ * Contents of every `<script type="application/ld+json">` block, via the same
+ * forward indexOf scan as the other passes. A stray `</script` inside a JSON
+ * string ends the block early; the resulting parse failure reads as "no
+ * signal", which is the safe direction.
+ */
+function ldJsonBlocks(html: string): string[] {
+  const lower = html.toLowerCase();
+  const blocks: string[] = [];
+  let pos = 0;
+  for (;;) {
+    const start = lower.indexOf("<script", pos);
+    if (start === -1) break;
+    const tagEnd = lower.indexOf(">", start);
+    if (tagEnd === -1) break;
+    const close = lower.indexOf("</script", tagEnd);
+    if (close === -1) break;
+    pos = close + "</script".length;
+    if (lower.slice(start, tagEnd).includes("application/ld+json")) {
+      blocks.push(html.slice(tagEnd + 1, close));
+    }
+  }
+  return blocks;
+}
+
+/**
+ * schema.org types that identify the page's own story. Deliberately NOT plain
+ * `hasPart` descendants like WebPageElement: Google's paywall markup nests a
+ * `WebPageElement { isAccessibleForFree: false, cssSelector: … }` under the
+ * article to point at the walled section, and it stays `false` even on free
+ * pages — reading the flag off anything but an Article node inverts the
+ * signal.
+ */
+const ARTICLE_TYPE = /(?:article|posting)$/i;
+
+/** Depth-first search for the first Article-typed node carrying a usable flag. */
+function articleFreeFlag(node: unknown): boolean | null {
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const flag = articleFreeFlag(item);
+      if (flag !== null) return flag;
+    }
+    return null;
+  }
+  if (typeof node !== "object" || node === null) return null;
+  const record = node as Record<string, unknown>;
+  const type = record["@type"];
+  const types = Array.isArray(type) ? type : [type];
+  if (types.some((t) => typeof t === "string" && ARTICLE_TYPE.test(t))) {
+    // Booleans per the spec, "True"/"False" strings in the wild.
+    const raw = record["isAccessibleForFree"];
+    const value = typeof raw === "string" ? raw.toLowerCase() : raw;
+    if (value === true || value === "true") return true;
+    if (value === false || value === "false") return false;
+  }
+  // No flag here — the article may sit under @graph, mainEntity or the like.
+  for (const value of Object.values(record)) {
+    const flag = articleFreeFlag(value);
+    if (flag !== null) return flag;
+  }
+  return null;
+}
+
+/**
+ * The page's own paywall marking: schema.org `isAccessibleForFree` on an
+ * Article-typed JSON-LD node (the markup Google requires for paywalled
+ * content, so paywalled sites reliably carry it). Returns `true`/`false` as
+ * marked, or null when the page doesn't say — malformed JSON and absurdly
+ * nested structures also read as null rather than throwing.
+ */
+export function isAccessibleForFree(html: string): boolean | null {
+  for (const block of ldJsonBlocks(html)) {
+    try {
+      const flag = articleFreeFlag(JSON.parse(block));
+      if (flag !== null) return flag;
+    } catch {
+      // not JSON (or nested past the call stack) — treat as signal-less
+    }
+  }
+  return null;
+}
+
 export interface PageText {
   /** False when the page couldn't be read at all (network, non-HTML, blocked). */
   fetched: boolean;
   /** The page content as Markdown (headings/links/lists preserved). */
   text: string;
+  /** The page's schema.org paywall marking; null when the page doesn't carry one. */
+  accessibleForFree: boolean | null;
 }
 
 /**
@@ -561,17 +645,21 @@ export interface PageText {
 export async function fetchPageText(url: string, maxChars = 30_000): Promise<PageText> {
   try {
     const res = await fetchGuarded(url);
-    if (!res) return { fetched: false, text: "" };
+    if (!res) return { fetched: false, text: "", accessibleForFree: null };
     const contentType = res.headers.get("content-type") ?? "";
     if (!res.ok || !contentType.includes("text/html")) {
       await res.body?.cancel();
-      return { fetched: false, text: "" };
+      return { fetched: false, text: "", accessibleForFree: null };
     }
     const html = await readBodyCapped(res, MAX_HTML_BYTES);
-    return { fetched: true, text: extractArticleMarkdown(html).slice(0, maxChars) };
+    return {
+      fetched: true,
+      text: extractArticleMarkdown(html).slice(0, maxChars),
+      accessibleForFree: isAccessibleForFree(html),
+    };
   } catch (err) {
     logger.debug({ url, err: (err as Error).message }, "page text fetch failed");
-    return { fetched: false, text: "" };
+    return { fetched: false, text: "", accessibleForFree: null };
   }
 }
 

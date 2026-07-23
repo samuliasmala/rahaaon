@@ -28,6 +28,18 @@ const ARTICLE_HTML = `<html><head><title>Testijuttu</title>
 </body></html>`;
 const THIN_HTML = `<html><head><title>Maksumuuri</title></head>
 <body><p>Tilaajille.</p></body></html>`;
+// A page that declares its paywall the way Sanoma sites do — schema.org
+// isAccessibleForFree on the NewsArticle node plus Google's WebPageElement
+// paywall-section markup — while still serving a teaser long enough to sail
+// past the length threshold.
+const MARKED_PAYWALLED_HTML = `<html><head><title>Merkitty maksulliseksi</title>
+<script type="application/ld+json">${JSON.stringify({
+  "@type": "NewsArticle",
+  isAccessibleForFree: false,
+  hasPart: { "@type": "WebPageElement", isAccessibleForFree: false, cssSelector: ".paywall" },
+})}</script></head>
+<body><article><h1>Pitkä esikatselu maksumuurin edellä</h1>
+<p>${"Esikatselutekstiä joka ylittää pituusrajan reilusti. ".repeat(30)}</p></article></body></html>`;
 
 let dbContainer: StartedPostgreSqlContainer;
 let minio: StartedTestContainer;
@@ -117,6 +129,9 @@ beforeAll(async () => {
     } else if (req.url?.startsWith("/thin")) {
       res.setHeader("content-type", "text/html; charset=utf-8");
       res.end(THIN_HTML);
+    } else if (req.url?.startsWith("/marked-paywalled")) {
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.end(MARKED_PAYWALLED_HTML);
     } else if (req.url?.startsWith("/flaky")) {
       flakyHits += 1;
       if (flakyHits < 3) {
@@ -258,6 +273,13 @@ describe("article archive", () => {
 
   it("flags a thin page as paywalled but keeps what it got", async () => {
     const id = await submit("/thin");
+    const entry = await waitForArchive(id);
+    expect(entry.archiveStatus).toBe("paywalled");
+    expect(entry.hasArchivedText).toBe(true);
+  });
+
+  it("trusts the page's own paywall marking even when the teaser is long", async () => {
+    const id = await submit("/marked-paywalled");
     const entry = await waitForArchive(id);
     expect(entry.archiveStatus).toBe("paywalled");
     expect(entry.hasArchivedText).toBe(true);
