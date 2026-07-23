@@ -457,6 +457,92 @@ export function htmlToMarkdown(html: string): string {
   return blocks.join("\n\n");
 }
 
+/**
+ * Length of the Markdown with link targets removed — URLs would otherwise
+ * inflate link-heavy but content-free text (nav lists, teaser cards) past any
+ * comparison or threshold. Shared with the archive's paywall classification.
+ */
+export function markdownContentLength(markdown: string): number {
+  return markdown.replace(/\]\([^)]*\)/g, "]").length;
+}
+
+/**
+ * Top-level `<tag …>…</tag>` slices of the document, in order. Nested
+ * same-tag elements are depth-counted so only the outermost boundaries
+ * delimit; an element left unclosed is dropped rather than guessed at.
+ * Single forward indexOf scan (each hit advances the cursor) for the same
+ * linear-time guarantee as the converter — pages are submitter-chosen.
+ */
+function elementSlices(html: string, tag: string): string[] {
+  const lower = html.toLowerCase();
+  const slices: string[] = [];
+  let depth = 0;
+  let start = -1;
+  let pos = 0;
+  for (;;) {
+    const at = lower.indexOf(tag, pos);
+    if (at === -1) break;
+    pos = at + tag.length;
+    // Only `<tag` / `</tag` followed by a tag-name boundary counts — not
+    // prose ("mainonta") or a longer name (`<articleish>`, `</maintag>`).
+    const next = lower.charAt(pos);
+    const boundary = next === "" || next === ">" || next === "/" || /\s/.test(next);
+    const opening = lower[at - 1] === "<";
+    const closing = lower[at - 1] === "/" && lower[at - 2] === "<";
+    if (!boundary || (!opening && !closing)) continue;
+    if (opening) {
+      if (depth === 0) start = at - 1;
+      depth++;
+    } else if (depth > 0) {
+      depth--;
+      if (depth === 0) {
+        const end = lower.indexOf(">", pos);
+        if (end === -1) break; // truncated close tag — drop the candidate
+        slices.push(html.slice(start, end + 1));
+        pos = end + 1;
+      }
+    }
+  }
+  return slices;
+}
+
+/** The h1 the story element carries as its headline (flush emits `# ` at block start). */
+const H1_BLOCK = /(^|\n)# /;
+
+/**
+ * Reduce a full page to the Markdown of its main content. News pages mark the
+ * story with `<article>`, but rarely alone — hs.fi pages carry five or six
+ * top-level `<article>` elements (the story plus teaser lists and a comments
+ * container) — so every candidate is converted and the one with the most
+ * content wins, preferring candidates that carry an h1: the headline lives in
+ * the story element, while teaser lists and comment blocks head with h2/h3 or
+ * nothing. Falls back to `<main>`, then to the whole document, so a page
+ * without semantic markup degrades to exactly the whole-page conversion.
+ */
+export function extractArticleMarkdown(html: string): string {
+  // Strip comments and script/style/… blocks up front so an `<article` inside
+  // a JSON state blob or comment can't skew the slice boundaries. The
+  // conversion pass re-strips its input; on this pre-cleaned text that finds
+  // nothing and costs one linear scan.
+  let cleaned = stripBlocks(html, "<!--", "-->");
+  for (const tag of NON_CONTENT_TAGS) {
+    cleaned = stripBlocks(cleaned, `<${tag}`, `</${tag}`);
+  }
+
+  for (const tag of ["article", "main"]) {
+    // Top-level slices are disjoint, so converting all of them costs no more
+    // than one whole-page pass.
+    const candidates = elementSlices(cleaned, tag).map(htmlToMarkdown);
+    const withH1 = candidates.filter((md) => H1_BLOCK.test(md));
+    const best = (withH1.length ? withH1 : candidates).reduce(
+      (a, b) => (markdownContentLength(b) > markdownContentLength(a) ? b : a),
+      "",
+    );
+    if (best) return best;
+  }
+  return htmlToMarkdown(cleaned);
+}
+
 export interface PageText {
   /** False when the page couldn't be read at all (network, non-HTML, blocked). */
   fetched: boolean;
@@ -465,10 +551,12 @@ export interface PageText {
 }
 
 /**
- * Fetch a page and reduce it to Markdown for the archive/AI pipeline. Same
- * guarded fetch as the preview (SSRF check per redirect hop, timeout, size
- * cap). Best-effort like the preview: `fetched: false` with empty text when
- * the page can't be read — callers fall back to the submit-time metadata.
+ * Fetch a page and reduce its main content to Markdown for the archive/AI
+ * pipeline (see {@link extractArticleMarkdown} — nav/footer furniture is
+ * sliced away when the page marks its main content). Same guarded fetch as
+ * the preview (SSRF check per redirect hop, timeout, size cap). Best-effort
+ * like the preview: `fetched: false` with empty text when the page can't be
+ * read — callers fall back to the submit-time metadata.
  */
 export async function fetchPageText(url: string, maxChars = 30_000): Promise<PageText> {
   try {
@@ -480,7 +568,7 @@ export async function fetchPageText(url: string, maxChars = 30_000): Promise<Pag
       return { fetched: false, text: "" };
     }
     const html = await readBodyCapped(res, MAX_HTML_BYTES);
-    return { fetched: true, text: htmlToMarkdown(html).slice(0, maxChars) };
+    return { fetched: true, text: extractArticleMarkdown(html).slice(0, maxChars) };
   } catch (err) {
     logger.debug({ url, err: (err as Error).message }, "page text fetch failed");
     return { fetched: false, text: "" };

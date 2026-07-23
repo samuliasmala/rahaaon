@@ -10,7 +10,8 @@ import { describe, expect, it } from "vitest";
 // env.ts (imported transitively) demands DATABASE_URL at module load; give a
 // throwaway value so the pure functions can be tested without a database.
 process.env.DATABASE_URL ??= "postgres://unit:unit@localhost:5432/unit";
-const { htmlToMarkdown, isPrivateAddress } = await import("./page-preview.js");
+const { extractArticleMarkdown, htmlToMarkdown, isPrivateAddress } =
+  await import("./page-preview.js");
 
 describe("isPrivateAddress (SSRF guard classification)", () => {
   // map→toEqual (rather than expect-with-message) so a failure names the IP in
@@ -128,6 +129,76 @@ describe("htmlToMarkdown", () => {
     htmlToMarkdown(linkStorm);
     htmlToMarkdown(nestedLinks);
     htmlToMarkdown(nestedEmptyLinks);
+    expect(performance.now() - start).toBeLessThan(500);
+  });
+});
+
+describe("extractArticleMarkdown", () => {
+  const NAV = '<nav><ul><li><a href="https://e.fi/a">Etusivu</a></li><li>Uutiset</li></ul></nav>';
+  const STORY = "<article><h1>Otsikko</h1><p>Leipäteksti kertoo asian.</p></article>";
+
+  it("keeps the story <article> and drops surrounding nav/footer", () => {
+    const md = extractArticleMarkdown(`<body>${NAV}${STORY}<footer>Käyttöehdot</footer></body>`);
+    expect(md).toBe("# Otsikko\n\nLeipäteksti kertoo asian.");
+  });
+
+  it("prefers the h1-bearing <article> over a larger teaser-list <article>", () => {
+    // News pages carry sibling <article> teaser lists that can out-measure a
+    // short story; the headline h1 marks the story element.
+    const teasers = `<article><h2>Luetuimmat</h2><p>${"Nosto toisesta jutusta. ".repeat(20)}</p></article>`;
+    const md = extractArticleMarkdown(`${teasers}${STORY}${teasers}`);
+    expect(md).toBe("# Otsikko\n\nLeipäteksti kertoo asian.");
+  });
+
+  it("takes the most content when no candidate has an h1", () => {
+    const md = extractArticleMarkdown(
+      "<article><p>lyhyt</p></article><article><p>selvästi pidempi kappale tässä</p></article>",
+    );
+    expect(md).toBe("selvästi pidempi kappale tässä");
+  });
+
+  it("falls back to <main>, then to the whole page", () => {
+    expect(extractArticleMarkdown(`${NAV}<main><p>Sisältö.</p></main>`)).toBe("Sisältö.");
+    expect(extractArticleMarkdown(`${NAV}<p>Sisältö.</p>`)).toContain("Etusivu");
+  });
+
+  it("captures a nested <article> once, inside its outermost element", () => {
+    const md = extractArticleMarkdown(
+      "<article><h1>Ulompi</h1><article><p>sisempi</p></article></article><p>ohi</p>",
+    );
+    expect(md).toBe("# Ulompi\n\nsisempi");
+  });
+
+  it("ignores an unclosed <article> and tag-name lookalikes", () => {
+    // Unclosed story element: no candidate — degrade to the whole page.
+    expect(extractArticleMarkdown(`${NAV}<article><p>katkennut`)).toContain("Etusivu");
+    // "mainonta" in prose and longer tag names must not register as <main>.
+    const md = extractArticleMarkdown("<p>mainonta</p><maintag>ei</maintag><main>kyllä</main>");
+    expect(md).toBe("kyllä");
+  });
+
+  it("is not fooled by markup inside scripts or comments", () => {
+    const md = extractArticleMarkdown(
+      `<script>var s = "<article><h1>Feikki</h1>";</script><!-- <article>myös feikki</article> -->${STORY}`,
+    );
+    expect(md).toBe("# Otsikko\n\nLeipäteksti kertoo asian.");
+  });
+
+  it("handles uppercase tags and attributes on the element", () => {
+    const md = extractArticleMarkdown(
+      '<ARTICLE data-testid="news-template" class="a"><h1>Iso</h1><p>teksti</p></ARTICLE>',
+    );
+    expect(md).toBe("# Iso\n\nteksti");
+  });
+
+  it("stays fast on adversarial input (linear-time guarantee)", () => {
+    const openerStorm = "<article ".repeat(58_254); // ~512 KB of unclosed openers
+    const nearMisses = "<articleish></articleish>".repeat(20_480); // boundary-check rejects
+    const deepNest = "<article>".repeat(29_127) + "</article>".repeat(29_127); // ~512 KB
+    const start = performance.now();
+    extractArticleMarkdown(openerStorm);
+    extractArticleMarkdown(nearMisses);
+    extractArticleMarkdown(deepNest);
     expect(performance.now() - start).toBeLessThan(500);
   });
 });

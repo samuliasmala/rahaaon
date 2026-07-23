@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { logger } from "./logger.js";
-import { fetchPageText } from "./page-preview.js";
+import { fetchPageText, markdownContentLength } from "./page-preview.js";
 import { putTextObject, s3Configured } from "./s3.js";
 import { env } from "../config/env.js";
 import { db } from "../db/client.js";
@@ -23,16 +23,14 @@ import { urlSubmission } from "../db/schema/index.js";
 
 /**
  * Below this much page text we assume a paywall or consent wall ate the
- * article: even short news items exceed this once page furniture (nav,
- * cookie banners, related links) is included. Measured on the Markdown with
- * link targets removed — URLs would otherwise inflate a link-heavy but
- * content-free page past any threshold.
+ * article. The Markdown is the page's main-content slice (see
+ * `extractArticleMarkdown`), so the measure is mostly article text: even a
+ * paywalled hs.fi page still renders an ~800–1100-char teaser (headline,
+ * standfirst, captions), while a consent wall or bot block leaves next to
+ * nothing. Measured with link targets removed — URLs would otherwise inflate
+ * a link-heavy but content-free page past any threshold.
  */
 const PAYWALL_TEXT_THRESHOLD = 600;
-
-function contentLength(markdown: string): number {
-  return markdown.replace(/\]\([^)]*\)/g, "]").length;
-}
 
 /** Whether submissions should attempt archiving at all. */
 export const archiveEnabled = s3Configured;
@@ -62,7 +60,7 @@ export function manualArchiveKeyFor(submissionId: string): string {
 /** Pure classification of a fetch result, exported for tests. */
 export function classifyArchive(fetched: boolean, text: string): "ok" | "paywalled" | "failed" {
   if (!fetched) return "failed";
-  return contentLength(text) < PAYWALL_TEXT_THRESHOLD ? "paywalled" : "ok";
+  return markdownContentLength(text) < PAYWALL_TEXT_THRESHOLD ? "paywalled" : "ok";
 }
 
 /** Backoff before the next attempt, doubling per attempt up to the cap. */
