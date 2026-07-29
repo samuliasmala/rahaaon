@@ -29,10 +29,18 @@ on:
         type: string
 
 concurrency:
-  # Serialize ALL deploys: every stack shares one /srv/rahaaon checkout on the
-  # VPS, so a dev push, a test tag and a prod dispatch running at once would race
-  # on the working tree (deploy.sh does `git checkout --force`).
-  group: deploy-vps
+  # One queue per target environment. GitHub keeps only ONE *waiting* run per
+  # group and cancels older waiting ones even with cancel-in-progress: false —
+  # with a single shared group a release (commit + tag pushed together) had the
+  # queued test deploy canceled by the dev deploy. Within one env that
+  # supersede-the-stale-run behaviour is what we want; across envs it isn't.
+  # The stacks still share one /srv/rahaaon checkout on the VPS, so cross-env
+  # mutual exclusion lives in deploy/deploy.sh (flock) instead.
+  # Mirrors the setup job's event -> environment mapping (like run-name above).
+  group: >-
+    deploy-vps-${{ github.event_name == 'workflow_dispatch' && 'prod'
+     || startsWith(github.ref, 'refs/tags/v') && 'test'
+     || 'dev' }}
   cancel-in-progress: false
 
 permissions:

@@ -21,6 +21,14 @@ main() {
   local dir="${DEPLOY_DIR:-/srv/rahaaon}"
   cd "$dir"
 
+  # Serialize deploys across environments: all stacks share this one checkout,
+  # and the `git checkout --force` below (plus every compose invocation reading
+  # the infra files) would race a concurrent deploy of another env. GitHub-side
+  # queues are per-environment (deploy.yml concurrency), so cross-env mutual
+  # exclusion lives here. The fd stays open (and the lock held) until exit.
+  exec 9>"/tmp/rahaaon-deploy.lock"
+  flock -w 900 9 || { echo "another deploy has held the lock for >15 min — aborting" >&2; exit 1; }
+
   # Sync infra files (compose, this script, docker/) to the deployed ref. main()
   # is fully parsed before we run, so replacing files on disk now is safe.
   git fetch --all --tags --prune --force
