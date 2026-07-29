@@ -9,7 +9,7 @@
 <x-dc>
 <helmet>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
 <style>
 body{margin:0;background:#faf9f6;font-family:'IBM Plex Sans',system-ui,sans-serif;color:#191817}
 a{color:#c2401f;text-decoration:none}a:hover{color:#96311a}
@@ -38,10 +38,26 @@ input:focus,textarea:focus,select:focus{outline:2px solid #c2401f;outline-offset
 <!-- ============ FEED ============ -->
 <sc-if value="{{ isFeed }}" hint-placeholder-val="{{ true }}">
 <div>
-  <div style="padding:{{ heroPad }};text-align:center;border-bottom:1px solid #e6e2da">
-    <div style="font:500 13px 'IBM Plex Sans',sans-serif;color:#8a857c;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:14px">Turhaa julkista rahankäyttöä kirjattu tähän mennessä</div>
-    <div style="font:{{ heroFont }} 'Space Grotesk',sans-serif;letter-spacing:-0.03em;font-variant-numeric:tabular-nums">{{ totalStr }}&nbsp;<span style="color:#c2401f">€</span></div>
-    <div style="font:400 16px/1.5 'IBM Plex Sans',sans-serif;color:#4a4741;margin-top:16px;max-width:560px;margin-left:auto;margin-right:auto">Kansalaisten ilmoittamia, tekoälyn tiivistämiä ja toimituksen tarkistamia rahareikiä. Koska rahaa on — kysymys on mihin.</div>
+  <div style="padding:{{ heroPad }};border-bottom:1px solid #e6e2da;display:flex;flex-direction:{{ heroDir }};align-items:center;justify-content:center;gap:{{ heroGap }};max-width:1240px;margin:0 auto;box-sizing:border-box">
+    <div style="text-align:{{ heroTextAlign }};max-width:620px">
+      <div style="font:500 13px 'IBM Plex Sans',sans-serif;color:#8a857c;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:14px">Turhaa julkista rahankäyttöä kirjattu tähän mennessä</div>
+      <div style="font:{{ heroFont }} 'Space Grotesk',sans-serif;letter-spacing:-0.03em;font-variant-numeric:tabular-nums">{{ totalStr }}&nbsp;<span style="color:#c2401f">€</span></div>
+      <div style="font:400 16px/1.5 'IBM Plex Sans',sans-serif;color:#4a4741;margin-top:16px">Kansalaisten ilmoittamia, tekoälyn tiivistämiä ja toimituksen tarkistamia rahareikiä. Koska rahaa on — kysymys on mihin.</div>
+    </div>
+
+    <div style="flex:none;position:relative;width:{{ chartW }};height:{{ chartH }}">
+      <div style="position:absolute;left:14%;bottom:0;width:3px;height:34%;background:#c8c2b4;transform:rotate(9deg);transform-origin:top center"></div>
+      <div style="position:absolute;right:14%;bottom:0;width:3px;height:34%;background:#c8c2b4;transform:rotate(-9deg);transform-origin:top center"></div>
+      <div style="position:absolute;left:8%;right:8%;top:0;height:68%;background:#fff;border:1px solid #e0dbd1;border-radius:2px;box-shadow:0 10px 24px rgba(25,24,23,0.09);display:flex;align-items:center;justify-content:center">
+        <div style="position:absolute;top:-9px;left:0;right:0;display:flex;justify-content:center;gap:22%">
+          <div style="width:26px;height:14px;background:#4a4741;border-radius:3px"></div>
+          <div style="width:26px;height:14px;background:#4a4741;border-radius:3px"></div>
+        </div>
+        <div style="font:700 {{ chartFont }} 'Caveat',cursive;color:#c2401f;transform:rotate(-3deg);line-height:0.95;text-align:center;padding:0 12%;max-width:100%;box-sizing:border-box;white-space:nowrap">rahaa&nbsp;on</div>
+        <div style="position:absolute;bottom:9%;left:12%;right:12%;height:2px;background:#efece5"></div>
+      </div>
+      <div style="position:absolute;left:24%;right:24%;bottom:0;height:3px;background:#c8c2b4;border-radius:2px"></div>
+    </div>
   </div>
 
   <div style="display:flex;gap:8px;padding:{{ chipsPad }};border-bottom:1px solid #e6e2da;align-items:center;flex-wrap:wrap">
@@ -374,7 +390,13 @@ class Component extends DCLogic {
       padX: mob?'16px':'48px',
       navGap: mob?'14px':'26px',
       heroPad: mob?'40px 16px 32px':'60px 48px 46px',
-      heroFont: mob?'700 40px/1':'700 84px/1',
+      heroFont: mob?'700 40px/1':'700 76px/1',
+      heroDir: mob?'column-reverse':'row',
+      heroGap: mob?'26px':'56px',
+      heroTextAlign: mob?'center':'left',
+      chartW: mob?'210px':'300px',
+      chartH: mob?'210px':'290px',
+      chartFont: mob?'40px':'56px',
       chipsPad: mob?'14px 16px':'18px 48px',
       searchW: mob?'100%':'220px',
       searchGrow: mob?'1':'0',
