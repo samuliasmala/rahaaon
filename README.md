@@ -42,6 +42,37 @@ pnpm --filter @rahaaon/api openapi:export
 pnpm --filter @rahaaon/web api:generate
 ```
 
+## Initializing a new server environment
+
+Full VPS provisioning (Caddy, deploy keys, backups) is covered in [DEPLOYMENT.md](DEPLOYMENT.md);
+this is the database bootstrap for a fresh dev/test/prod stack. Run on the VPS in `/srv/rahaaon`:
+
+1. **Create the env file** (once, before the first deploy). Generates the DB password and secrets,
+   including `SEED_ADMIN_PASSWORD` (the editor login's password):
+
+   ```bash
+   make env ENV=dev            # or test / prod
+   $EDITOR .env.prod           # prod only: fill in the values listed as manual (R2 creds)
+   ```
+
+2. **Deploy** (see [DEPLOYMENT.md](DEPLOYMENT.md) → Deploying). Migrations run automatically —
+   the compose `migrate` one-shot runs before `api` starts — so after the first deploy the schema
+   exists but the database is empty: no content, no editor login.
+
+3. **Bootstrap the database** — this is where dev/test and prod differ:
+
+   ```bash
+   make seed ENV=dev                  # dev/test: demo content + editor login
+   make set-admin-password ENV=prod   # prod: editor login only, NO demo content
+   ```
+
+   The seed wipes all content tables before inserting demo data, so the Makefile refuses
+   `make seed ENV=prod`. `set-admin-password` creates the `toimitus@rahaaon.fi` user (or updates
+   its password) without touching content — safe to re-run any time to rotate the password
+   (`ARGS=--revoke-sessions` also signs the admin out everywhere).
+
+Both commands read the password from `SEED_ADMIN_PASSWORD` in `.env.<env>`.
+
 ## Design
 
 The UI implements `docs/design/rahaaon-proto.dc.html` (Claude Design project

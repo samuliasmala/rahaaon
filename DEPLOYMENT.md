@@ -91,12 +91,13 @@ sudo systemctl enable --now rahaaon-backup@prod.timer rahaaon-backup@test.timer
 Point DNS `A`/`AAAA` records for the three (sub)domains at the VPS IP. Caddy
 fetches certs on first request.
 
-**Seed the editorial user** after a stack's first deploy (migrations have run;
-`SEED_ADMIN_PASSWORD` comes from the env file):
+**Bootstrap the database** after a stack's first deploy (migrations have run;
+`SEED_ADMIN_PASSWORD` comes from the env file). See README →
+"Initializing a new server environment":
 
 ```bash
-docker compose -p rahaaon-dev --env-file .env.dev -f docker-compose.prod.yml \
-  run --rm api node dist/db/seed.js
+make seed ENV=dev                  # dev/test: demo content + editor login
+make set-admin-password ENV=prod   # prod: editor login only, no demo content
 ```
 
 ---
