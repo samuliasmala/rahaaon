@@ -93,7 +93,13 @@ export const getApiAdminItemsResponseItem = zod.object({
   "articlePublishedAt": zod.iso.date().nullable(),
   "votes": zod.number(),
   "voted": zod.boolean()
-})
+}).and(zod.object({
+  "archive": zod.object({
+  "submissionId": zod.uuid(),
+  "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed']),
+  "hasArchivedText": zod.boolean()
+}).nullable()
+}))
 export const getApiAdminItemsResponse = zod.array(getApiAdminItemsResponseItem)
 
 
@@ -155,7 +161,13 @@ export const getApiAdminSuggestionsResponseItem = zod.object({
   "aiNote": zod.string(),
   "confidence": zod.number(),
   "createdAt": zod.iso.datetime({})
-})
+}).and(zod.object({
+  "archive": zod.object({
+  "submissionId": zod.uuid(),
+  "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed']),
+  "hasArchivedText": zod.boolean()
+}).nullable()
+}))
 export const getApiAdminSuggestionsResponse = zod.array(getApiAdminSuggestionsResponseItem)
 
 

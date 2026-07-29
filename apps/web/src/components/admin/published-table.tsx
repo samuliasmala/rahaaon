@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Fragment, useState } from "react";
 import { toast } from "sonner";
+import { ArchiveInfo } from "./archive-info.js";
 import {
   type ExtractionPatch,
   draftsEqual,
@@ -14,12 +15,12 @@ import { getGetApiItemsQueryKey } from "../../api/items/items.js";
 import { cn } from "../../lib/cn.js";
 import { daysSince, formatAgeShort, formatAmount, formatCount } from "../../lib/format.js";
 import { Button } from "../ui/button.js";
-import type { WasteItem } from "../../api/model/index.js";
+import type { AdminWasteItem, WasteItem } from "../../api/model/index.js";
 
 const GRID_COLS = "grid-cols-[1fr_150px_110px_90px_180px]";
 
 /** Every published item — hidden ones stay listed here, greyed out. */
-export function PublishedTable({ items }: { items: WasteItem[] }) {
+export function PublishedTable({ items }: { items: AdminWasteItem[] }) {
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   // One mutation for hide/restore and inline edits alike: every patch touches
@@ -79,6 +80,13 @@ export function PublishedTable({ items }: { items: WasteItem[] }) {
                   {item.category} · {item.sourceName} ·{" "}
                   {formatAgeShort(daysSince(item.publishedAt))}
                 </span>
+                <ArchiveInfo
+                  compact
+                  processed
+                  archive={item.archive}
+                  url={item.sourceUrl}
+                  listQueryKeys={[getGetApiAdminItemsQueryKey()]}
+                />
               </div>
               <span className="font-display text-sm font-semibold text-accent tabular">
                 {formatAmount(item)}

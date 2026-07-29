@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import { amountTypeSchema, categorySchema } from "../items/schemas.js";
+import { archiveRefSchema } from "../submissions/schemas.js";
 
 /** A queue entry as the editorial UI sees it. */
 export const suggestionSchema = z
@@ -27,6 +28,18 @@ export const suggestionSchema = z
   .openapi("Suggestion");
 
 export type SuggestionView = z.infer<typeof suggestionSchema>;
+
+/**
+ * A queue-listing entry: the suggestion plus the pointer to its source
+ * submission's page archive. Only the listing carries it — mutation responses
+ * (patch/restore) stay plain {@link suggestionSchema}, since the client
+ * already holds the archive ref from the list.
+ */
+export const suggestionWithArchiveSchema = suggestionSchema
+  .extend({ archive: archiveRefSchema.nullable() })
+  .openapi("SuggestionWithArchive");
+
+export type SuggestionWithArchiveView = z.infer<typeof suggestionWithArchiveSchema>;
 
 /** A rejected entry in the admin archive; `rejectedAt` drives the "Hylätty … sitten" label. */
 export const rejectedSuggestionSchema = suggestionSchema

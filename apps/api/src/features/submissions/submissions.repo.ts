@@ -7,9 +7,25 @@ import { logger } from "../../lib/logger.js";
 import { fetchPagePreview } from "../../lib/page-preview.js";
 import { getTextObject, putTextObject } from "../../lib/s3.js";
 import { runProcessorOnce } from "../../lib/submission-processor.js";
-import type { RejectedUrlSubmissionView, UrlSubmissionView } from "./schemas.js";
+import type { ArchiveRefView, RejectedUrlSubmissionView, UrlSubmissionView } from "./schemas.js";
 
 type SubmissionRow = typeof urlSubmission.$inferSelect;
+
+/**
+ * The archive pointer other admin views (AI queue, published items) carry so
+ * their cards can open the submission-scoped archive viewer. Null when
+ * archiving was never attempted (S3 not configured / pre-feature rows).
+ */
+export function toArchiveRef(
+  row: Pick<SubmissionRow, "id" | "archiveStatus" | "archiveTextKey">,
+): ArchiveRefView | null {
+  if (!row.archiveStatus) return null;
+  return {
+    submissionId: row.id,
+    archiveStatus: row.archiveStatus,
+    hasArchivedText: row.archiveTextKey !== null,
+  };
+}
 
 function toView(row: SubmissionRow): UrlSubmissionView {
   return {

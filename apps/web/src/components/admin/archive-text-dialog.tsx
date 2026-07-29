@@ -4,34 +4,45 @@ import Markdown from "react-markdown";
 import { toast } from "sonner";
 import {
   getGetApiAdminSubmissionsIdArchiveTextQueryKey,
-  getGetApiAdminSubmissionsQueryKey,
-  getGetApiAdminSubmissionsRejectedQueryKey,
   useGetApiAdminSubmissionsIdArchiveText,
   usePutApiAdminSubmissionsIdArchiveText,
 } from "../../api/admin/admin.js";
 import { Button } from "../ui/button.js";
 import { Dialog, DialogHeader } from "../ui/dialog.js";
 import { Textarea } from "../ui/textarea.js";
-import type { UrlSubmission } from "../../api/model/index.js";
+import type { ArchiveRef } from "../../api/model/index.js";
+import type { QueryKey } from "@tanstack/react-query";
 
 /**
  * Viewer/editor for the archived article text (Markdown). Viewing renders the
  * markdown; editing exposes the raw text — the escape hatch for paywalled
  * articles the archiver couldn't read, which the editor pastes in by hand.
- * Rows without any stored text open straight in edit mode.
+ * Rows without any stored text open straight in edit mode. The archive is
+ * submission-scoped wherever the ref came from (submission card, queue card,
+ * published item), so the endpoints always address the submission id.
+ *
+ * On `processed` entries the AI extraction already ran and there is no way to
+ * re-run it, so the editor shows a note that edits land in the archive only —
+ * on a submission card the same paste feeds the upcoming extraction.
  */
 export function ArchiveTextDialog({
-  entry,
+  archive,
+  url,
+  listQueryKeys,
   open,
   onClose,
+  processed = false,
 }: {
-  entry: UrlSubmission;
+  archive: NonNullable<ArchiveRef>;
+  url: string;
+  listQueryKeys: readonly QueryKey[];
   open: boolean;
   onClose: () => void;
+  processed?: boolean;
 }) {
   const queryClient = useQueryClient();
-  const textQuery = useGetApiAdminSubmissionsIdArchiveText(entry.id, undefined, {
-    query: { enabled: open && entry.hasArchivedText },
+  const textQuery = useGetApiAdminSubmissionsIdArchiveText(archive.submissionId, undefined, {
+    query: { enabled: open && archive.hasArchivedText },
   });
   const saveMutation = usePutApiAdminSubmissionsIdArchiveText();
 
@@ -45,7 +56,7 @@ export function ArchiveTextDialog({
   // tab saving, list invalidation) must not silently wipe an active draft.
   useEffect(() => {
     if (open) {
-      setEditing(!entry.hasArchivedText);
+      setEditing(!archive.hasArchivedText);
       setDraft("");
       setBaseline("");
     }
@@ -74,17 +85,16 @@ export function ArchiveTextDialog({
       return;
     }
     try {
-      await saveMutation.mutateAsync({ id: entry.id, data: { text } });
+      await saveMutation.mutateAsync({ id: archive.submissionId, data: { text } });
     } catch {
       toast("Tallennus epäonnistui. Yritä uudelleen.");
       return;
     }
     await Promise.all([
       queryClient.invalidateQueries({
-        queryKey: getGetApiAdminSubmissionsIdArchiveTextQueryKey(entry.id),
+        queryKey: getGetApiAdminSubmissionsIdArchiveTextQueryKey(archive.submissionId),
       }),
-      queryClient.invalidateQueries({ queryKey: getGetApiAdminSubmissionsQueryKey() }),
-      queryClient.invalidateQueries({ queryKey: getGetApiAdminSubmissionsRejectedQueryKey() }),
+      ...listQueryKeys.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
     ]);
     toast("Arkistoteksti tallennettu");
     setEditing(false);
@@ -95,7 +105,7 @@ export function ArchiveTextDialog({
       <DialogHeader onClose={requestClose}>
         <div className="flex min-w-0 flex-col">
           <span className="text-[15px] font-semibold">Arkistoitu teksti</span>
-          <span className="truncate text-xs text-muted">{entry.url}</span>
+          <span className="truncate text-xs text-muted">{url}</span>
         </div>
       </DialogHeader>
 
@@ -109,8 +119,13 @@ export function ArchiveTextDialog({
               placeholder="Liitä artikkelin teksti tähän (Markdown)…"
               className="font-mono text-[13px]/relaxed"
             />
+            {processed && (
+              <p className="text-xs text-muted">
+                Muutokset tallentuvat vain arkistoon — tekoälyn esikäsittelyä ei ajeta uudelleen.
+              </p>
+            )}
             <div className="flex justify-end gap-2.5">
-              {entry.hasArchivedText && (
+              {archive.hasArchivedText && (
                 <Button
                   variant="outline"
                   onClick={() => {

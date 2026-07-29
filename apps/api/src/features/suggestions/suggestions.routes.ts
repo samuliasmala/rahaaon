@@ -1,5 +1,10 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { patchSuggestionSchema, rejectedSuggestionSchema, suggestionSchema } from "./schemas.js";
+import {
+  patchSuggestionSchema,
+  rejectedSuggestionSchema,
+  suggestionSchema,
+  suggestionWithArchiveSchema,
+} from "./schemas.js";
 import {
   approveSuggestion,
   listPendingSuggestions,
@@ -25,7 +30,7 @@ suggestionRoutes.openapi(
     responses: {
       200: {
         description: "Pending suggestions",
-        content: { "application/json": { schema: z.array(suggestionSchema) } },
+        content: { "application/json": { schema: z.array(suggestionWithArchiveSchema) } },
       },
       ...commonErrorResponses,
     },

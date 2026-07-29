@@ -230,10 +230,14 @@ describe("editorial loop", () => {
       articlePublishedAt: string | null;
       quote: string;
       url: string;
+      archive: unknown;
     }[];
     const entry = queue.find((q) => q.url === "https://yle.fi.invalid/a/testijuttu");
     expect(entry).toBeDefined();
     suggestionId = entry!.id;
+    // Archiving is disabled in this suite (no S3), so the archive ref must be
+    // an explicit null — not absent, which the client types don't allow.
+    expect(entry!.archive).toBeNull();
     expect(entry!.sourceName).toBe("Yle");
     // The mock extraction's fixed article date (real runs: AI-extracted, null when unknown).
     expect(entry!.articlePublishedAt).toBe("2025-11-04");

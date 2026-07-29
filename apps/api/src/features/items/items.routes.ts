@@ -1,6 +1,11 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { listItems, toggleVote, updateItem } from "./items.repo.js";
-import { patchItemSchema, voteResultSchema, wasteItemSchema } from "./schemas.js";
+import { listAdminItems, listItems, toggleVote, updateItem } from "./items.repo.js";
+import {
+  adminWasteItemSchema,
+  patchItemSchema,
+  voteResultSchema,
+  wasteItemSchema,
+} from "./schemas.js";
 import { commonErrorResponses, createRouter, errorResponse } from "../../lib/openapi.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { rateLimit } from "../../middleware/rate-limit.js";
@@ -68,13 +73,13 @@ itemRoutes.openapi(
     responses: {
       200: {
         description: "Items",
-        content: { "application/json": { schema: z.array(wasteItemSchema) } },
+        content: { "application/json": { schema: z.array(adminWasteItemSchema) } },
       },
       ...commonErrorResponses,
     },
   }),
   async (c) => {
-    const items = await listItems({ includeHidden: true, voterId: c.get("visitorId") });
+    const items = await listAdminItems({ voterId: c.get("visitorId") });
     return c.json(items, 200);
   },
 );

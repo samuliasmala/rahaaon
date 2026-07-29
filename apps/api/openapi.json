@@ -221,6 +221,53 @@
           "voted"
         ]
       },
+      "AdminWasteItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/WasteItem"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "archive": {
+                "$ref": "#/components/schemas/ArchiveRef"
+              }
+            },
+            "required": [
+              "archive"
+            ]
+          }
+        ]
+      },
+      "ArchiveRef": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "archiveStatus": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "ok",
+              "paywalled",
+              "failed"
+            ]
+          },
+          "hasArchivedText": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "submissionId",
+          "archiveStatus",
+          "hasArchivedText"
+        ]
+      },
       "PatchItem": {
         "type": "object",
         "properties": {
@@ -271,6 +318,24 @@
             "type": "boolean"
           }
         }
+      },
+      "SuggestionWithArchive": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Suggestion"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "archive": {
+                "$ref": "#/components/schemas/ArchiveRef"
+              }
+            },
+            "required": [
+              "archive"
+            ]
+          }
+        ]
       },
       "Suggestion": {
         "type": "object",
@@ -858,7 +923,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/WasteItem"
+                    "$ref": "#/components/schemas/AdminWasteItem"
                   }
                 }
               }
@@ -1072,7 +1137,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Suggestion"
+                    "$ref": "#/components/schemas/SuggestionWithArchive"
                   }
                 }
               }

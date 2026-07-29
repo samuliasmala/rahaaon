@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArchiveInfo } from "./archive-info.js";
+import { ArchiveInfo, submissionArchiveRef } from "./archive-info.js";
 import {
   getGetApiAdminSubmissionsQueryKey,
   getGetApiAdminSubmissionsRejectedQueryKey,
@@ -57,7 +57,14 @@ export function RejectedSubmissionCard({ entry }: { entry: RejectedUrlSubmission
           >
             {entry.url}
           </a>
-          <ArchiveInfo entry={entry} />
+          <ArchiveInfo
+            archive={submissionArchiveRef(entry)}
+            url={entry.url}
+            listQueryKeys={[
+              getGetApiAdminSubmissionsQueryKey(),
+              getGetApiAdminSubmissionsRejectedQueryKey(),
+            ]}
+          />
         </div>
         <Button
           variant="outline"

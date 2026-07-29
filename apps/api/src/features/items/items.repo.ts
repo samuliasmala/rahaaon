@@ -1,9 +1,10 @@
-import { and, count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "../../db/client.js";
-import { itemVote, wasteItem } from "../../db/schema/index.js";
+import { itemVote, suggestion, urlSubmission, wasteItem } from "../../db/schema/index.js";
 import { normalizeAmount } from "../../lib/amount.js";
 import { notFound } from "../../lib/http-errors.js";
-import type { WasteItemView, patchItemSchema } from "./schemas.js";
+import { toArchiveRef } from "../submissions/submissions.repo.js";
+import type { AdminWasteItemView, WasteItemView, patchItemSchema } from "./schemas.js";
 import type { z } from "@hono/zod-openapi";
 
 type ItemPatch = z.infer<typeof patchItemSchema>;
@@ -47,6 +48,38 @@ export async function listItems(opts: {
     .orderBy(desc(wasteItem.publishedAt));
 
   return rows.map((r) => ({ ...r, publishedAt: r.publishedAt.toISOString() }));
+}
+
+/**
+ * The admin listing: every item (hidden included) with the pointer to the
+ * page archive of the submission it was published from — resolved through the
+ * submission → suggestion → item chain. Null for items with no submission
+ * behind them (seeded rows) or whose page was never archived.
+ */
+export async function listAdminItems(opts: {
+  voterId: string | undefined;
+}): Promise<AdminWasteItemView[]> {
+  const items = await listItems({ includeHidden: true, voterId: opts.voterId });
+
+  const refs = await db
+    .select({
+      itemId: suggestion.publishedItemId,
+      id: urlSubmission.id,
+      archiveStatus: urlSubmission.archiveStatus,
+      archiveTextKey: urlSubmission.archiveTextKey,
+    })
+    .from(urlSubmission)
+    .innerJoin(suggestion, eq(suggestion.id, urlSubmission.suggestionId))
+    .where(isNotNull(suggestion.publishedItemId));
+
+  // Item → submission is one-to-one in practice, but nothing enforces it —
+  // as in listPendingSuggestions, the first usable ref wins.
+  const archiveByItem = new Map<string, ReturnType<typeof toArchiveRef>>();
+  for (const ref of refs) {
+    if (!archiveByItem.get(ref.itemId!)) archiveByItem.set(ref.itemId!, toArchiveRef(ref));
+  }
+
+  return items.map((item) => ({ ...item, archive: archiveByItem.get(item.id) ?? null }));
 }
 
 /** Toggle the visitor's vote on an item; returns the new count and vote state. */

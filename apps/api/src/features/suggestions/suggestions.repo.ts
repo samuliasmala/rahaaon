@@ -1,9 +1,15 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../../db/client.js";
-import { suggestion, wasteItem } from "../../db/schema/index.js";
+import { suggestion, urlSubmission, wasteItem } from "../../db/schema/index.js";
 import { normalizeAmount } from "../../lib/amount.js";
 import { notFound } from "../../lib/http-errors.js";
-import type { RejectedSuggestionView, SuggestionView, patchSuggestionSchema } from "./schemas.js";
+import { toArchiveRef } from "../submissions/submissions.repo.js";
+import type {
+  RejectedSuggestionView,
+  SuggestionView,
+  SuggestionWithArchiveView,
+  patchSuggestionSchema,
+} from "./schemas.js";
 import type { z } from "@hono/zod-openapi";
 
 type SuggestionPatch = z.infer<typeof patchSuggestionSchema>;
@@ -30,14 +36,30 @@ function toView(row: SuggestionRow): SuggestionView {
   };
 }
 
-/** The AI queue: pending suggestions, newest first. */
-export async function listPendingSuggestions(): Promise<SuggestionView[]> {
+/**
+ * The AI queue: pending suggestions, newest first, each with the pointer to
+ * its source submission's page archive (null for seeded/archive-less rows).
+ */
+export async function listPendingSuggestions(): Promise<SuggestionWithArchiveView[]> {
   const rows = await db
     .select()
     .from(suggestion)
+    .leftJoin(urlSubmission, eq(urlSubmission.suggestionId, suggestion.id))
     .where(eq(suggestion.status, "pending"))
     .orderBy(desc(suggestion.createdAt));
-  return rows.map(toView);
+  // Submission → suggestion is one-to-one in practice, but nothing enforces
+  // it — collapse would-be duplicate join rows instead of duplicating cards.
+  const byId = new Map<string, SuggestionWithArchiveView>();
+  for (const row of rows) {
+    const existing = byId.get(row.suggestion.id);
+    const archive = row.url_submission && toArchiveRef(row.url_submission);
+    if (!existing) {
+      byId.set(row.suggestion.id, { ...toView(row.suggestion), archive: archive ?? null });
+    } else if (!existing.archive && archive) {
+      existing.archive = archive;
+    }
+  }
+  return [...byId.values()];
 }
 
 /**

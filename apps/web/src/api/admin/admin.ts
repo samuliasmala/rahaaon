@@ -25,6 +25,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminWasteItem,
   ArchiveTextEdit,
   ErrorResponse,
   GetApiAdminSubmissionsIdArchiveTextParams,
@@ -38,8 +39,8 @@ import type {
   RejectedSuggestion,
   RejectedUrlSubmission,
   Suggestion,
-  UrlSubmission,
-  WasteItem
+  SuggestionWithArchive,
+  UrlSubmission
 } from '.././model';
 
 import { apiFetch } from '../../lib/api-fetch';
@@ -56,7 +57,7 @@ export const getApiAdminItems = (
 ) => {
       
       
-      return apiFetch<WasteItem[]>(
+      return apiFetch<AdminWasteItem[]>(
       {url: `/api/admin/items`, method: 'GET', ...(signal ? { signal }: {})
     },
       );
@@ -212,7 +213,7 @@ export const getApiAdminSuggestions = (
 ) => {
       
       
-      return apiFetch<Suggestion[]>(
+      return apiFetch<SuggestionWithArchive[]>(
       {url: `/api/admin/suggestions`, method: 'GET', ...(signal ? { signal }: {})
     },
       );

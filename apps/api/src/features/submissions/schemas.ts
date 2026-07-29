@@ -59,6 +59,24 @@ export const urlSubmissionSchema = z
 
 export type UrlSubmissionView = z.infer<typeof urlSubmissionSchema>;
 
+/**
+ * A pointer from a queue entry / published item back to the submission whose
+ * page archive it came from — enough for the admin UI to render the archive
+ * pill and open the shared viewer/editor (the archive endpoints stay
+ * submission-scoped). Null on the parent when the entry didn't come from a
+ * submission (seeded rows) or archiving was never attempted.
+ */
+export const archiveRefSchema = z
+  .object({
+    submissionId: z.uuid(),
+    archiveStatus: z.enum(["pending", "ok", "paywalled", "failed"]),
+    /** True when archived page text exists — the archive/text endpoints work. */
+    hasArchivedText: z.boolean(),
+  })
+  .openapi("ArchiveRef");
+
+export type ArchiveRefView = z.infer<typeof archiveRefSchema>;
+
 /** A rejected link in the admin archive; `rejectedAt` drives the "Hylätty … sitten" label. */
 export const rejectedUrlSubmissionSchema = urlSubmissionSchema
   .extend({ rejectedAt: z.iso.datetime() })

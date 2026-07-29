@@ -16,3 +16,6 @@ apps/api/drizzle/
 
 # Design references — kept verbatim, not Prettier-normalised.
 docs/
+
+# Git worktrees of concurrent agent sessions — each is formatted within itself.
+.claude/worktrees/

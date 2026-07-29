@@ -323,6 +323,64 @@ describe("article archive", () => {
     expect(await read.text()).toBe(pasted);
   });
 
+  it("carries the archive ref through the AI queue to the published item", async () => {
+    const id = await submit("/article?ref=chain");
+    const archived = await waitForArchive(id);
+    expect(archived.archiveStatus).toBe("ok");
+
+    const processed = await app.request(`/api/admin/submissions/${id}/process`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(processed.status).toBe(202);
+    const deadline = Date.now() + 15_000;
+    for (;;) {
+      const listRes = await app.request("/api/admin/submissions", {
+        headers: { cookie: editorCookie },
+      });
+      const ids = ((await listRes.json()) as { id: string }[]).map((s) => s.id);
+      if (!ids.includes(id)) break;
+      if (Date.now() > deadline) throw new Error("processing did not finish in time");
+      await new Promise((r) => setTimeout(r, 100));
+    }
+
+    // The queue entry points back at the submission's archive…
+    const expectedRef = { submissionId: id, archiveStatus: "ok", hasArchivedText: true };
+    const queueRes = await app.request("/api/admin/suggestions", {
+      headers: { cookie: editorCookie },
+    });
+    const queue = (await queueRes.json()) as {
+      id: string;
+      url: string;
+      archive: typeof expectedRef | null;
+    }[];
+    // Located by url, not by the ref under test — a ref pointing at the wrong
+    // submission must fail as a wrong value, not as "entry not found".
+    const entry = queue.find((s) => s.url === `${articleBase}/article?ref=chain`);
+    expect(entry?.archive).toEqual(expectedRef);
+
+    // …and after approval the published item carries the same ref, while the
+    // public feed stays free of it (the ref names a submission id).
+    const approve = await app.request(`/api/admin/suggestions/${entry!.id}/approve`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(approve.status).toBe(200);
+    const { itemId } = (await approve.json()) as { itemId: string };
+
+    const itemsRes = await app.request("/api/admin/items", {
+      headers: { cookie: editorCookie },
+    });
+    const items = (await itemsRes.json()) as { id: string; archive: typeof expectedRef | null }[];
+    expect(items.find((i) => i.id === itemId)?.archive).toEqual(expectedRef);
+
+    const publicRes = await app.request("/api/items");
+    const publicItems = (await publicRes.json()) as Record<string, unknown>[];
+    const publicItem = publicItems.find((i) => i.id === itemId);
+    expect(publicItem).toBeDefined();
+    expect(publicItem).not.toHaveProperty("archive");
+  });
+
   it("requires auth for the archive download", async () => {
     const res = await app.request(
       "/api/admin/submissions/00000000-0000-0000-0000-000000000000/archive/text",

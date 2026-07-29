@@ -73,9 +73,11 @@ test("processing a submission moves it to the AI queue", async ({ page }) => {
   const submissionsBefore = await tabCount(page, "Ehdotusjono");
   const queueBefore = await tabCount(page, "Tekoälyn käsittelemät");
 
-  // Process the newest submission, whichever it is.
+  // Process the newest submission, whichever it is. The name filter keeps
+  // the locator on the source URL — cards with archived text also carry a
+  // "Lataa" download link.
   const firstCard = page.locator("section").first();
-  const url = await firstCard.getByRole("link").innerText();
+  const url = await firstCard.getByRole("link", { name: /^http/ }).innerText();
   await firstCard.getByRole("button", { name: "Käsittele" }).click();
 
   // The extraction runs in the background: the card locks into "Käsitellään…"
@@ -102,7 +104,7 @@ test("rejecting and restoring a suggestion round-trips through Hylätyt", async 
   // Reject the newest queue entry.
   await page.getByRole("tab", { name: `Tekoälyn käsittelemät (${queueBefore})` }).click();
   const queueCard = page.locator("section").first();
-  const url = await queueCard.getByRole("link").innerText();
+  const url = await queueCard.getByRole("link", { name: /^http/ }).innerText();
   await queueCard.getByRole("button", { name: "Hylkää" }).click();
 
   const rejectedTabName = `Hylätyt (${rejectedBefore + 1})`;
@@ -131,7 +133,7 @@ test("rejecting and restoring a link round-trips through Hylätyt", async ({ pag
 
   // Reject the newest link in the Ehdotusjono.
   const submissionCard = page.locator("section").first();
-  const url = await submissionCard.getByRole("link").innerText();
+  const url = await submissionCard.getByRole("link", { name: /^http/ }).innerText();
   await submissionCard.getByRole("button", { name: "Hylkää" }).click();
 
   const rejectedTabName = `Hylätyt (${rejectedBefore + 1})`;
@@ -157,8 +159,9 @@ test("editing a published item from the inline editor updates the row", async ({
   const count = await tabCount(page, "Julkaistut");
   await page.getByRole("tab", { name: `Julkaistut (${count})` }).click();
 
-  // Open the inline editor on the newest row.
-  await page.getByRole("button", { name: "Muokkaa" }).first().click();
+  // Open the inline editor on the newest row. Exact match — rows with an
+  // archive also have a "Näytä / muokkaa" button, which substring-matches.
+  await page.getByRole("button", { name: "Muokkaa", exact: true }).first().click();
   const entityInput = page.getByLabel("Taho");
   await expect(entityInput).toBeVisible();
 
@@ -173,7 +176,7 @@ test("editing a published item from the inline editor updates the row", async ({
   await expect(page.getByText(entity)).toBeVisible();
 
   // Peruuta discards edits after confirming: the row keeps the saved value.
-  await page.getByRole("button", { name: "Muokkaa" }).first().click();
+  await page.getByRole("button", { name: "Muokkaa", exact: true }).first().click();
   await entityInput.fill("Hylättävä muutos");
   page.once("dialog", (dialog) => void dialog.accept());
   await page.getByRole("button", { name: "Peruuta" }).click();

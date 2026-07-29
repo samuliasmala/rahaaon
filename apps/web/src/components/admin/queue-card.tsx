@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ArchiveInfo } from "./archive-info.js";
 import { syncDraftAmounts, toExtractionDraft, toExtractionPatch } from "./extraction-draft.js";
 import { ExtractionFields } from "./extraction-fields.js";
 import {
@@ -12,7 +13,7 @@ import {
   usePostApiAdminSuggestionsIdReject,
 } from "../../api/admin/admin.js";
 import { getGetApiItemsQueryKey } from "../../api/items/items.js";
-import { type Suggestion } from "../../api/model/index.js";
+import { type SuggestionWithArchive } from "../../api/model/index.js";
 import { cn } from "../../lib/cn.js";
 import { formatTimeAgo } from "../../lib/format.js";
 import { Button } from "../ui/button.js";
@@ -29,7 +30,7 @@ function confidenceClasses(confidence: number): string {
  * Edits live in local draft state and are saved on blur; approving saves the
  * draft first so what the editor sees is exactly what gets published.
  */
-export function QueueCard({ entry }: { entry: Suggestion }) {
+export function QueueCard({ entry }: { entry: SuggestionWithArchive }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState(() => toExtractionDraft(entry));
 
@@ -114,9 +115,13 @@ export function QueueCard({ entry }: { entry: Suggestion }) {
             >
               {entry.url}
             </a>
-            <p className="text-xs text-muted">
-              {entry.sourceName} · haettu ja arkistoitu automaattisesti
-            </p>
+            <p className="text-xs text-muted">{entry.sourceName}</p>
+            <ArchiveInfo
+              archive={entry.archive}
+              url={entry.url}
+              listQueryKeys={[getGetApiAdminSuggestionsQueryKey()]}
+              processed
+            />
           </div>
           <div className="flex flex-col gap-1.5 rounded-lg border border-hairline bg-wash-soft px-4 py-3.5">
             <p className="text-[11px] font-semibold tracking-[0.08em] text-muted uppercase">

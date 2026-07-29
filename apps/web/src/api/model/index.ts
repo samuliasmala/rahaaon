@@ -6,7 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './adminWasteItem';
+export * from './adminWasteItemAllOf';
 export * from './amountType';
+export * from './archiveRef';
+export * from './archiveRefAnyOf';
+export * from './archiveRefAnyOfArchiveStatus';
 export * from './archiveTextEdit';
 export * from './category';
 export * from './errorResponse';
@@ -41,6 +46,8 @@ export * from './submitUrl';
 export * from './suggestion';
 export * from './suggestionAmountMaxEur';
 export * from './suggestionArticlePublishedAt';
+export * from './suggestionWithArchive';
+export * from './suggestionWithArchiveAllOf';
 export * from './urlSubmission';
 export * from './urlSubmissionArchiveStatus';
 export * from './urlSubmissionProcessError';
