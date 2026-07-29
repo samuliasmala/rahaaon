@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArchiveInfo, submissionArchiveRef } from "./archive-info.js";
+import { ArchiveInfo } from "./archive-info.js";
+import { submissionArchiveRef } from "./archive-ref.js";
 import {
   getGetApiAdminSubmissionsQueryKey,
   getGetApiAdminSubmissionsRejectedQueryKey,

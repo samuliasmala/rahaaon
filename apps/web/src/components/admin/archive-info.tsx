@@ -1,20 +1,10 @@
 import { useState } from "react";
 import { ArchiveTextDialog } from "./archive-text-dialog.js";
 import { Pill } from "../ui/pill.js";
-import type { ArchiveRef, UrlSubmission } from "../../api/model/index.js";
+import type { ArchiveRef } from "../../api/model/index.js";
 import type { QueryKey } from "@tanstack/react-query";
 
 const linkClasses = "text-xs font-medium text-accent underline-offset-2 hover:underline";
-
-/** The archive ref a submission row carries inline (queue/item rows get theirs from the API). */
-export function submissionArchiveRef(entry: UrlSubmission): ArchiveRef {
-  if (!entry.archiveStatus) return null;
-  return {
-    submissionId: entry.id,
-    archiveStatus: entry.archiveStatus,
-    hasArchivedText: entry.hasArchivedText,
-  };
-}
 
 /**
  * The page-archive line under an admin entry (submission, queue card or

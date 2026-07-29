@@ -246,6 +246,7 @@ export default tseslint.config(
     files: [
       "apps/api/src/db/seed.ts",
       "apps/api/src/db/migrate.ts",
+      "apps/api/src/db/set-admin-password.ts",
       "apps/api/src/openapi-export.ts",
     ],
     rules: {
