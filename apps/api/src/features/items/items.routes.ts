@@ -1,5 +1,5 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { listItems, setItemHidden, toggleVote } from "./items.repo.js";
+import { listItems, toggleVote, updateItem } from "./items.repo.js";
 import { patchItemSchema, voteResultSchema, wasteItemSchema } from "./schemas.js";
 import { commonErrorResponses, createRouter, errorResponse } from "../../lib/openapi.js";
 import { requireAuth } from "../../middleware/auth.js";
@@ -83,7 +83,7 @@ itemRoutes.openapi(
   createRoute({
     method: "patch",
     path: "/admin/items/{id}",
-    summary: "Hide an item from the feed, or restore it (editorial)",
+    summary: "Apply editorial edits to a published item, hiding/restoring included",
     tags: ["Admin"],
     middleware: [requireAuth] as const,
     request: {
@@ -99,7 +99,7 @@ itemRoutes.openapi(
     },
   }),
   async (c) => {
-    await setItemHidden(c.req.valid("param").id, c.req.valid("json").hidden);
+    await updateItem(c.req.valid("param").id, c.req.valid("json"));
     return c.json({ ok: true as const }, 200);
   },
 );

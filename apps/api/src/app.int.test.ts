@@ -332,6 +332,37 @@ describe("editorial loop", () => {
     expect(await second.json()).toEqual({ votes: 0, voted: false });
   });
 
+  it("applies editorial edits to a published item", async () => {
+    const res = await app.request(`/api/admin/items/${itemId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie: editorCookie },
+      body: JSON.stringify({
+        title: "Julkaistu ja muokattu",
+        amountEur: 200_000,
+        amountType: "min",
+        // Below the new figure — the amount invariant must drop the range.
+        amountMaxEur: 150_000,
+        entity: "Espoo",
+      }),
+    });
+    expect(res.status).toBe(200);
+
+    const feed = (await (await app.request("/api/items")).json()) as {
+      id: string;
+      title: string;
+      amountEur: number;
+      amountType: string;
+      amountMaxEur: number | null;
+      entity: string;
+    }[];
+    const edited = feed.find((i) => i.id === itemId);
+    expect(edited?.title).toBe("Julkaistu ja muokattu");
+    expect(edited?.amountEur).toBe(200_000);
+    expect(edited?.amountType).toBe("min");
+    expect(edited?.amountMaxEur).toBeNull();
+    expect(edited?.entity).toBe("Espoo");
+  });
+
   it("hides an item from the public feed but keeps it in the admin list", async () => {
     const res = await app.request(`/api/admin/items/${itemId}`, {
       method: "PATCH",
@@ -346,6 +377,29 @@ describe("editorial loop", () => {
     const adminRes = await app.request("/api/admin/items", { headers: { cookie: editorCookie } });
     const adminItems = (await adminRes.json()) as { id: string; hidden: boolean }[];
     expect(adminItems.find((i) => i.id === itemId)?.hidden).toBe(true);
+  });
+
+  it("a field-only patch leaves the hidden flag alone", async () => {
+    // The item is hidden at this point; editing fields must not resurface it.
+    const res = await app.request(`/api/admin/items/${itemId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie: editorCookie },
+      body: JSON.stringify({ summary: "Päivitetty tiivistelmä", articlePublishedAt: null }),
+    });
+    expect(res.status).toBe(200);
+
+    const adminRes = await app.request("/api/admin/items", { headers: { cookie: editorCookie } });
+    const adminItems = (await adminRes.json()) as {
+      id: string;
+      hidden: boolean;
+      summary: string;
+      articlePublishedAt: string | null;
+    }[];
+    const edited = adminItems.find((i) => i.id === itemId);
+    expect(edited?.hidden).toBe(true);
+    expect(edited?.summary).toBe("Päivitetty tiivistelmä");
+    // An explicit null clears the article date rather than being ignored.
+    expect(edited?.articlePublishedAt).toBeNull();
   });
 
   it("rejects a suggestion into the rejected archive", async () => {

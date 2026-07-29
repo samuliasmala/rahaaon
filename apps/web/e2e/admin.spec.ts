@@ -152,6 +152,29 @@ test("rejecting and restoring a link round-trips through Hylätyt", async ({ pag
   await expect(page.getByRole("tab", { name: `Ehdotusjono (${submissionsBefore})` })).toBeVisible();
 });
 
+test("editing a published item from the inline editor updates the row", async ({ page }) => {
+  await page.goto("/admin");
+  const count = await tabCount(page, "Julkaistut");
+  await page.getByRole("tab", { name: `Julkaistut (${count})` }).click();
+
+  // Open the inline editor on the newest row.
+  await page.getByRole("button", { name: "Muokkaa" }).first().click();
+  const entityInput = page.getByLabel("Taho");
+  await expect(entityInput).toBeVisible();
+
+  // Edits save on blur, like in the AI queue; the row reflects the new value.
+  // Unique per attempt — a CI retry doesn't reseed, so a fixed value could
+  // pass on leftovers from the failed attempt without the save working.
+  const entity = `Testivirasto ${Date.now()}`;
+  await entityInput.fill(entity);
+  await entityInput.blur();
+  await expect(page.getByText(entity)).toBeVisible();
+
+  // The toggle collapses the editor again.
+  await page.getByRole("button", { name: "Sulje" }).click();
+  await expect(entityInput).toBeHidden();
+});
+
 test.describe("logged out", () => {
   // Fresh session without the persisted admin state.
   test.use({ storageState: { cookies: [], origins: [] } });

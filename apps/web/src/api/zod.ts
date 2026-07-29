@@ -98,14 +98,34 @@ export const getApiAdminItemsResponse = zod.array(getApiAdminItemsResponseItem)
 
 
 /**
- * @summary Hide an item from the feed, or restore it (editorial)
+ * @summary Apply editorial edits to a published item, hiding/restoring included
  */
 export const patchApiAdminItemsIdParams = zod.object({
   "id": zod.uuid()
 })
 
+export const patchApiAdminItemsIdBodyTitleMax = 300;
+
+export const patchApiAdminItemsIdBodySummaryMax = 2000;
+
+export const patchApiAdminItemsIdBodyAmountEurMin = 0;
+
+export const patchApiAdminItemsIdBodyAmountMaxEurMin = 0;
+
+export const patchApiAdminItemsIdBodyEntityMax = 120;
+
+
+
 export const patchApiAdminItemsIdBody = zod.object({
-  "hidden": zod.boolean()
+  "title": zod.string().min(1).max(patchApiAdminItemsIdBodyTitleMax).optional(),
+  "summary": zod.string().min(1).max(patchApiAdminItemsIdBodySummaryMax).optional(),
+  "amountEur": zod.number().min(patchApiAdminItemsIdBodyAmountEurMin).optional(),
+  "amountType": zod.enum(['exact', 'approx', 'min', 'unknown']).optional(),
+  "amountMaxEur": zod.number().min(patchApiAdminItemsIdBodyAmountMaxEurMin).nullish(),
+  "entity": zod.string().min(1).max(patchApiAdminItemsIdBodyEntityMax).optional(),
+  "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']).optional(),
+  "articlePublishedAt": zod.iso.date().nullish(),
+  "hidden": zod.boolean().optional()
 })
 
 export const patchApiAdminItemsIdResponse = zod.object({

@@ -20,6 +20,8 @@ export * from './meUser';
 export * from './pagePreview';
 export * from './patchApiAdminItemsId200';
 export * from './patchItem';
+export * from './patchItemAmountMaxEur';
+export * from './patchItemArticlePublishedAt';
 export * from './patchSuggestion';
 export * from './patchSuggestionAmountMaxEur';
 export * from './patchSuggestionArticlePublishedAt';

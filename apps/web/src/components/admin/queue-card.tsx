@@ -1,6 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
+import { syncDraftAmounts, toExtractionDraft, toExtractionPatch } from "./extraction-draft.js";
+import { ExtractionFields } from "./extraction-fields.js";
 import {
   getGetApiAdminItemsQueryKey,
   getGetApiAdminSuggestionsQueryKey,
@@ -10,28 +12,11 @@ import {
   usePostApiAdminSuggestionsIdReject,
 } from "../../api/admin/admin.js";
 import { getGetApiItemsQueryKey } from "../../api/items/items.js";
-import {
-  type AmountType,
-  Category,
-  type PatchSuggestion,
-  type Suggestion,
-} from "../../api/model/index.js";
+import { type Suggestion } from "../../api/model/index.js";
 import { cn } from "../../lib/cn.js";
-import { formatTimeAgo, parseEuroAmount } from "../../lib/format.js";
+import { formatTimeAgo } from "../../lib/format.js";
 import { Button } from "../ui/button.js";
-import { Input } from "../ui/input.js";
-import { FieldLabel } from "../ui/label.js";
 import { Pill } from "../ui/pill.js";
-import { Select } from "../ui/select.js";
-import { Textarea } from "../ui/textarea.js";
-
-/** The public feed renders these as "", "n.", "yli" and "Ei tiedossa". */
-const AMOUNT_TYPE_OPTIONS: { value: AmountType; label: string }[] = [
-  { value: "exact", label: "Tarkka" },
-  { value: "approx", label: "Arvio (noin)" },
-  { value: "min", label: "Vähintään (yli)" },
-  { value: "unknown", label: "Ei tiedossa" },
-];
 
 function confidenceClasses(confidence: number): string {
   if (confidence >= 85) return "bg-ok-wash text-ok";
@@ -46,51 +31,16 @@ function confidenceClasses(confidence: number): string {
  */
 export function QueueCard({ entry }: { entry: Suggestion }) {
   const queryClient = useQueryClient();
-  const [draft, setDraft] = useState({
-    title: entry.title,
-    summary: entry.summary,
-    amount: String(entry.amountEur),
-    amountMax: entry.amountMaxEur === null ? "" : String(entry.amountMaxEur),
-    amountType: entry.amountType,
-    entity: entry.entity,
-    category: entry.category,
-    articlePublishedAt: entry.articlePublishedAt ?? "",
-  });
+  const [draft, setDraft] = useState(() => toExtractionDraft(entry));
 
   const patchMutation = usePatchApiAdminSuggestionsId();
   const approveMutation = usePostApiAdminSuggestionsIdApprove();
   const rejectMutation = usePostApiAdminSuggestionsIdReject();
   const busy = approveMutation.isPending || rejectMutation.isPending;
 
-  function toPatch(): PatchSuggestion {
-    // Mirror the server's normalisation: no figure ⟺ "Ei tiedossa", and an
-    // upper bound only above the lower one.
-    const figure = draft.amountType === "unknown" ? 0 : parseEuroAmount(draft.amount);
-    const amountType = figure === 0 ? "unknown" : draft.amountType;
-    const amountMax = draft.amountMax.trim() ? parseEuroAmount(draft.amountMax) : null;
-    return {
-      title: draft.title,
-      summary: draft.summary,
-      amountEur: figure,
-      amountType,
-      amountMaxEur:
-        amountType !== "unknown" && amountMax !== null && amountMax > figure ? amountMax : null,
-      entity: draft.entity,
-      category: draft.category,
-      articlePublishedAt: draft.articlePublishedAt || null,
-    };
-  }
-
   function saveDraft() {
-    const patch = toPatch();
-    // Sync the amount fields to what actually got saved, so a normalised-away
-    // value (say an upper bound below the amount) can't linger in the editor.
-    setDraft((d) => ({
-      ...d,
-      amount: String(patch.amountEur ?? 0),
-      amountType: patch.amountType ?? d.amountType,
-      amountMax: patch.amountMaxEur == null ? "" : String(patch.amountMaxEur),
-    }));
+    const patch = toExtractionPatch(draft);
+    setDraft((d) => syncDraftAmounts(d, patch));
     patchMutation.mutate({ id: entry.id, data: patch });
   }
 
@@ -100,7 +50,7 @@ export function QueueCard({ entry }: { entry: Suggestion }) {
 
   async function approve() {
     try {
-      await patchMutation.mutateAsync({ id: entry.id, data: toPatch() });
+      await patchMutation.mutateAsync({ id: entry.id, data: toExtractionPatch(draft) });
       await approveMutation.mutateAsync({ id: entry.id });
     } catch {
       toast("Julkaisu epäonnistui. Yritä uudelleen.");
@@ -143,108 +93,13 @@ export function QueueCard({ entry }: { entry: Suggestion }) {
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 p-4.5 md:grid-cols-[minmax(0,1fr)_320px] md:p-8">
-        <div className="flex flex-col gap-3.5">
-          <div className="flex flex-col gap-1.5">
-            <FieldLabel htmlFor={`queue-title-${entry.id}`}>Otsikko</FieldLabel>
-            <Input
-              id={`queue-title-${entry.id}`}
-              value={draft.title}
-              onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
-              onBlur={saveDraft}
-              className="text-[15px] font-semibold"
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <FieldLabel htmlFor={`queue-summary-${entry.id}`}>Tekoälyn tiivistelmä</FieldLabel>
-            <Textarea
-              id={`queue-summary-${entry.id}`}
-              value={draft.summary}
-              onChange={(e) => setDraft((d) => ({ ...d, summary: e.target.value }))}
-              onBlur={saveDraft}
-            />
-          </div>
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-3">
-            <div className="flex flex-col gap-1.5">
-              <FieldLabel htmlFor={`queue-amount-${entry.id}`}>Summa (€)</FieldLabel>
-              <Input
-                id={`queue-amount-${entry.id}`}
-                inputMode="numeric"
-                value={draft.amount}
-                onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
-                onBlur={saveDraft}
-                className="font-semibold tabular"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <FieldLabel htmlFor={`queue-amount-max-${entry.id}`}>
-                Yläraja (€), jos haarukka
-              </FieldLabel>
-              <Input
-                id={`queue-amount-max-${entry.id}`}
-                inputMode="numeric"
-                value={draft.amountMax}
-                onChange={(e) => setDraft((d) => ({ ...d, amountMax: e.target.value }))}
-                onBlur={saveDraft}
-                className="font-semibold tabular"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <FieldLabel htmlFor={`queue-amount-type-${entry.id}`}>Summan tarkkuus</FieldLabel>
-              <Select
-                id={`queue-amount-type-${entry.id}`}
-                value={draft.amountType}
-                onChange={(e) => {
-                  setDraft((d) => ({ ...d, amountType: e.target.value as AmountType }));
-                }}
-                onBlur={saveDraft}
-              >
-                {AMOUNT_TYPE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <FieldLabel htmlFor={`queue-entity-${entry.id}`}>Taho</FieldLabel>
-              <Input
-                id={`queue-entity-${entry.id}`}
-                value={draft.entity}
-                onChange={(e) => setDraft((d) => ({ ...d, entity: e.target.value }))}
-                onBlur={saveDraft}
-                className="font-medium"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <FieldLabel htmlFor={`queue-category-${entry.id}`}>Kategoria</FieldLabel>
-              <Select
-                id={`queue-category-${entry.id}`}
-                value={draft.category}
-                onChange={(e) => {
-                  setDraft((d) => ({ ...d, category: e.target.value as Suggestion["category"] }));
-                }}
-                onBlur={saveDraft}
-              >
-                {Object.values(Category).map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <FieldLabel htmlFor={`queue-date-${entry.id}`}>Artikkelin julkaisupäivä</FieldLabel>
-              <Input
-                id={`queue-date-${entry.id}`}
-                type="date"
-                value={draft.articlePublishedAt}
-                onChange={(e) => setDraft((d) => ({ ...d, articlePublishedAt: e.target.value }))}
-                onBlur={saveDraft}
-                className="font-medium"
-              />
-            </div>
-          </div>
-        </div>
+        <ExtractionFields
+          idPrefix={`queue-${entry.id}`}
+          draft={draft}
+          setDraft={setDraft}
+          onSave={saveDraft}
+          summaryLabel="Tekoälyn tiivistelmä"
+        />
 
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-2 rounded-lg border border-hairline bg-wash-soft px-4 py-3.5">

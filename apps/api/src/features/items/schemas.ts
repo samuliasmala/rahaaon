@@ -38,4 +38,19 @@ export const voteResultSchema = z
   .object({ votes: z.number().int(), voted: z.boolean() })
   .openapi("VoteResult");
 
-export const patchItemSchema = z.object({ hidden: z.boolean() }).openapi("PatchItem");
+/** Editorial edits to a published item; all fields optional. */
+export const patchItemSchema = z
+  .object({
+    title: z.string().min(1).max(300),
+    summary: z.string().min(1).max(2000),
+    amountEur: z.number().int().min(0),
+    amountType: amountTypeSchema,
+    /** Null clears the range; the repo drops a bound that isn't above amountEur. */
+    amountMaxEur: z.number().int().min(0).nullable(),
+    entity: z.string().min(1).max(120),
+    category: categorySchema,
+    articlePublishedAt: z.iso.date().nullable(),
+    hidden: z.boolean(),
+  })
+  .partial()
+  .openapi("PatchItem");

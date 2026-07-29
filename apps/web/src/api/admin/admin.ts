@@ -140,7 +140,7 @@ export function useGetApiAdminItems<TData = Awaited<ReturnType<typeof getApiAdmi
 
 
 /**
- * @summary Hide an item from the feed, or restore it (editorial)
+ * @summary Apply editorial edits to a published item, hiding/restoring included
  */
 export const patchApiAdminItemsId = (
     id: string,
@@ -188,7 +188,7 @@ const {mutation: mutationOptions} = options ?
     export type PatchApiAdminItemsIdMutationError = ErrorResponse
 
     /**
- * @summary Hide an item from the feed, or restore it (editorial)
+ * @summary Apply editorial edits to a published item, hiding/restoring included
  */
 export const usePatchApiAdminItemsId = <TError = ErrorResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchApiAdminItemsId>>, TError,{id: string;data: PatchItem}, TContext>, }

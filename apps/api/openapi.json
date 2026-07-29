@@ -224,13 +224,49 @@
       "PatchItem": {
         "type": "object",
         "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "amountEur": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "amountType": {
+            "$ref": "#/components/schemas/AmountType"
+          },
+          "amountMaxEur": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "entity": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category"
+          },
+          "articlePublishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
           "hidden": {
             "type": "boolean"
           }
-        },
-        "required": [
-          "hidden"
-        ]
+        }
       },
       "Suggestion": {
         "type": "object",
@@ -891,7 +927,7 @@
     },
     "/api/admin/items/{id}": {
       "patch": {
-        "summary": "Hide an item from the feed, or restore it (editorial)",
+        "summary": "Apply editorial edits to a published item, hiding/restoring included",
         "tags": [
           "Admin"
         ],
