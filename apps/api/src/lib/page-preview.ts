@@ -26,8 +26,15 @@ export interface PagePreview {
 }
 
 const FETCH_TIMEOUT_MS = 5_000;
-/** Metadata lives in <head>; the body read stops at this many bytes. */
-const MAX_HTML_BYTES = 512 * 1024;
+/**
+ * The body read stops at this many bytes. Sized for the archive, not the
+ * preview (metadata lives in <head>): news pages carry hundreds of KB of
+ * inline JSON state before the story markup, and a cap that cuts the page
+ * before the story's closing tag makes extractArticleMarkdown fall back to
+ * converting the whole document, nav furniture and all. All downstream
+ * parsers are single-pass linear scans, so a few MB stays cheap.
+ */
+const MAX_HTML_BYTES = 5 * 1024 * 1024;
 /** Redirect hops followed manually, so the SSRF guard applies to every hop. */
 const MAX_REDIRECTS = 3;
 const USER_AGENT = "Mozilla/5.0 (compatible; RahaaOnBot/0.1; +https://rahaaon.fi)";
