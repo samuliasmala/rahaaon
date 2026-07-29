@@ -94,7 +94,10 @@ const extractionSchema = z.object({
     .string()
     .describe(
       "The article's publication date in YYYY-MM-DD format, only if the article or its " +
-        "metadata states it — never guess or use today's date. Empty string if not stated.",
+        "metadata states it — never guess or use today's date as the publication date. " +
+        "Sites often omit the year for current-year articles ('29.7. klo 14:02'); when the " +
+        "stated date has no year, use the current year from today's date given in the prompt. " +
+        "Empty string if no date is stated.",
     ),
   summary: z
     .string()
@@ -124,6 +127,8 @@ const SYSTEM_PROMPT =
 function buildPrompt(url: string, context: SubmissionContext, pageText: string): string {
   const parts = [
     `URL: ${url}`,
+    // Lets the model resolve article dates printed without a year.
+    `Today's date: ${new Date().toISOString().slice(0, 10)}`,
     context.siteName && `Site: ${context.siteName}`,
     context.title && `Page title: ${context.title}`,
     context.description && `Page description: ${context.description}`,
