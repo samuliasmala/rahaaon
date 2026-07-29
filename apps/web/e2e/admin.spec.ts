@@ -162,17 +162,24 @@ test("editing a published item from the inline editor updates the row", async ({
   const entityInput = page.getByLabel("Taho");
   await expect(entityInput).toBeVisible();
 
-  // Edits save on blur, like in the AI queue; the row reflects the new value.
   // Unique per attempt — a CI retry doesn't reseed, so a fixed value could
   // pass on leftovers from the failed attempt without the save working.
   const entity = `Testivirasto ${Date.now()}`;
   await entityInput.fill(entity);
-  await entityInput.blur();
+  await page.getByRole("button", { name: "Tallenna" }).click();
+
+  // Saving closes the editor and the row shows the new value.
+  await expect(entityInput).toBeHidden();
   await expect(page.getByText(entity)).toBeVisible();
 
-  // The toggle collapses the editor again.
-  await page.getByRole("button", { name: "Sulje" }).click();
+  // Peruuta discards edits after confirming: the row keeps the saved value.
+  await page.getByRole("button", { name: "Muokkaa" }).first().click();
+  await entityInput.fill("Hylättävä muutos");
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Peruuta" }).click();
   await expect(entityInput).toBeHidden();
+  await expect(page.getByText(entity)).toBeVisible();
+  await expect(page.getByText("Hylättävä muutos")).toBeHidden();
 });
 
 test.describe("logged out", () => {

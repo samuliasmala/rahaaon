@@ -52,6 +52,11 @@ export function toExtractionPatch(draft: ExtractionDraft): ExtractionPatch {
   };
 }
 
+/** Field-by-field equality, for "are there unsaved edits?" checks. */
+export function draftsEqual(a: ExtractionDraft, b: ExtractionDraft): boolean {
+  return (Object.keys(a) as (keyof ExtractionDraft)[]).every((key) => a[key] === b[key]);
+}
+
 /**
  * Sync a draft's amount fields to what actually got saved, so a
  * normalised-away value (say an upper bound below the amount) can't linger

@@ -16,7 +16,8 @@ const AMOUNT_TYPE_OPTIONS: { value: AmountType; label: string }[] = [
 /**
  * The editable extraction fields shared by the AI queue and the published
  * table: title + summary + the amount/entity/category grid. Owns no state —
- * the caller holds the draft and saves it in `onSave` (wired to blur).
+ * the caller holds the draft. Pass `onSave` to save on field blur (the AI
+ * queue), or omit it and provide explicit save controls (the published table).
  */
 export function ExtractionFields({
   idPrefix,
@@ -28,7 +29,7 @@ export function ExtractionFields({
   idPrefix: string;
   draft: ExtractionDraft;
   setDraft: React.Dispatch<React.SetStateAction<ExtractionDraft>>;
-  onSave: () => void;
+  onSave?: () => void;
   summaryLabel?: string;
 }) {
   return (

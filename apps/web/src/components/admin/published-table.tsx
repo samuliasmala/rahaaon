@@ -3,6 +3,7 @@ import { Fragment, useState } from "react";
 import { toast } from "sonner";
 import {
   type ExtractionPatch,
+  draftsEqual,
   syncDraftAmounts,
   toExtractionDraft,
   toExtractionPatch,
@@ -22,8 +23,7 @@ export function PublishedTable({ items }: { items: WasteItem[] }) {
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   // One mutation for hide/restore and inline edits alike: every patch touches
-  // the live feed, so refresh it alongside the admin list. Blur saves have no
-  // other failure surface, so surface errors here.
+  // the live feed, so refresh it alongside the admin list.
   const patchMutation = usePatchApiAdminItemsId({
     mutation: {
       onSuccess: () =>
@@ -34,6 +34,16 @@ export function PublishedTable({ items }: { items: WasteItem[] }) {
       onError: () => toast("Tallennus epäonnistui. Yritä uudelleen."),
     },
   });
+
+  async function saveEdits(itemId: string, patch: ExtractionPatch) {
+    try {
+      await patchMutation.mutateAsync({ id: itemId, data: patch });
+    } catch {
+      return; // reported by the mutation's onError toast; the editor stays open
+    }
+    setEditingId(null);
+    toast("Muutokset tallennettu");
+  }
 
   return (
     <div className="overflow-x-auto rounded-[10px] border border-hairline bg-surface">
@@ -82,14 +92,10 @@ export function PublishedTable({ items }: { items: WasteItem[] }) {
                   variant="outline"
                   size="sm"
                   className="flex-1 px-0 text-xs"
-                  // Opening waits out an in-flight save + refetch, so a fresh
-                  // editor can't seed its draft from a stale cached item and
-                  // then write the stale fields back on the next blur.
-                  // Closing stays enabled — the save is already on its way.
-                  disabled={editingId !== item.id && patchMutation.isPending}
-                  onClick={() => setEditingId(editingId === item.id ? null : item.id)}
+                  disabled={editingId === item.id}
+                  onClick={() => setEditingId(item.id)}
                 >
-                  {editingId === item.id ? "Sulje" : "Muokkaa"}
+                  Muokkaa
                 </Button>
                 <Button
                   variant="outline"
@@ -107,7 +113,8 @@ export function PublishedTable({ items }: { items: WasteItem[] }) {
             {editingId === item.id && (
               <PublishedItemEditor
                 item={item}
-                onSave={(patch) => patchMutation.mutate({ id: item.id, data: patch })}
+                onSave={(patch) => saveEdits(item.id, patch)}
+                onCancel={() => setEditingId(null)}
               />
             )}
           </Fragment>
@@ -118,32 +125,56 @@ export function PublishedTable({ items }: { items: WasteItem[] }) {
 }
 
 /**
- * Inline editor for a published item, expanded below its row. Same fields and
- * save-on-blur behaviour as the AI queue card — edits go live immediately.
+ * Inline editor for a published item, expanded below its row. Same fields as
+ * the AI queue card, but nothing saves until Tallenna — the item is live, so
+ * a stray keystroke must not reach the feed on its own.
  */
 function PublishedItemEditor({
   item,
   onSave,
+  onCancel,
 }: {
   item: WasteItem;
-  onSave: (patch: ExtractionPatch) => void;
+  onSave: (patch: ExtractionPatch) => Promise<void>;
+  onCancel: () => void;
 }) {
   const [draft, setDraft] = useState(() => toExtractionDraft(item));
+  const [saving, setSaving] = useState(false);
 
-  function saveDraft() {
+  async function save() {
     const patch = toExtractionPatch(draft);
+    // Show the normalised values while the save is in flight, and keep them
+    // if it fails and the editor stays open.
     setDraft((d) => syncDraftAmounts(d, patch));
-    onSave(patch);
+    setSaving(true);
+    try {
+      await onSave(patch);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function cancel() {
+    if (
+      !draftsEqual(draft, toExtractionDraft(item)) &&
+      !window.confirm("Hylätäänkö tallentamattomat muutokset?")
+    ) {
+      return;
+    }
+    onCancel();
   }
 
   return (
-    <div className="border-b border-hairline-soft bg-wash-soft px-6 py-5">
-      <ExtractionFields
-        idPrefix={`item-${item.id}`}
-        draft={draft}
-        setDraft={setDraft}
-        onSave={saveDraft}
-      />
+    <div className="flex flex-col gap-4 border-b border-hairline-soft bg-wash-soft px-6 py-5">
+      <ExtractionFields idPrefix={`item-${item.id}`} draft={draft} setDraft={setDraft} />
+      <div className="flex justify-end gap-2.5">
+        <Button variant="outline" disabled={saving} onClick={cancel}>
+          Peruuta
+        </Button>
+        <Button disabled={saving} onClick={() => void save()}>
+          {saving ? "Tallennetaan…" : "Tallenna"}
+        </Button>
+      </div>
     </div>
   );
 }
