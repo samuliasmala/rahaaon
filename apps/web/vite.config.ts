@@ -14,8 +14,8 @@ const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), 
 // tree has uncommitted changes), collapsing to a plain "v0.1.0" at a release tag
 // and to a bare short SHA when there are no tags yet. Environments without git
 // or .git pass the string in as GIT_DESCRIBE instead: CI image builds via a
-// build arg (docker/web.Dockerfile), the dev container via the compose
-// environment (Makefile computes it).
+// build arg (docker/web.Dockerfile). The dev container runs git itself against
+// the bind-mounted repo (docker/dev.Dockerfile installs it).
 function buildVersion(): string {
   const described = process.env.GIT_DESCRIBE;
   if (described) return described;
@@ -29,9 +29,8 @@ function buildVersion(): string {
 
 // Commit timestamp (ISO 8601, e.g. "2026-07-12T22:33:11+03:00") for the version
 // footer — tells you at a glance how fresh a deploy is. Same sourcing as
-// GIT_DESCRIBE: env var when there's no .git (Docker/CI via build arg, dev
-// container via compose), git otherwise. Empty string when unavailable so the
-// footer just omits it.
+// GIT_DESCRIBE: env var when there's no .git (Docker/CI via build arg), git
+// otherwise. Empty string when unavailable so the footer just omits it.
 function commitTime(): string {
   const fromEnv = process.env.GIT_COMMIT_TIME;
   if (fromEnv) return fromEnv;
