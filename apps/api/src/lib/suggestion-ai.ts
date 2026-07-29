@@ -51,7 +51,15 @@ export interface SubmissionContext {
 const extractionSchema = z.object({
   title: z
     .string()
-    .describe("Concise headline for the spending case, in Finnish, at most ~90 characters"),
+    .describe(
+      "Concise headline for the spending case, in Finnish, at most ~90 characters. " +
+        "A plain noun phrase naming what the money went to — do NOT include the amount, " +
+        "budget or price (it is shown separately from amountEur) and do not phrase it as " +
+        "a sentence about the spending. E.g. 'Käpylän lippakioskin vessa ja lava', not " +
+        "'Käpylän lippakioskin vessa ja lava — Omastadin 400 000 euron budjetti'; " +
+        "'Eiranrannan uimaportaat ja pukukopit', not 'Eiranrannan uimaportaille ja " +
+        "pukukopeille varattu 250 000 euroa'.",
+    ),
   amountEur: z
     .number()
     .describe(
