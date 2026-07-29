@@ -6,8 +6,8 @@
 # (The dev-machine publish at rahaaon.asmala.fi — host Caddy → local Vite
 # :5174 — is a separate setup on a different machine and is unaffected.)
 #
-# DNS: point rahaaon / dev.rahaaon / test.rahaaon samcode.fi A (or AAAA)
-# records at this VPS's IP.
+# DNS: point rahaa-on.fi / www / dev / test A (or AAAA) records at this
+# VPS's IP.
 
 # Shared config for every rahaaon stack: compression + security response headers.
 (rahaaon_site) {
@@ -25,19 +25,24 @@
 }
 
 # prod  (WEB_PORT=8090)
-rahaaon.samcode.fi {
+rahaa-on.fi {
 	import rahaaon_site
 	reverse_proxy 127.0.0.1:8090
 }
 
+# www -> apex
+www.rahaa-on.fi {
+	redir https://rahaa-on.fi{uri} permanent
+}
+
 # test  (WEB_PORT=8092)
-test.rahaaon.samcode.fi {
+test.rahaa-on.fi {
 	import rahaaon_site
 	reverse_proxy 127.0.0.1:8092
 }
 
 # dev   (WEB_PORT=8091)
-dev.rahaaon.samcode.fi {
+dev.rahaa-on.fi {
 	import rahaaon_site
 	reverse_proxy 127.0.0.1:8091
 }

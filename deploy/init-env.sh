@@ -9,9 +9,9 @@ cd "$(dirname "$0")/.."
 
 ENV="${1:-}"
 case "$ENV" in
-  dev)  DOMAIN=dev.rahaaon.samcode.fi;  WEB_PORT=8091; MINIO_CONSOLE_PORT=9093 ;;
-  test) DOMAIN=test.rahaaon.samcode.fi; WEB_PORT=8092; MINIO_CONSOLE_PORT=9094 ;;
-  prod) DOMAIN=rahaaon.samcode.fi;      WEB_PORT=8090 ;;
+  dev)  DOMAIN=dev.rahaa-on.fi;  WEB_PORT=8091; MINIO_CONSOLE_PORT=9093 ;;
+  test) DOMAIN=test.rahaa-on.fi; WEB_PORT=8092; MINIO_CONSOLE_PORT=9094 ;;
+  prod) DOMAIN=rahaa-on.fi;      WEB_PORT=8090 ;;
   *) echo "usage: $0 dev|test|prod" >&2; exit 1 ;;
 esac
 

@@ -4,11 +4,13 @@ Three environments on one Ubuntu VPS (shared with the vesi stacks), each an
 isolated Docker Compose stack (own Postgres/volumes), fronted by host **Caddy**
 for TLS. Images are built once by CI, pushed to **GHCR**, and pulled on the VPS.
 
-| Env  | Trigger                             | Domain                    | web port | project name   |
-| ---- | ----------------------------------- | ------------------------- | -------- | -------------- |
-| dev  | push to `main` (no CI gate)         | `dev.rahaaon.samcode.fi`  | 8091     | `rahaaon-dev`  |
-| test | push tag `vX.Y.Z`                   | `test.rahaaon.samcode.fi` | 8092     | `rahaaon-test` |
-| prod | **manual** (Actions → Run workflow) | `rahaaon.samcode.fi`      | 8090     | `rahaaon-prod` |
+| Env  | Trigger                             | Domain             | web port | project name   |
+| ---- | ----------------------------------- | ------------------ | -------- | -------------- |
+| dev  | push to `main` (no CI gate)         | `dev.rahaa-on.fi`  | 8091     | `rahaaon-dev`  |
+| test | push tag `vX.Y.Z`                   | `test.rahaa-on.fi` | 8092     | `rahaaon-test` |
+| prod | **manual** (Actions → Run workflow) | `rahaa-on.fi`      | 8090     | `rahaaon-prod` |
+
+`www.rahaa-on.fi` permanently redirects to the apex (Caddy block, no stack).
 
 Prod reuses the **exact image** built for the `vX.Y.Z` tag that ran on test — no
 rebuild — so what you approve is byte-identical to what you tested.
@@ -88,8 +90,8 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now rahaaon-backup@prod.timer rahaaon-backup@test.timer
 ```
 
-Point DNS `A`/`AAAA` records for the three (sub)domains at the VPS IP. Caddy
-fetches certs on first request.
+Point DNS `A`/`AAAA` records for the apex, `www`, `dev` and `test` at the VPS
+IP. Caddy fetches certs on first request.
 
 **Bootstrap the database** after a stack's first deploy (migrations have run;
 `SEED_ADMIN_PASSWORD` comes from the env file). See README →
