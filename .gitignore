@@ -17,6 +17,9 @@ coverage/
 npm-debug.log*
 pnpm-debug.log*
 
+# claude
+.claude/worktrees/
+
 # editor / os
 .DS_Store
 .idea/

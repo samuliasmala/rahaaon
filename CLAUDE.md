@@ -1,3 +1,3 @@
-- Always commit to main but don't push unless instructed otherwise
+- Commit to the current branch but don't push unless instructed otherwise. In the main checkout commit to main; in a git worktree commit to the worktree branch, which is landed onto main with `git merge --ff-only` (rebase on main first if needed) to keep history linear without merge commits
 - I may communicate in Finnish but answer in English and use English everywhere except app texts visible for end users (the app is in Finnish)
 - Design reference for the UI lives in docs/design/rahaaon-proto.dc.html (exported from Claude Design) — treat it as the source of truth for layout, copy, and colors
