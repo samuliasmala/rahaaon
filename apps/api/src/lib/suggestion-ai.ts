@@ -31,6 +31,8 @@ export interface ArticleExtraction {
   /** The article's own publication date (YYYY-MM-DD); null when the source doesn't state one. */
   articlePublishedAt: string | null;
   summary: string;
+  /** A short direct quote from the article; "" when it offers none. */
+  quote: string;
   aiNote: string;
   /** Extraction confidence, 0–100. */
   confidence: number;
@@ -102,6 +104,15 @@ const extractionSchema = z.object({
   summary: z
     .string()
     .describe("2–3 sentence summary of the spending case, in Finnish, for the editorial queue"),
+  quote: z
+    .string()
+    .describe(
+      "The article's most telling sentence about the spending, VERBATIM — typically a spoken " +
+        "quote from an official or the article's own dry observation. One sentence, at most " +
+        "~200 characters. May keep a short in-text attribution ('…, toteaa hankejohtaja'). " +
+        "No surrounding quotation marks (the UI adds them). Never paraphrase or invent; " +
+        "empty string when the material offers no suitable sentence.",
+    ),
   aiNote: z
     .string()
     .describe(
@@ -114,7 +125,7 @@ const SYSTEM_PROMPT =
   'You are the extraction step of "Rahaa on." — a Finnish service that catalogs ' +
   "questionable public spending reported by citizens. You are given a news article " +
   "(or, when the page could not be fetched, only its metadata) and you extract the " +
-  "spending case for a human editorial queue. All output text (title, summary, aiNote) " +
+  "spending case for a human editorial queue. All output text (title, summary, quote, aiNote) " +
   "must be in Finnish. Be factual: only state what the source supports, and put any " +
   "uncertainty — missing total, amount only in the headline, thin source text — into " +
   "aiNote and a lower confidence. When the source qualifies the amount ('noin', 'yli', " +
@@ -147,6 +158,13 @@ function clampEur(value: number): number {
   return Math.min(PG_INT_MAX, Math.max(0, Math.round(value)));
 }
 
+/** The feed wraps the quote in typographic quotes — drop any the model wrapped it in itself. */
+function stripWrappingQuotes(value: string): string {
+  const trimmed = value.trim();
+  const match = /^["“”'’«»](.*)["“”'’«»]$/s.exec(trimmed);
+  return match ? match[1]!.trim() : trimmed;
+}
+
 /** Keep only a well-formed calendar date (the format the prompt asks for); anything else → null. */
 function validDateOrNull(value: string): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
@@ -169,6 +187,7 @@ function finishExtraction(raw: z.infer<typeof extractionSchema>, url: string): A
     confidence: Math.min(100, Math.max(0, Math.round(raw.confidence))),
     sourceName: raw.sourceName || sourceNameFromUrl(url),
     articlePublishedAt: validDateOrNull(publishedDate),
+    quote: stripWrappingQuotes(raw.quote).slice(0, 500),
   };
 }
 
@@ -226,6 +245,7 @@ function mockExtraction(url: string): ArticleExtraction {
     summary:
       'Kolmivuotinen vuokrasopimus sisältää "kasvillisuuden elinvoimaisuuden ylläpidon". ' +
       "Huoltokäynneillä muovikasvit pyyhitään pölystä. Sopimuksen arvo on 87 000 €.",
+    quote: "Viherseinä tuo aulaan luonnon rauhaa, kaupungin tilapalveluista kerrotaan.",
     aiNote: "Summa poimittu sopimuksen kokonaisarvosta. Vuosikustannus ei selviä lähteestä.",
     confidence: 88,
   };

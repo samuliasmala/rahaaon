@@ -18,6 +18,8 @@ export const suggestionSchema = z
     /** The source article's own publication date; null when the AI couldn't find one. */
     articlePublishedAt: z.iso.date().nullable(),
     summary: z.string(),
+    /** A direct quote from the article, shown on the feed item; "" when none. */
+    quote: z.string(),
     aiNote: z.string(),
     confidence: z.number().int(),
     createdAt: z.iso.datetime(),
@@ -38,6 +40,8 @@ export const patchSuggestionSchema = z
   .object({
     title: z.string().min(1).max(300),
     summary: z.string().min(1).max(2000),
+    /** "" removes the quote from the feed item. */
+    quote: z.string().max(500),
     amountEur: z.number().int().min(0),
     amountType: amountTypeSchema,
     /** Null clears the range; the repo drops a bound that isn't above amountEur. */

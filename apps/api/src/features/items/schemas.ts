@@ -43,6 +43,8 @@ export const patchItemSchema = z
   .object({
     title: z.string().min(1).max(300),
     summary: z.string().min(1).max(2000),
+    /** "" removes the quote from the feed item. */
+    quote: z.string().max(500),
     amountEur: z.number().int().min(0),
     amountType: amountTypeSchema,
     /** Null clears the range; the repo drops a bound that isn't above amountEur. */

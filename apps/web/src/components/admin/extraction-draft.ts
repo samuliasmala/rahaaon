@@ -5,6 +5,7 @@ import type { AmountType, Category, PatchSuggestion } from "../../api/model/inde
 export interface ExtractionDraft {
   title: string;
   summary: string;
+  quote: string;
   amount: string;
   amountMax: string;
   amountType: AmountType;
@@ -24,6 +25,7 @@ export function toExtractionDraft(source: ExtractionPatch): ExtractionDraft {
   return {
     title: source.title,
     summary: source.summary,
+    quote: source.quote,
     amount: String(source.amountEur),
     amountMax: source.amountMaxEur === null ? "" : String(source.amountMaxEur),
     amountType: source.amountType,
@@ -42,6 +44,7 @@ export function toExtractionPatch(draft: ExtractionDraft): ExtractionPatch {
   return {
     title: draft.title,
     summary: draft.summary,
+    quote: draft.quote.trim(),
     amountEur: figure,
     amountType,
     amountMaxEur:

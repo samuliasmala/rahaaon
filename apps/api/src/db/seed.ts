@@ -166,6 +166,7 @@ interface SeedSuggestion {
   hoursAgo: number;
   confidence: number;
   summary: string;
+  quote: string;
   aiNote: string;
 }
 
@@ -182,6 +183,7 @@ const SUGGESTIONS: SeedSuggestion[] = [
     summary:
       "Asukassovellus julkaistiin keväällä 2025. Sovelluskaupan mukaan latauksia on 23, joista " +
       "kaupungin viestintäosaston osuus on arviolta 19.",
+    quote: "Sovellus on strateginen avaus, jonka arvo ei mittaudu latauksissa, kaupunki vastaa.",
     aiNote:
       "Summa vahvistettu kahdesta kohdasta artikkelia. Latausmäärä voi olla muuttunut julkaisun " +
       "jälkeen.",
@@ -199,6 +201,7 @@ const SUGGESTIONS: SeedSuggestion[] = [
     summary:
       "Teos asennettiin kiertoliittymään, jonka jälkeen todettiin sen peittävän näkemäalueen. " +
       "Siirto uuteen paikkaan maksoi 60 000 €, mikä sisältyy summaan.",
+    quote: "Näkemäalue tarkistettiin, mutta teoksen jalusta yllätti, myöntää kaupungininsinööri.",
     aiNote: "Summa on artikkelin arvio (teos + siirto). Tarkka jakauma ei selviä lähteestä.",
   },
   {
@@ -213,6 +216,7 @@ const SUGGESTIONS: SeedSuggestion[] = [
     summary:
       'Kaksipäiväinen valmennus sisälsi työpajoja sekä "läsnäoloharjoituksen alpakkojen kanssa". ' +
       "Osallistujapalaute oli erinomainen.",
+    quote: "Alpakka ei arvota johtajaa, ja juuri se on harjoituksen ydin, kertoo valmentaja.",
     aiNote:
       "Matala varmuus: summa mainitaan vain otsikossa eikä sitä eritellä. Suosittelen " +
       "tarkistamaan lähteen.",
@@ -233,6 +237,7 @@ const REJECTED: SeedSuggestion & { rejectedHoursAgo: number } = {
   summary:
     "Auto on ladattu naapurikunnan huoltoasemalla. Artikkelin mukaan latausasema on tilattu, " +
     "mutta toimitusaika on 8 kuukautta.",
+  quote: "Lataaminen naapurikunnassa on väliaikaisratkaisu, kaupungilta vakuutetaan.",
   aiNote: "Matala varmuus: kulu voi olla normaali hankinta. Summa sisältää auton hinnan.",
 };
 
@@ -322,6 +327,7 @@ async function main() {
       category: sg.category,
       sourceName: sg.sourceName,
       summary: sg.summary,
+      quote: sg.quote,
       aiNote: sg.aiNote,
       confidence: sg.confidence,
       articlePublishedAt: isoDate(now - sg.hoursAgo * HOUR_MS - DAY_MS),
@@ -337,6 +343,7 @@ async function main() {
     category: REJECTED.category,
     sourceName: REJECTED.sourceName,
     summary: REJECTED.summary,
+    quote: REJECTED.quote,
     aiNote: REJECTED.aiNote,
     confidence: REJECTED.confidence,
     status: "rejected",

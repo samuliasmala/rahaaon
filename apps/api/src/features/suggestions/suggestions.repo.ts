@@ -23,6 +23,7 @@ function toView(row: SuggestionRow): SuggestionView {
     sourceName: row.sourceName,
     articlePublishedAt: row.articlePublishedAt,
     summary: row.summary,
+    quote: row.quote,
     aiNote: row.aiNote,
     confidence: row.confidence,
     createdAt: row.createdAt.toISOString(),
@@ -97,7 +98,7 @@ export async function approveSuggestion(id: string): Promise<{ itemId: string }>
         sourceUrl: entry.url,
         summary: entry.summary,
         articlePublishedAt: entry.articlePublishedAt,
-        quote: `Lähde: ${entry.sourceName}.`,
+        quote: entry.quote,
       })
       .returning({ id: wasteItem.id });
 

@@ -53,6 +53,17 @@ export function ExtractionFields({
           onBlur={onSave}
         />
       </div>
+      <div className="flex flex-col gap-1.5">
+        <FieldLabel htmlFor={`${idPrefix}-quote`}>Sitaatti artikkelista, jos on</FieldLabel>
+        <Textarea
+          id={`${idPrefix}-quote`}
+          rows={2}
+          value={draft.quote}
+          onChange={(e) => setDraft((d) => ({ ...d, quote: e.target.value }))}
+          onBlur={onSave}
+          className="font-serif italic"
+        />
+      </div>
       <div className="grid grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-3">
         <div className="flex flex-col gap-1.5">
           <FieldLabel htmlFor={`${idPrefix}-amount`}>Summa (€)</FieldLabel>

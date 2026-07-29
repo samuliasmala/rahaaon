@@ -228,6 +228,7 @@ describe("editorial loop", () => {
       id: string;
       sourceName: string;
       articlePublishedAt: string | null;
+      quote: string;
       url: string;
     }[];
     const entry = queue.find((q) => q.url === "https://yle.fi.invalid/a/testijuttu");
@@ -236,6 +237,8 @@ describe("editorial loop", () => {
     expect(entry!.sourceName).toBe("Yle");
     // The mock extraction's fixed article date (real runs: AI-extracted, null when unknown).
     expect(entry!.articlePublishedAt).toBe("2025-11-04");
+    // The AI-extracted article quote lands on the suggestion.
+    expect(entry!.quote).toContain("Viherseinä");
 
     // Processing is one-shot: a second attempt finds nothing in 'new' state.
     const again = await app.request(`/api/admin/submissions/${submissionId}/process`, {
@@ -269,6 +272,7 @@ describe("editorial loop", () => {
         amountType: "approx",
         amountMaxEur: 180_000,
         articlePublishedAt: "2026-01-15",
+        quote: "Muokattu sitaatti, toteaa toimittaja.",
       }),
     });
     expect(res.status).toBe(200);
@@ -278,12 +282,14 @@ describe("editorial loop", () => {
       amountType: string;
       amountMaxEur: number | null;
       articlePublishedAt: string | null;
+      quote: string;
     };
     expect(body.title).toBe("Muokattu otsikko");
     expect(body.amountEur).toBe(123_000);
     expect(body.amountType).toBe("approx");
     expect(body.amountMaxEur).toBe(180_000);
     expect(body.articlePublishedAt).toBe("2026-01-15");
+    expect(body.quote).toBe("Muokattu sitaatti, toteaa toimittaja.");
   });
 
   it("publishes on approve and the item appears in the public feed", async () => {
@@ -300,6 +306,7 @@ describe("editorial loop", () => {
       amountType: string;
       amountMaxEur: number | null;
       articlePublishedAt: string | null;
+      quote: string;
       votes: number;
     }[];
     const published = feed.find((i) => i.id === itemId);
@@ -308,6 +315,8 @@ describe("editorial loop", () => {
     expect(published?.amountType).toBe("approx");
     expect(published?.amountMaxEur).toBe(180_000);
     expect(published?.articlePublishedAt).toBe("2026-01-15");
+    // As does the (edited) article quote.
+    expect(published?.quote).toBe("Muokattu sitaatti, toteaa toimittaja.");
     expect(published?.votes).toBe(0);
 
     // Approved entries leave the queue.
@@ -343,6 +352,8 @@ describe("editorial loop", () => {
         // Below the new figure — the amount invariant must drop the range.
         amountMaxEur: 150_000,
         entity: "Espoo",
+        // "" removes the quote from the feed item.
+        quote: "",
       }),
     });
     expect(res.status).toBe(200);
@@ -354,6 +365,7 @@ describe("editorial loop", () => {
       amountType: string;
       amountMaxEur: number | null;
       entity: string;
+      quote: string;
     }[];
     const edited = feed.find((i) => i.id === itemId);
     expect(edited?.title).toBe("Julkaistu ja muokattu");
@@ -361,6 +373,7 @@ describe("editorial loop", () => {
     expect(edited?.amountType).toBe("min");
     expect(edited?.amountMaxEur).toBeNull();
     expect(edited?.entity).toBe("Espoo");
+    expect(edited?.quote).toBe("");
   });
 
   it("hides an item from the public feed but keeps it in the admin list", async () => {

@@ -22,6 +22,7 @@ export interface Suggestion {
   sourceName: string;
   articlePublishedAt: SuggestionArticlePublishedAt;
   summary: string;
+  quote: string;
   aiNote: string;
   confidence: number;
   createdAt: string;

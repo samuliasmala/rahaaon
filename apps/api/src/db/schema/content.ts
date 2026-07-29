@@ -99,6 +99,8 @@ export const suggestion = pgTable("suggestion", {
   category: categoryEnum("category").notNull(),
   sourceName: text("source_name").notNull(),
   summary: text("summary").notNull(),
+  /** A direct quote from the article (AI-extracted, editor-editable); "" when none. */
+  quote: text("quote").notNull().default(""),
   /** The source article's own publication date (AI-extracted); null when unknown. */
   articlePublishedAt: date("article_published_at", { mode: "string" }),
   /** The AI's caveats for the editor ("summa mainitaan vain otsikossa…"). */

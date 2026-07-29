@@ -21,6 +21,8 @@ export interface PatchSuggestion {
    * @maxLength 2000
    */
   summary?: string;
+  /** @maxLength 500 */
+  quote?: string;
   /** @minimum 0 */
   amountEur?: number;
   amountType?: AmountType;

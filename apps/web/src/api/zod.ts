@@ -108,6 +108,8 @@ export const patchApiAdminItemsIdBodyTitleMax = 300;
 
 export const patchApiAdminItemsIdBodySummaryMax = 2000;
 
+export const patchApiAdminItemsIdBodyQuoteMax = 500;
+
 export const patchApiAdminItemsIdBodyAmountEurMin = 0;
 
 export const patchApiAdminItemsIdBodyAmountMaxEurMin = 0;
@@ -119,6 +121,7 @@ export const patchApiAdminItemsIdBodyEntityMax = 120;
 export const patchApiAdminItemsIdBody = zod.object({
   "title": zod.string().min(1).max(patchApiAdminItemsIdBodyTitleMax).optional(),
   "summary": zod.string().min(1).max(patchApiAdminItemsIdBodySummaryMax).optional(),
+  "quote": zod.string().max(patchApiAdminItemsIdBodyQuoteMax).optional(),
   "amountEur": zod.number().min(patchApiAdminItemsIdBodyAmountEurMin).optional(),
   "amountType": zod.enum(['exact', 'approx', 'min', 'unknown']).optional(),
   "amountMaxEur": zod.number().min(patchApiAdminItemsIdBodyAmountMaxEurMin).nullish(),
@@ -148,6 +151,7 @@ export const getApiAdminSuggestionsResponseItem = zod.object({
   "sourceName": zod.string(),
   "articlePublishedAt": zod.iso.date().nullable(),
   "summary": zod.string(),
+  "quote": zod.string(),
   "aiNote": zod.string(),
   "confidence": zod.number(),
   "createdAt": zod.iso.datetime({})
@@ -166,6 +170,8 @@ export const patchApiAdminSuggestionsIdBodyTitleMax = 300;
 
 export const patchApiAdminSuggestionsIdBodySummaryMax = 2000;
 
+export const patchApiAdminSuggestionsIdBodyQuoteMax = 500;
+
 export const patchApiAdminSuggestionsIdBodyAmountEurMin = 0;
 
 export const patchApiAdminSuggestionsIdBodyAmountMaxEurMin = 0;
@@ -177,6 +183,7 @@ export const patchApiAdminSuggestionsIdBodyEntityMax = 120;
 export const patchApiAdminSuggestionsIdBody = zod.object({
   "title": zod.string().min(1).max(patchApiAdminSuggestionsIdBodyTitleMax).optional(),
   "summary": zod.string().min(1).max(patchApiAdminSuggestionsIdBodySummaryMax).optional(),
+  "quote": zod.string().max(patchApiAdminSuggestionsIdBodyQuoteMax).optional(),
   "amountEur": zod.number().min(patchApiAdminSuggestionsIdBodyAmountEurMin).optional(),
   "amountType": zod.enum(['exact', 'approx', 'min', 'unknown']).optional(),
   "amountMaxEur": zod.number().min(patchApiAdminSuggestionsIdBodyAmountMaxEurMin).nullish(),
@@ -197,6 +204,7 @@ export const patchApiAdminSuggestionsIdResponse = zod.object({
   "sourceName": zod.string(),
   "articlePublishedAt": zod.iso.date().nullable(),
   "summary": zod.string(),
+  "quote": zod.string(),
   "aiNote": zod.string(),
   "confidence": zod.number(),
   "createdAt": zod.iso.datetime({})
@@ -242,6 +250,7 @@ export const getApiAdminSuggestionsRejectedResponseItem = zod.object({
   "sourceName": zod.string(),
   "articlePublishedAt": zod.iso.date().nullable(),
   "summary": zod.string(),
+  "quote": zod.string(),
   "aiNote": zod.string(),
   "confidence": zod.number(),
   "createdAt": zod.iso.datetime({})
@@ -270,6 +279,7 @@ export const postApiAdminSuggestionsIdRestoreResponse = zod.object({
   "sourceName": zod.string(),
   "articlePublishedAt": zod.iso.date().nullable(),
   "summary": zod.string(),
+  "quote": zod.string(),
   "aiNote": zod.string(),
   "confidence": zod.number(),
   "createdAt": zod.iso.datetime({})

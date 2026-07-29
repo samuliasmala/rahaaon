@@ -234,6 +234,10 @@
             "minLength": 1,
             "maxLength": 2000
           },
+          "quote": {
+            "type": "string",
+            "maxLength": 500
+          },
           "amountEur": {
             "type": "integer",
             "minimum": 0
@@ -312,6 +316,9 @@
           "summary": {
             "type": "string"
           },
+          "quote": {
+            "type": "string"
+          },
           "aiNote": {
             "type": "string"
           },
@@ -335,6 +342,7 @@
           "sourceName",
           "articlePublishedAt",
           "summary",
+          "quote",
           "aiNote",
           "confidence",
           "createdAt"
@@ -352,6 +360,10 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 2000
+          },
+          "quote": {
+            "type": "string",
+            "maxLength": 500
           },
           "amountEur": {
             "type": "integer",
