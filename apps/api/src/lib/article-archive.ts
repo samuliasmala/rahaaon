@@ -35,6 +35,38 @@ const PAYWALL_TEXT_THRESHOLD = 600;
 /** Whether submissions should attempt archiving at all. */
 export const archiveEnabled = s3Configured;
 
+/**
+ * Stored archive statuses plus the two view-only states computed at read time.
+ * The single source of the vocabulary — the API schemas (`z.enum`) and the
+ * openapi/orval-generated client all derive from this array.
+ */
+export const EFFECTIVE_ARCHIVE_STATUSES = [
+  "pending",
+  "ok",
+  "paywalled",
+  "failed",
+  "missing",
+  "disabled",
+] as const;
+
+export type EffectiveArchiveStatus = (typeof EFFECTIVE_ARCHIVE_STATUSES)[number];
+
+/**
+ * What the admin UI should report for a row's archive. The DB keeps NULL for
+ * "never attempted"; whether that gap is worth acting on depends on whether
+ * archiving is available at all, which only read time knows: `missing`
+ * (archiving is on but the row has no archive — submitted while S3 was
+ * unconfigured, or a pre-feature row) is fixable via the re-archive endpoint,
+ * while `disabled` (S3 not configured) is a system-level notice. Neither is
+ * ever stored.
+ */
+export function effectiveArchiveStatus(
+  stored: "pending" | "ok" | "paywalled" | "failed" | null,
+  enabled: boolean,
+): EffectiveArchiveStatus {
+  return stored ?? (enabled ? "missing" : "disabled");
+}
+
 /** Max outbound archive fetches per drain cycle — bounds amplification of a submission flood. */
 const BATCH_SIZE = 4;
 /** How long a claimed row is hidden from other workers; must exceed one archive attempt. */
@@ -133,24 +165,44 @@ async function claimBatch(): Promise<{ id: string; url: string; attempts: number
  * editor's manual paste (which sets `ok`) wins the row: the guard protects the
  * status/key columns, and the distinct manual S3 key (see
  * {@link manualArchiveKeyFor}) protects the object.
+ *
+ * Also conditional on the attempt counter still being the one this worker
+ * claimed. The admin's re-archive makes `pending` re-enterable (from `failed`
+ * or never-attempted, resetting the counter), so "still pending" alone no
+ * longer proves the row is in the same archiving episode — an attempt that
+ * outlived its lease could otherwise write its stale verdict into a fresh
+ * retry. Any newer claim bumps the counter, which voids the straggler's guard.
  */
 async function markTerminal(
   id: string,
   status: "ok" | "paywalled" | "failed",
   textKey: string | null,
+  attempts: number,
 ): Promise<void> {
   await db
     .update(urlSubmission)
     .set({ archiveStatus: status, archiveTextKey: textKey, archiveNextAttemptAt: null })
-    .where(and(eq(urlSubmission.id, id), eq(urlSubmission.archiveStatus, "pending")));
+    .where(
+      and(
+        eq(urlSubmission.id, id),
+        eq(urlSubmission.archiveStatus, "pending"),
+        eq(urlSubmission.archiveAttempts, attempts),
+      ),
+    );
 }
 
 /** Push the next attempt into the future (backoff). Conditional as above. */
-async function scheduleRetry(id: string, retryAt: Date): Promise<void> {
+async function scheduleRetry(id: string, retryAt: Date, attempts: number): Promise<void> {
   await db
     .update(urlSubmission)
     .set({ archiveNextAttemptAt: retryAt })
-    .where(and(eq(urlSubmission.id, id), eq(urlSubmission.archiveStatus, "pending")));
+    .where(
+      and(
+        eq(urlSubmission.id, id),
+        eq(urlSubmission.archiveStatus, "pending"),
+        eq(urlSubmission.archiveAttempts, attempts),
+      ),
+    );
 }
 
 /**
@@ -168,7 +220,7 @@ async function archiveRow(id: string, url: string, attempts: number): Promise<vo
       // and finish. A throw here (S3 down) falls through to the retry path.
       const key = text ? archiveKeyFor(id) : null;
       if (key) await putTextObject(key, text);
-      await markTerminal(id, status, key);
+      await markTerminal(id, status, key, attempts);
       return;
     }
     throw new Error("page not fetched"); // unify unreadable pages with the retry path
@@ -176,7 +228,7 @@ async function archiveRow(id: string, url: string, attempts: number): Promise<vo
     const message = (err as Error).message;
     if (attempts >= env.ARCHIVE_MAX_ATTEMPTS) {
       logger.warn({ submissionId: id, url, attempts, err: message }, "archive giving up");
-      await markTerminal(id, "failed", null).catch((e: unknown) =>
+      await markTerminal(id, "failed", null, attempts).catch((e: unknown) =>
         logger.error(
           { submissionId: id, err: (e as Error).message },
           "failed to record archive failure",
@@ -188,7 +240,7 @@ async function archiveRow(id: string, url: string, attempts: number): Promise<vo
         { submissionId: id, url, attempts, err: message },
         "archive attempt failed, retrying",
       );
-      await scheduleRetry(id, retryAt).catch((e: unknown) =>
+      await scheduleRetry(id, retryAt, attempts).catch((e: unknown) =>
         logger.error(
           { submissionId: id, err: (e as Error).message },
           "failed to reschedule archive",

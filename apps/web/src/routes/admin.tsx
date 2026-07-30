@@ -29,22 +29,33 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-/** How often the Ehdotusjono refetches while a background extraction runs. */
+/** How often a list refetches while background work (extraction, archiving) runs on it. */
 const PROCESSING_POLL_MS = 2500;
 
 function AdminPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: me } = useQuery(meQueryOptions);
-  // Poll while any entry is being processed in the background, so the queue
-  // updates the moment the extraction finishes — also after a page refresh.
+  // Poll while any entry is being processed or archived in the background, so
+  // the queue updates the moment the work finishes — also after a page refresh.
   const { data: submissions = [] } = useGetApiAdminSubmissions({
     query: {
       refetchInterval: (query) =>
-        query.state.data?.some((entry) => entry.processing) ? PROCESSING_POLL_MS : false,
+        query.state.data?.some((entry) => entry.processing || entry.archiveStatus === "pending")
+          ? PROCESSING_POLL_MS
+          : false,
     },
   });
-  const { data: queue = [] } = useGetApiAdminSuggestions();
+  // The remaining lists carry archive pills too; poll them while a re-archive
+  // kicked off from one of their cards is in flight.
+  const { data: queue = [] } = useGetApiAdminSuggestions({
+    query: {
+      refetchInterval: (query) =>
+        query.state.data?.some((entry) => entry.archive?.archiveStatus === "pending")
+          ? PROCESSING_POLL_MS
+          : false,
+    },
+  });
 
   // When a processing run finishes, the entry either moved to the AI queue or
   // returned to 'new' with an error — refetch the AI queue whenever an id
@@ -68,8 +79,22 @@ function AdminPage() {
     }
   }, [processingIds, queryClient]);
   const { data: rejectedSuggestions = [] } = useGetApiAdminSuggestionsRejected();
-  const { data: rejectedSubmissions = [] } = useGetApiAdminSubmissionsRejected();
-  const { data: items = [] } = useGetApiAdminItems();
+  const { data: rejectedSubmissions = [] } = useGetApiAdminSubmissionsRejected({
+    query: {
+      refetchInterval: (query) =>
+        query.state.data?.some((entry) => entry.archiveStatus === "pending")
+          ? PROCESSING_POLL_MS
+          : false,
+    },
+  });
+  const { data: items = [] } = useGetApiAdminItems({
+    query: {
+      refetchInterval: (query) =>
+        query.state.data?.some((item) => item.archive?.archiveStatus === "pending")
+          ? PROCESSING_POLL_MS
+          : false,
+    },
+  });
   const [tab, setTab] = useState<AdminTab>("submissions");
 
   // One archive for both kinds of rejections, newest first.

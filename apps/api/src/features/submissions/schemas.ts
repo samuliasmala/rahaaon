@@ -1,4 +1,5 @@
 import { z } from "@hono/zod-openapi";
+import { EFFECTIVE_ARCHIVE_STATUSES } from "../../lib/article-archive.js";
 
 /**
  * A submitted link. Scheme is restricted to http(s): `z.url()` alone accepts
@@ -40,10 +41,12 @@ export const urlSubmissionSchema = z
     siteName: z.string(),
     createdAt: z.iso.datetime(),
     /**
-     * Outcome of the submit-time page archive; null when archiving was never
-     * attempted (S3 not configured / pre-feature rows).
+     * Outcome of the submit-time page archive. The DB stores only the first
+     * four; a row with no stored status (archiving was never attempted)
+     * reports `missing` when archiving is available (fixable via the
+     * archive/retry endpoint) or `disabled` when it isn't (S3 not configured).
      */
-    archiveStatus: z.enum(["pending", "ok", "paywalled", "failed"]).nullable(),
+    archiveStatus: z.enum(EFFECTIVE_ARCHIVE_STATUSES),
     /** True when archived page text exists — the archive/text download works. */
     hasArchivedText: z.boolean(),
     /**
@@ -69,7 +72,13 @@ export type UrlSubmissionView = z.infer<typeof urlSubmissionSchema>;
 export const archiveRefSchema = z
   .object({
     submissionId: z.uuid(),
-    archiveStatus: z.enum(["pending", "ok", "paywalled", "failed"]),
+    /**
+     * Effective status, like UrlSubmission's. Server-emitted refs never carry
+     * `disabled` — with archiving off, an unarchived entry gets a null ref
+     * (indistinguishable from pre-feature rows) — but the enum keeps it so the
+     * web can pass submission rows through the same archive components.
+     */
+    archiveStatus: z.enum(EFFECTIVE_ARCHIVE_STATUSES),
     /** True when archived page text exists — the archive/text endpoints work. */
     hasArchivedText: z.boolean(),
   })

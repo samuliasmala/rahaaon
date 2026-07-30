@@ -13,6 +13,7 @@ import {
   queueSubmissionForProcessing,
   rejectSubmission,
   restoreSubmission,
+  retrySubmissionArchive,
   saveSubmissionArchiveText,
 } from "./submissions.repo.js";
 import { commonErrorResponses, createRouter, errorResponse } from "../../lib/openapi.js";
@@ -188,6 +189,30 @@ submissionRoutes.openapi(
     const { text } = c.req.valid("json");
     await saveSubmissionArchiveText(id, text);
     return c.json({ ok: true as const }, 200);
+  },
+);
+
+submissionRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/admin/submissions/{id}/archive/retry",
+    summary: "Re-run the page archive for a failed or never-archived submission",
+    tags: ["Admin"],
+    middleware: [requireAuth] as const,
+    request: { params: idParam },
+    responses: {
+      202: {
+        description:
+          "Queued — the entry returns with archiveStatus: 'pending' until the capture finishes",
+        content: { "application/json": { schema: urlSubmissionSchema } },
+      },
+      409: errorResponse("Arkisto on jo olemassa tai arkistointi on käynnissä"),
+      ...commonErrorResponses,
+    },
+  }),
+  async (c) => {
+    const queued = await retrySubmissionArchive(c.req.valid("param").id);
+    return c.json(queued, 202);
   },
 );
 

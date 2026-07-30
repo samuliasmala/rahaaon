@@ -15,4 +15,6 @@ export const ArchiveRefAnyOfArchiveStatus = {
   ok: 'ok',
   paywalled: 'paywalled',
   failed: 'failed',
+  missing: 'missing',
+  disabled: 'disabled',
 } as const;

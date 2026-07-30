@@ -122,8 +122,21 @@ beforeAll(async () => {
 
   // Fails the first two requests, then serves the article — exercises retry.
   let flakyHits = 0;
+  // Fails the whole 3-attempt archive budget (row ends 'failed'), then serves
+  // the article — exercises the admin's manual re-archive. 4 failing hits, not
+  // 3: submitting fetches the page once for the preview before archiving runs.
+  let recoveringHits = 0;
   articleServer = createServer((req, res) => {
-    if (req.url?.startsWith("/article")) {
+    if (req.url?.startsWith("/recovering")) {
+      recoveringHits += 1;
+      if (recoveringHits <= 4) {
+        res.statusCode = 503;
+        res.end("temporarily unavailable");
+      } else {
+        res.setHeader("content-type", "text/html; charset=utf-8");
+        res.end(ARTICLE_HTML);
+      }
+    } else if (req.url?.startsWith("/article")) {
       res.setHeader("content-type", "text/html; charset=utf-8");
       res.end(ARTICLE_HTML);
     } else if (req.url?.startsWith("/thin")) {
@@ -321,6 +334,69 @@ describe("article archive", () => {
       headers: { cookie: editorCookie },
     });
     expect(await read.text()).toBe(pasted);
+  });
+
+  it("re-archives a failed capture on demand", async () => {
+    // /recovering eats the whole 3-attempt budget before serving the article.
+    const id = await submit("/recovering");
+    const failed = await waitForArchive(id);
+    expect(failed.archiveStatus).toBe("failed");
+
+    const retry = await app.request(`/api/admin/submissions/${id}/archive/retry`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(retry.status).toBe(202);
+    expect(((await retry.json()) as { archiveStatus: string }).archiveStatus).toBe("pending");
+
+    const entry = await waitForArchive(id);
+    expect(entry.archiveStatus).toBe("ok");
+    expect(entry.hasArchivedText).toBe(true);
+  });
+
+  it("refuses to re-archive a row whose archive succeeded", async () => {
+    const id = await submit("/article?ref=retry-conflict");
+    const entry = await waitForArchive(id);
+    expect(entry.archiveStatus).toBe("ok");
+
+    const retry = await app.request(`/api/admin/submissions/${id}/archive/retry`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(retry.status).toBe(409);
+  });
+
+  it("reports a never-archived row as missing and archives it on retry", async () => {
+    const id = await submit("/article?ref=missing");
+    await waitForArchive(id);
+
+    // Rewind the row to the pre-feature shape: no stored status, no text key —
+    // what a row submitted while S3 was unconfigured looks like.
+    const { db } = await import("./db/client.js");
+    const { urlSubmission } = await import("./db/schema/index.js");
+    const { eq } = await import("drizzle-orm");
+    await db
+      .update(urlSubmission)
+      .set({ archiveStatus: null, archiveTextKey: null, archiveAttempts: 0 })
+      .where(eq(urlSubmission.id, id));
+
+    const listRes = await app.request("/api/admin/submissions", {
+      headers: { cookie: editorCookie },
+    });
+    const listed = ((await listRes.json()) as { id: string; archiveStatus: string }[]).find(
+      (s) => s.id === id,
+    );
+    expect(listed?.archiveStatus).toBe("missing");
+
+    const retry = await app.request(`/api/admin/submissions/${id}/archive/retry`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(retry.status).toBe(202);
+
+    const entry = await waitForArchive(id);
+    expect(entry.archiveStatus).toBe("ok");
+    expect(entry.hasArchivedText).toBe(true);
   });
 
   it("carries the archive ref through the AI queue to the published item", async () => {

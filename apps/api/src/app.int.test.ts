@@ -202,8 +202,18 @@ describe("editorial loop", () => {
     const listRes = await app.request("/api/admin/submissions", {
       headers: { cookie: editorCookie },
     });
-    const list = (await listRes.json()) as { id: string; url: string }[];
-    expect(list.map((sub) => sub.id)).toContain(submissionId);
+    const list = (await listRes.json()) as { id: string; url: string; archiveStatus: string }[];
+    const entry = list.find((sub) => sub.id === submissionId);
+    expect(entry).toBeDefined();
+    // No S3 in this suite: the row reports archiving as unavailable…
+    expect(entry!.archiveStatus).toBe("disabled");
+
+    // …and a re-archive attempt is refused outright.
+    const retry = await app.request(`/api/admin/submissions/${submissionId}/archive/retry`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(retry.status).toBe(503);
   });
 
   it("queues a submission and the background worker moves it to the AI queue", async () => {

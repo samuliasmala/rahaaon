@@ -255,7 +255,9 @@
               "pending",
               "ok",
               "paywalled",
-              "failed"
+              "failed",
+              "missing",
+              "disabled"
             ]
           },
           "hasArchivedText": {
@@ -544,16 +546,14 @@
             "format": "date-time"
           },
           "archiveStatus": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": "string",
             "enum": [
               "pending",
               "ok",
               "paywalled",
               "failed",
-              null
+              "missing",
+              "disabled"
             ]
           },
           "hasArchivedText": {
@@ -2350,6 +2350,117 @@
           },
           "404": {
             "description": "Ei löytynyt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validointivirhe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Palvelinvirhe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Palvelu ei tilapäisesti käytettävissä",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/submissions/{id}/archive/retry": {
+      "post": {
+        "summary": "Re-run the page archive for a failed or never-archived submission",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Queued — the entry returns with archiveStatus: 'pending' until the capture finishes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UrlSubmission"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Virheellinen pyyntö",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kirjautuminen vaaditaan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Ei käyttöoikeutta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ei löytynyt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Arkisto on jo olemassa tai arkistointi on käynnissä",
             "content": {
               "application/json": {
                 "schema": {

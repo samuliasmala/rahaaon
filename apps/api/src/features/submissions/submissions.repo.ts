@@ -1,8 +1,13 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { db } from "../../db/client.js";
 import { urlSubmission } from "../../db/schema/index.js";
-import { archiveEnabled, manualArchiveKeyFor, runArchiveOnce } from "../../lib/article-archive.js";
-import { notFound, unavailable } from "../../lib/http-errors.js";
+import {
+  archiveEnabled,
+  effectiveArchiveStatus,
+  manualArchiveKeyFor,
+  runArchiveOnce,
+} from "../../lib/article-archive.js";
+import { conflict, notFound, unavailable } from "../../lib/http-errors.js";
 import { logger } from "../../lib/logger.js";
 import { fetchPagePreview } from "../../lib/page-preview.js";
 import { getTextObject, putTextObject } from "../../lib/s3.js";
@@ -13,16 +18,20 @@ type SubmissionRow = typeof urlSubmission.$inferSelect;
 
 /**
  * The archive pointer other admin views (AI queue, published items) carry so
- * their cards can open the submission-scoped archive viewer. Null when
- * archiving was never attempted (S3 not configured / pre-feature rows).
+ * their cards can open the submission-scoped archive viewer. A never-archived
+ * row surfaces as a `missing` ref when archiving is available (the card can
+ * offer re-archiving) but as null when it isn't — with S3 unconfigured the gap
+ * is expected on every row, and a "disabled" pill on processed entries would
+ * be pure noise (the Ehdotusjono cards already announce it via UrlSubmission's
+ * own archiveStatus).
  */
 export function toArchiveRef(
   row: Pick<SubmissionRow, "id" | "archiveStatus" | "archiveTextKey">,
 ): ArchiveRefView | null {
-  if (!row.archiveStatus) return null;
+  if (!row.archiveStatus && !archiveEnabled) return null;
   return {
     submissionId: row.id,
-    archiveStatus: row.archiveStatus,
+    archiveStatus: effectiveArchiveStatus(row.archiveStatus, archiveEnabled),
     hasArchivedText: row.archiveTextKey !== null,
   };
 }
@@ -35,7 +44,7 @@ function toView(row: SubmissionRow): UrlSubmissionView {
     description: row.description,
     siteName: row.siteName,
     createdAt: row.createdAt.toISOString(),
-    archiveStatus: row.archiveStatus,
+    archiveStatus: effectiveArchiveStatus(row.archiveStatus, archiveEnabled),
     hasArchivedText: row.archiveTextKey !== null,
     processing: row.status === "processing",
     processError: row.processError,
@@ -178,6 +187,47 @@ export async function saveSubmissionArchiveText(id: string, text: string): Promi
     .update(urlSubmission)
     .set({ archiveStatus: "ok", archiveTextKey: key })
     .where(eq(urlSubmission.id, id));
+}
+
+/**
+ * Re-run the page archive for a row whose capture never succeeded — `failed`,
+ * or never attempted (the `missing` view status). Resets the attempt budget,
+ * marks the row as pending work and kicks the worker. The conditional update
+ * is the guard: a retry can't clobber a good archive (ok/paywalled) or
+ * double-kick a pending one — those come back 409.
+ */
+export async function retrySubmissionArchive(id: string): Promise<UrlSubmissionView> {
+  if (!archiveEnabled) throw unavailable("Arkistointi ei ole käytössä (S3 puuttuu)");
+  const [row] = await db
+    .update(urlSubmission)
+    // The eligible states never carry a text key; nulling it here makes that
+    // an enforced invariant rather than an assumption — a fresh 'pending' row
+    // must not report hasArchivedText.
+    .set({
+      archiveStatus: "pending",
+      archiveTextKey: null,
+      archiveAttempts: 0,
+      archiveNextAttemptAt: null,
+    })
+    .where(
+      and(
+        eq(urlSubmission.id, id),
+        or(eq(urlSubmission.archiveStatus, "failed"), isNull(urlSubmission.archiveStatus)),
+      ),
+    )
+    .returning();
+  if (!row) {
+    const exists = await db
+      .select({ id: urlSubmission.id })
+      .from(urlSubmission)
+      .where(eq(urlSubmission.id, id))
+      .limit(1);
+    if (exists.length === 0) throw notFound("Ehdotusta ei löytynyt");
+    throw conflict("Arkisto on jo olemassa tai arkistointi on käynnissä");
+  }
+  // The row is now a 'pending' work item; kick an immediate drain as on submit.
+  void runArchiveOnce();
+  return toView(row);
 }
 
 /**

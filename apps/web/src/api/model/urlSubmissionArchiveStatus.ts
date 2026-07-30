@@ -6,4 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type UrlSubmissionArchiveStatus = 'pending' | 'ok' | 'paywalled' | 'failed' | null;
+export type UrlSubmissionArchiveStatus = typeof UrlSubmissionArchiveStatus[keyof typeof UrlSubmissionArchiveStatus];
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const UrlSubmissionArchiveStatus = {
+  pending: 'pending',
+  ok: 'ok',
+  paywalled: 'paywalled',
+  failed: 'failed',
+  missing: 'missing',
+  disabled: 'disabled',
+} as const;

@@ -96,7 +96,7 @@ export const getApiAdminItemsResponseItem = zod.object({
 }).and(zod.object({
   "archive": zod.object({
   "submissionId": zod.uuid(),
-  "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed']),
+  "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed', 'missing', 'disabled']),
   "hasArchivedText": zod.boolean()
 }).nullable()
 }))
@@ -164,7 +164,7 @@ export const getApiAdminSuggestionsResponseItem = zod.object({
 }).and(zod.object({
   "archive": zod.object({
   "submissionId": zod.uuid(),
-  "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed']),
+  "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed', 'missing', 'disabled']),
   "hasArchivedText": zod.boolean()
 }).nullable()
 }))
@@ -340,7 +340,7 @@ export const getApiAdminSubmissionsResponseItem = zod.object({
   "description": zod.string(),
   "siteName": zod.string(),
   "createdAt": zod.iso.datetime({}),
-  "archiveStatus": zod.union([zod.literal('pending'),zod.literal('ok'),zod.literal('paywalled'),zod.literal('failed'),zod.literal(null)]).nullable(),
+  "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed', 'missing', 'disabled']),
   "hasArchivedText": zod.boolean(),
   "processing": zod.boolean(),
   "processError": zod.string().nullable()
@@ -389,6 +389,14 @@ export const putApiAdminSubmissionsIdArchiveTextResponse = zod.object({
 
 
 /**
+ * @summary Re-run the page archive for a failed or never-archived submission
+ */
+export const postApiAdminSubmissionsIdArchiveRetryParams = zod.object({
+  "id": zod.uuid()
+})
+
+
+/**
  * @summary Reject a link out of the Ehdotusjono (also cancels an in-flight processing run)
  */
 export const postApiAdminSubmissionsIdRejectParams = zod.object({
@@ -410,7 +418,7 @@ export const getApiAdminSubmissionsRejectedResponseItem = zod.object({
   "description": zod.string(),
   "siteName": zod.string(),
   "createdAt": zod.iso.datetime({}),
-  "archiveStatus": zod.union([zod.literal('pending'),zod.literal('ok'),zod.literal('paywalled'),zod.literal('failed'),zod.literal(null)]).nullable(),
+  "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed', 'missing', 'disabled']),
   "hasArchivedText": zod.boolean(),
   "processing": zod.boolean(),
   "processError": zod.string().nullable()
@@ -434,7 +442,7 @@ export const postApiAdminSubmissionsIdRestoreResponse = zod.object({
   "description": zod.string(),
   "siteName": zod.string(),
   "createdAt": zod.iso.datetime({}),
-  "archiveStatus": zod.union([zod.literal('pending'),zod.literal('ok'),zod.literal('paywalled'),zod.literal('failed'),zod.literal(null)]).nullable(),
+  "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed', 'missing', 'disabled']),
   "hasArchivedText": zod.boolean(),
   "processing": zod.boolean(),
   "processError": zod.string().nullable()

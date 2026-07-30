@@ -7,9 +7,9 @@ import { describe, expect, it } from "vitest";
  */
 
 // env.ts (imported transitively) demands DATABASE_URL at module load; give a
-// throwaway value so the pure function can be tested without a database.
+// throwaway value so the pure functions can be tested without a database.
 process.env.DATABASE_URL ??= "postgres://unit:unit@localhost:5432/unit";
-const { classifyArchive } = await import("./article-archive.js");
+const { classifyArchive, effectiveArchiveStatus } = await import("./article-archive.js");
 
 describe("classifyArchive", () => {
   // Comfortably past the paywall threshold — the length of a marked-paywalled
@@ -33,5 +33,19 @@ describe("classifyArchive", () => {
 
   it("keeps unfetched pages failed regardless of marking", () => {
     expect(classifyArchive(false, "", false)).toBe("failed");
+  });
+});
+
+describe("effectiveArchiveStatus", () => {
+  it("passes stored statuses through untouched", () => {
+    expect(effectiveArchiveStatus("pending", true)).toBe("pending");
+    expect(effectiveArchiveStatus("ok", true)).toBe("ok");
+    // A stored status stays even if archiving has since been turned off.
+    expect(effectiveArchiveStatus("failed", false)).toBe("failed");
+  });
+
+  it("maps a never-attempted row by whether archiving is available", () => {
+    expect(effectiveArchiveStatus(null, true)).toBe("missing");
+    expect(effectiveArchiveStatus(null, false)).toBe("disabled");
   });
 });
