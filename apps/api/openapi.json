@@ -139,6 +139,9 @@
           "sourceUrl": {
             "type": "string"
           },
+          "articleTitle": {
+            "type": "string"
+          },
           "summary": {
             "type": "string"
           },
@@ -182,6 +185,7 @@
           "category",
           "sourceName",
           "sourceUrl",
+          "articleTitle",
           "summary",
           "quote",
           "keywords",
@@ -331,6 +335,10 @@
           "category": {
             "$ref": "#/components/schemas/Category"
           },
+          "articleTitle": {
+            "type": "string",
+            "maxLength": 300
+          },
           "articlePublishedAt": {
             "type": [
               "string",
@@ -470,6 +478,9 @@
           "sourceName": {
             "type": "string"
           },
+          "articleTitle": {
+            "type": "string"
+          },
           "articlePublishedAt": {
             "type": [
               "string",
@@ -510,6 +521,7 @@
           "entity",
           "category",
           "sourceName",
+          "articleTitle",
           "articlePublishedAt",
           "summary",
           "quote",
@@ -557,6 +569,10 @@
           },
           "category": {
             "$ref": "#/components/schemas/Category"
+          },
+          "articleTitle": {
+            "type": "string",
+            "maxLength": 300
           },
           "articlePublishedAt": {
             "type": [

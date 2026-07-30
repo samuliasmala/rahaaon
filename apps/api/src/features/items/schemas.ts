@@ -27,6 +27,8 @@ export const wasteItemSchema = z
     category: categorySchema,
     sourceName: z.string(),
     sourceUrl: z.string(),
+    /** The article's own headline, shown as the source-link text; "" when unknown. */
+    articleTitle: z.string(),
     summary: z.string(),
     quote: z.string(),
     /** Search keywords (AI-drafted, editor-editable) — feed the client-side search. */
@@ -72,6 +74,8 @@ export const patchItemSchema = z
     amountMaxEur: z.number().int().min(0).nullable(),
     entity: z.string().min(1).max(120),
     category: categorySchema,
+    /** "" = article title unknown; the feed link falls back to generic text. */
+    articleTitle: z.string().max(300),
     articlePublishedAt: z.iso.date().nullable(),
     keywords: keywordListSchema,
     hidden: z.boolean(),

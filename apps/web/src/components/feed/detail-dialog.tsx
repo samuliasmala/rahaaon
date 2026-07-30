@@ -30,14 +30,9 @@ export function DetailDialog({ item, onClose }: { item: WasteItem | null; onClos
             <h2 className="text-[21px]/[1.3] font-bold tracking-[-0.01em] md:text-[27px]/[1.25]">
               {item.title}
             </h2>
+            {/* The source citation lives in the source card below, not here. */}
             <p className="flex flex-wrap items-center gap-2.5 text-[13px] text-muted">
               <span className="font-semibold text-body">{item.entity}</span>
-              <span aria-hidden>·</span>
-              {/* The article's date (when known) is part of the source citation. */}
-              <span>
-                Lähde: {item.sourceName}
-                {item.articlePublishedAt && ` ${formatDate(item.articlePublishedAt)}`}
-              </span>
               <span aria-hidden>·</span>
               <span>lisätty {formatAge(daysSince(item.publishedAt))}</span>
             </p>
@@ -55,6 +50,25 @@ export function DetailDialog({ item, onClose }: { item: WasteItem | null; onClos
                 </span>
               </blockquote>
             )}
+            <div className="flex flex-col gap-1.5 rounded-lg border border-hairline bg-surface px-5.5 py-5">
+              <p className="text-[11px] font-semibold tracking-[0.08em] text-muted uppercase">
+                Lähde
+              </p>
+              <a
+                href={item.sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[15px]/[1.45] font-semibold text-accent hover:text-accent-deep"
+              >
+                {/* An old item may predate the captured page title — fall back to generic link text. */}
+                {item.articleTitle || "Lue alkuperäinen juttu"}
+                {" →"}
+              </a>
+              <p className="text-[13px] text-muted">
+                {item.sourceName}
+                {item.articlePublishedAt && ` · ${formatDate(item.articlePublishedAt)}`}
+              </p>
+            </div>
             <div className="flex flex-wrap items-center gap-3 pt-1.5">
               <VoteButton
                 voted={item.voted}
@@ -67,14 +81,6 @@ export function DetailDialog({ item, onClose }: { item: WasteItem | null; onClos
               <Button variant="outline" size="lg" onClick={() => void copyLink(item.sourceUrl)}>
                 Jaa
               </Button>
-              <a
-                href={item.sourceUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="ml-auto text-sm font-semibold text-accent hover:text-accent-deep"
-              >
-                Lue alkuperäinen juttu →
-              </a>
             </div>
           </div>
         </>

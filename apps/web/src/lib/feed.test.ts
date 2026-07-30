@@ -13,6 +13,7 @@ function makeItem(overrides: Partial<WasteItem>): WasteItem {
     category: "Muu",
     sourceName: "Kaleva",
     sourceUrl: "https://example.fi/juttu",
+    articleTitle: "",
     summary: "",
     quote: "",
     keywords: [],

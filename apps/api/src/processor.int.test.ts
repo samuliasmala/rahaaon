@@ -58,9 +58,9 @@ let reprocessItem: (id: string, instructions: string | null) => Promise<void>;
 let stopSubmissionProcessor: () => Promise<void>;
 let extractArticleMock: ReturnType<typeof vi.fn>;
 
-async function insertSubmission(url: string): Promise<string> {
+async function insertSubmission(url: string, pageTitle = ""): Promise<string> {
   const [row] = await sql<{ id: string }[]>`
-    insert into url_submission (url) values (${url}) returning id
+    insert into url_submission (url, title) values (${url}, ${pageTitle}) returning id
   `;
   return row!.id;
 }
@@ -155,7 +155,7 @@ beforeEach(() => {
 describe("submission processor", () => {
   it("queues the row as processing and finalizes it into a suggestion", async () => {
     extractArticleMock.mockResolvedValue(EXTRACTION);
-    const id = await insertSubmission("https://example.invalid/onnistuu");
+    const id = await insertSubmission("https://example.invalid/onnistuu", "Sivun oma otsikko");
 
     const queued = await queueSubmissionForProcessing(id);
     expect(queued.processing).toBe(true);
@@ -165,10 +165,12 @@ describe("submission processor", () => {
     expect(row.suggestion_id).toBeTruthy();
     expect(row.process_error).toBeNull();
 
-    const [created] = await sql<{ title: string; status: string }[]>`
-      select title, status from suggestion where id = ${row.suggestion_id}
+    const [created] = await sql<{ title: string; article_title: string; status: string }[]>`
+      select title, article_title, status from suggestion where id = ${row.suggestion_id}
     `;
     expect(created?.title).toBe(EXTRACTION.title);
+    // The submit-time page title rides along as the source-link text.
+    expect(created?.article_title).toBe("Sivun oma otsikko");
     expect(created?.status).toBe("pending");
   });
 
@@ -254,7 +256,7 @@ describe("submission processor", () => {
   it("reprocesses in place: the suggestion is overwritten, not duplicated", async () => {
     extractArticleMock.mockResolvedValue(EXTRACTION);
     const url = "https://example.invalid/uusiksi";
-    const id = await insertSubmission(url);
+    const id = await insertSubmission(url, "Sivun oma otsikko");
     await queueSubmissionForProcessing(id);
     await waitForStatus(id, "processed");
     const { suggestion_id: sid } = await submissionById(id);
@@ -271,12 +273,14 @@ describe("submission processor", () => {
       return row?.title === "Uusi otsikko";
     }, "suggestion redraft");
 
-    // Overwritten in place: still one pending suggestion for the url.
-    const suggestions = await sql<{ status: string }[]>`
-      select status from suggestion where url = ${url}
+    // Overwritten in place: still one pending suggestion for the url — and
+    // articleTitle is submit-time metadata, so the redraft must not touch it.
+    const suggestions = await sql<{ status: string; article_title: string }[]>`
+      select status, article_title from suggestion where url = ${url}
     `;
     expect(suggestions.length).toBe(1);
     expect(suggestions[0]!.status).toBe("pending");
+    expect(suggestions[0]!.article_title).toBe("Sivun oma otsikko");
 
     // The editor's instructions reached the LLM call (the 4th argument).
     expect(extractArticleMock.mock.calls.at(-1)?.[3]).toBe("poimi kokonaiskustannus");

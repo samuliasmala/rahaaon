@@ -285,6 +285,9 @@ describe("editorial loop", () => {
       headers: { "content-type": "application/json", cookie: editorCookie },
       body: JSON.stringify({
         title: "Muokattu otsikko",
+        // No page metadata in this suite (the preview fetch fails), so the
+        // article title starts "" and is set by hand like any editorial field.
+        articleTitle: "Artikkelin oma otsikko",
         amountEur: 123_000,
         amountType: "approx",
         amountMaxEur: 180_000,
@@ -296,6 +299,7 @@ describe("editorial loop", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       title: string;
+      articleTitle: string;
       amountEur: number;
       amountType: string;
       amountMaxEur: number | null;
@@ -304,6 +308,7 @@ describe("editorial loop", () => {
       keywords: string[];
     };
     expect(body.title).toBe("Muokattu otsikko");
+    expect(body.articleTitle).toBe("Artikkelin oma otsikko");
     expect(body.amountEur).toBe(123_000);
     expect(body.amountType).toBe("approx");
     expect(body.amountMaxEur).toBe(180_000);
@@ -323,6 +328,7 @@ describe("editorial loop", () => {
     const feed = (await (await app.request("/api/items")).json()) as {
       id: string;
       title: string;
+      articleTitle: string;
       amountType: string;
       amountMaxEur: number | null;
       articlePublishedAt: string | null;
@@ -332,6 +338,8 @@ describe("editorial loop", () => {
     }[];
     const published = feed.find((i) => i.id === itemId);
     expect(published?.title).toBe("Muokattu otsikko");
+    // The source-link text travels from the edited suggestion onto the feed item.
+    expect(published?.articleTitle).toBe("Artikkelin oma otsikko");
     // The amount qualifier travels from the edited suggestion onto the feed item.
     expect(published?.amountType).toBe("approx");
     expect(published?.amountMaxEur).toBe(180_000);

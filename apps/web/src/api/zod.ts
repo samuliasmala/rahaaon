@@ -49,6 +49,7 @@ export const getApiItemsResponseItem = zod.object({
   "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']),
   "sourceName": zod.string(),
   "sourceUrl": zod.string(),
+  "articleTitle": zod.string(),
   "summary": zod.string(),
   "quote": zod.string(),
   "keywords": zod.array(zod.string()),
@@ -87,6 +88,7 @@ export const getApiAdminItemsResponseItem = zod.object({
   "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']),
   "sourceName": zod.string(),
   "sourceUrl": zod.string(),
+  "articleTitle": zod.string(),
   "summary": zod.string(),
   "quote": zod.string(),
   "keywords": zod.array(zod.string()),
@@ -127,6 +129,8 @@ export const patchApiAdminItemsIdBodyAmountMaxEurMin = 0;
 
 export const patchApiAdminItemsIdBodyEntityMax = 120;
 
+export const patchApiAdminItemsIdBodyArticleTitleMax = 300;
+
 export const patchApiAdminItemsIdBodyKeywordsItemMax = 60;
 
 export const patchApiAdminItemsIdBodyKeywordsMax = 10;
@@ -142,6 +146,7 @@ export const patchApiAdminItemsIdBody = zod.object({
   "amountMaxEur": zod.number().min(patchApiAdminItemsIdBodyAmountMaxEurMin).nullish(),
   "entity": zod.string().min(1).max(patchApiAdminItemsIdBodyEntityMax).optional(),
   "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']).optional(),
+  "articleTitle": zod.string().max(patchApiAdminItemsIdBodyArticleTitleMax).optional(),
   "articlePublishedAt": zod.iso.date().nullish(),
   "keywords": zod.array(zod.string().min(1).max(patchApiAdminItemsIdBodyKeywordsItemMax)).max(patchApiAdminItemsIdBodyKeywordsMax).optional(),
   "hidden": zod.boolean().optional()
@@ -204,6 +209,7 @@ export const getApiAdminSuggestionsResponseItem = zod.object({
   "entity": zod.string(),
   "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']),
   "sourceName": zod.string(),
+  "articleTitle": zod.string(),
   "articlePublishedAt": zod.iso.date().nullable(),
   "summary": zod.string(),
   "quote": zod.string(),
@@ -243,6 +249,8 @@ export const patchApiAdminSuggestionsIdBodyAmountMaxEurMin = 0;
 
 export const patchApiAdminSuggestionsIdBodyEntityMax = 120;
 
+export const patchApiAdminSuggestionsIdBodyArticleTitleMax = 300;
+
 export const patchApiAdminSuggestionsIdBodyKeywordsItemMax = 60;
 
 export const patchApiAdminSuggestionsIdBodyKeywordsMax = 10;
@@ -258,6 +266,7 @@ export const patchApiAdminSuggestionsIdBody = zod.object({
   "amountMaxEur": zod.number().min(patchApiAdminSuggestionsIdBodyAmountMaxEurMin).nullish(),
   "entity": zod.string().min(1).max(patchApiAdminSuggestionsIdBodyEntityMax).optional(),
   "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']).optional(),
+  "articleTitle": zod.string().max(patchApiAdminSuggestionsIdBodyArticleTitleMax).optional(),
   "articlePublishedAt": zod.iso.date().nullish(),
   "keywords": zod.array(zod.string().min(1).max(patchApiAdminSuggestionsIdBodyKeywordsItemMax)).max(patchApiAdminSuggestionsIdBodyKeywordsMax).optional()
 })
@@ -272,6 +281,7 @@ export const patchApiAdminSuggestionsIdResponse = zod.object({
   "entity": zod.string(),
   "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']),
   "sourceName": zod.string(),
+  "articleTitle": zod.string(),
   "articlePublishedAt": zod.iso.date().nullable(),
   "summary": zod.string(),
   "quote": zod.string(),
@@ -335,6 +345,7 @@ export const getApiAdminSuggestionsRejectedResponseItem = zod.object({
   "entity": zod.string(),
   "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']),
   "sourceName": zod.string(),
+  "articleTitle": zod.string(),
   "articlePublishedAt": zod.iso.date().nullable(),
   "summary": zod.string(),
   "quote": zod.string(),
@@ -365,6 +376,7 @@ export const postApiAdminSuggestionsIdRestoreResponse = zod.object({
   "entity": zod.string(),
   "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']),
   "sourceName": zod.string(),
+  "articleTitle": zod.string(),
   "articlePublishedAt": zod.iso.date().nullable(),
   "summary": zod.string(),
   "quote": zod.string(),

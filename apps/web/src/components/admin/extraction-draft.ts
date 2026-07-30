@@ -4,6 +4,8 @@ import type { AmountType, Category, PatchSuggestion } from "../../api/model/inde
 /** Local editing state for the extraction fields; amounts kept as raw input strings. */
 export interface ExtractionDraft {
   title: string;
+  /** The source article's own headline; "" = unknown (the feed link falls back). */
+  articleTitle: string;
   summary: string;
   quote: string;
   amount: string;
@@ -26,6 +28,7 @@ export type ExtractionPatch = Required<PatchSuggestion>;
 export function toExtractionDraft(source: ExtractionPatch): ExtractionDraft {
   return {
     title: source.title,
+    articleTitle: source.articleTitle,
     summary: source.summary,
     quote: source.quote,
     amount: String(source.amountEur),
@@ -63,6 +66,8 @@ export function toExtractionPatch(draft: ExtractionDraft): ExtractionPatch {
   const amountMax = draft.amountMax.trim() ? parseEuroAmount(draft.amountMax) : null;
   return {
     title: draft.title,
+    // Mirror the server cap so a long page title can't fail the whole patch.
+    articleTitle: draft.articleTitle.trim().slice(0, 300),
     summary: draft.summary,
     quote: draft.quote.trim(),
     amountEur: figure,

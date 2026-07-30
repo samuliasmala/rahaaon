@@ -34,6 +34,8 @@ export interface PatchSuggestion {
    */
   entity?: string;
   category?: Category;
+  /** @maxLength 300 */
+  articleTitle?: string;
   articlePublishedAt?: PatchSuggestionArticlePublishedAt;
   /** @maxItems 10 */
   keywords?: string[];

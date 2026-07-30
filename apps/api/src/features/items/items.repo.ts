@@ -33,6 +33,7 @@ export async function listItems(opts: {
       category: wasteItem.category,
       sourceName: wasteItem.sourceName,
       sourceUrl: wasteItem.sourceUrl,
+      articleTitle: wasteItem.articleTitle,
       summary: wasteItem.summary,
       quote: wasteItem.quote,
       keywords: wasteItem.keywords,

@@ -34,6 +34,8 @@ export interface PatchItem {
    */
   entity?: string;
   category?: Category;
+  /** @maxLength 300 */
+  articleTitle?: string;
   articlePublishedAt?: PatchItemArticlePublishedAt;
   /** @maxItems 10 */
   keywords?: string[];

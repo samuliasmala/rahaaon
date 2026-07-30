@@ -20,6 +20,7 @@ export interface Suggestion {
   entity: string;
   category: Category;
   sourceName: string;
+  articleTitle: string;
   articlePublishedAt: SuggestionArticlePublishedAt;
   summary: string;
   quote: string;

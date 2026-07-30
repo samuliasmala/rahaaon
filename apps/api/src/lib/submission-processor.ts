@@ -166,7 +166,9 @@ async function finalize(
     } else {
       const [created] = await tx
         .insert(suggestion)
-        .values({ url: entry.url, ...extraction })
+        // articleTitle is submit-time metadata, not AI output — copied here
+        // once and left alone on reprocess so an editor's fix survives.
+        .values({ url: entry.url, articleTitle: entry.title.slice(0, 300), ...extraction })
         .returning({ id: suggestion.id });
       suggestionId = created!.id;
     }

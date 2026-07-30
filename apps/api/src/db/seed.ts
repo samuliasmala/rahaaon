@@ -25,6 +25,8 @@ function isoDate(ms: number): string {
 
 interface SeedItem {
   title: string;
+  /** The fictional source article's own headline; omitted = unknown (link falls back). */
+  articleTitle?: string;
   amountEur: number;
   entity: string;
   category: Category;
@@ -40,6 +42,7 @@ interface SeedItem {
 const ITEMS: SeedItem[] = [
   {
     title: "IT-järjestelmä myöhässä neljä vuotta — hinta ehti kolminkertaistua",
+    articleTitle: "Valtion it-hankkeen hinta kolminkertaistui — valmistuminen siirtyi jälleen",
     amountEur: 62_000_000,
     entity: "Valtio",
     category: "IT-hankkeet",
@@ -56,6 +59,8 @@ const ITEMS: SeedItem[] = [
   },
   {
     title: "Lämmitetty pyörätie, jota ei koskaan kytketty päälle",
+    articleTitle:
+      "Oulun lämmitetty pyörätie ei ole lämmennyt kertaakaan — sähköliittymä jäi tilaamatta",
     amountEur: 1_200_000,
     entity: "Oulu",
     category: "Rakentaminen",
@@ -72,6 +77,7 @@ const ITEMS: SeedItem[] = [
   },
   {
     title: "Konsulttiselvitys konsulttien käytön vähentämisestä",
+    articleTitle: "Ministeriö tilasi 240 000 euron selvityksen konsulttien käytön vähentämisestä",
     amountEur: 240_000,
     entity: "Valtio",
     category: "Konsultit",
@@ -87,6 +93,7 @@ const ITEMS: SeedItem[] = [
   },
   {
     title: "Taidepenkki, jolla ei taiteilijan mukaan ole tarkoituskaan istua",
+    articleTitle: "Tampereen 40 000 euron taidepenkille ei saa istua",
     amountEur: 40_000,
     entity: "Tampere",
     category: "Kulttuuri",
@@ -117,6 +124,7 @@ const ITEMS: SeedItem[] = [
   },
   {
     title: "Virkamiesdelegaation benchmarking-matka Dubaihin lumiosaamisen perässä",
+    articleTitle: "Virkamiehet hakivat lumioppia Dubaista — matkaraportissa kaksi sivua",
     amountEur: 74_000,
     entity: "Valtio",
     category: "Matkustus",
@@ -132,6 +140,7 @@ const ITEMS: SeedItem[] = [
   },
   {
     title: "Sote-kirjaamisjärjestelmän lisenssit, joita kukaan ei käyttänyt",
+    articleTitle: "Hyvinvointialue osti 14 miljoonalla lisenssejä, joita kukaan ei ehtinyt käyttää",
     amountEur: 14_300_000,
     entity: "Hyvinvointialue",
     category: "IT-hankkeet",
@@ -147,6 +156,7 @@ const ITEMS: SeedItem[] = [
   },
   {
     title: "Silta, joka päättyy peltoon — jatko-osa budjetoitu vuodelle 2031",
+    articleTitle: "Uusi silta johtaa pellolle — jatkotien rahoitus siirtyi vuoteen 2031",
     amountEur: 8_700_000,
     entity: "ELY-keskus",
     category: "Rakentaminen",
@@ -165,6 +175,8 @@ const ITEMS: SeedItem[] = [
 interface SeedSuggestion {
   url: string;
   title: string;
+  /** The fictional source article's own headline; omitted = unknown. */
+  articleTitle?: string;
   amountEur: number;
   /** Omitted = "exact" (the DB default). */
   amountType?: AmountType;
@@ -183,6 +195,7 @@ interface SeedSuggestion {
 const SUGGESTIONS: SeedSuggestion[] = [
   {
     title: "Kaupunki tilasi 400 000 € sovelluksen, jolla on 23 latausta",
+    articleTitle: "Espoon asukassovellus on ladattu 23 kertaa — hinta 400 000 euroa",
     amountEur: 400_000,
     entity: "Espoo",
     category: "IT-hankkeet",
@@ -201,6 +214,7 @@ const SUGGESTIONS: SeedSuggestion[] = [
   },
   {
     title: "Kiertoliittymän taideteos jouduttiin siirtämään — näkyvyyshaitta",
+    articleTitle: "Jyväskylän kiertoliittymän taideteos siirretään — jalusta peitti näkemäalueen",
     amountEur: 260_000,
     amountType: "approx",
     entity: "Jyväskylä",
@@ -218,6 +232,7 @@ const SUGGESTIONS: SeedSuggestion[] = [
   },
   {
     title: "Kunnanjohtajien johtamisvalmennus sisälsi alpakkakävelyn",
+    articleTitle: "Kuntajohtajien valmennuksessa käveltiin alpakoiden kanssa",
     amountEur: 35_000,
     entity: "Kuntaliitto",
     category: "Muu",
@@ -306,6 +321,7 @@ async function main() {
       .insert(s.wasteItem)
       .values({
         title: item.title,
+        articleTitle: item.articleTitle,
         amountEur: item.amountEur,
         entity: item.entity,
         category: item.category,
@@ -335,6 +351,7 @@ async function main() {
     SUGGESTIONS.map((sg) => ({
       url: sg.url,
       title: sg.title,
+      articleTitle: sg.articleTitle,
       amountEur: sg.amountEur,
       amountType: sg.amountType,
       amountMaxEur: sg.amountMaxEur,

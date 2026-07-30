@@ -20,6 +20,7 @@ export interface WasteItem {
   category: Category;
   sourceName: string;
   sourceUrl: string;
+  articleTitle: string;
   summary: string;
   quote: string;
   keywords: string[];

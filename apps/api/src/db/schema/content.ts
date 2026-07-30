@@ -77,6 +77,8 @@ export const wasteItem = pgTable("waste_item", {
   sourceName: text("source_name").notNull(),
   /** Link to the original article. */
   sourceUrl: text("source_url").notNull(),
+  /** The article's own headline, shown as the source-link text; "" when unknown. */
+  articleTitle: text("article_title").notNull().default(""),
   summary: text("summary").notNull(),
   quote: text("quote").notNull().default(""),
   /** Search keywords (AI-drafted, editor-editable) — feed the client-side feed search. */
@@ -103,6 +105,11 @@ export const suggestion = pgTable("suggestion", {
   entity: text("entity").notNull(),
   category: categoryEnum("category").notNull(),
   sourceName: text("source_name").notNull(),
+  /**
+   * The article's own headline (submit-time page metadata, editor-editable);
+   * copied to the item on approval. "" when the capture had no title.
+   */
+  articleTitle: text("article_title").notNull().default(""),
   summary: text("summary").notNull(),
   /** A direct quote from the article (AI-extracted, editor-editable); "" when none. */
   quote: text("quote").notNull().default(""),

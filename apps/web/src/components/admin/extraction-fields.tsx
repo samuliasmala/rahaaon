@@ -96,6 +96,18 @@ export function ExtractionFields({
         />
       </div>
       <div className="flex flex-col gap-1.5">
+        <FieldLabel htmlFor={`${idPrefix}-article-title`}>
+          Artikkelin otsikko (lähdelinkin teksti)
+        </FieldLabel>
+        <Input
+          id={`${idPrefix}-article-title`}
+          value={draft.articleTitle}
+          onChange={(e) => setDraft((d) => ({ ...d, articleTitle: e.target.value }))}
+          onBlur={onSave}
+          placeholder="Tyhjä = yleinen linkkiteksti"
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
         <FieldLabel htmlFor={`${idPrefix}-summary`}>{summaryLabel}</FieldLabel>
         <Textarea
           id={`${idPrefix}-summary`}

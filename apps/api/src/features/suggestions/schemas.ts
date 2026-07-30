@@ -16,6 +16,8 @@ export const suggestionSchema = z
     entity: z.string(),
     category: categorySchema,
     sourceName: z.string(),
+    /** The article's own headline (submit-time metadata); "" when the capture had none. */
+    articleTitle: z.string(),
     /** The source article's own publication date; null when the AI couldn't find one. */
     articlePublishedAt: z.iso.date().nullable(),
     summary: z.string(),
@@ -63,6 +65,8 @@ export const patchSuggestionSchema = z
     amountMaxEur: z.number().int().min(0).nullable(),
     entity: z.string().min(1).max(120),
     category: categorySchema,
+    /** "" = article title unknown; the feed link falls back to generic text. */
+    articleTitle: z.string().max(300),
     articlePublishedAt: z.iso.date().nullable(),
     keywords: keywordListSchema,
   })
