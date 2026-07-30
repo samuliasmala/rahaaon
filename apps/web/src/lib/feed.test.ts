@@ -15,6 +15,7 @@ function makeItem(overrides: Partial<WasteItem>): WasteItem {
     sourceUrl: "https://example.fi/juttu",
     summary: "",
     quote: "",
+    keywords: [],
     hidden: false,
     publishedAt: "2026-07-17T00:00:00.000Z",
     articlePublishedAt: null,
@@ -32,6 +33,7 @@ const items: WasteItem[] = [
     amountEur: 500,
     publishedAt: "2026-07-15T00:00:00.000Z",
     votes: 5,
+    keywords: ["tietojärjestelmä", "budjettiylitys"],
   }),
   makeItem({
     id: "2",
@@ -64,9 +66,10 @@ describe("filterFeedItems", () => {
     expect(filterFeedItems(items, "Rakentaminen", "").map((i) => i.id)).toEqual(["2", "3"]);
   });
 
-  it("matches search across title, entity, category and source", () => {
+  it("matches search across title, entity, category, source and keywords", () => {
     expect(filterFeedItems(items, "Kaikki", "oulu").map((i) => i.id)).toEqual(["2"]);
     expect(filterFeedItems(items, "Kaikki", "it-hank").map((i) => i.id)).toEqual(["1"]);
+    expect(filterFeedItems(items, "Kaikki", "budjettiylitys").map((i) => i.id)).toEqual(["1"]);
     expect(filterFeedItems(items, "Kaikki", "ei osumia")).toEqual([]);
   });
 });

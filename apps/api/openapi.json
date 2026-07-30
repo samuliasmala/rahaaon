@@ -145,6 +145,12 @@
           "quote": {
             "type": "string"
           },
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "hidden": {
             "type": "boolean"
           },
@@ -178,6 +184,7 @@
           "sourceUrl",
           "summary",
           "quote",
+          "keywords",
           "hidden",
           "publishedAt",
           "articlePublishedAt",
@@ -316,10 +323,61 @@
             ],
             "format": "date"
           },
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "maxItems": 10
+          },
           "hidden": {
             "type": "boolean"
           }
         }
+      },
+      "GeneratedKeywords": {
+        "type": "object",
+        "properties": {
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "keywords"
+        ]
+      },
+      "GenerateKeywordsRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "entity": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category"
+          }
+        },
+        "required": [
+          "title",
+          "summary",
+          "entity",
+          "category"
+        ]
       },
       "SuggestionWithArchive": {
         "allOf": [
@@ -386,6 +444,12 @@
           "quote": {
             "type": "string"
           },
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "aiNote": {
             "type": "string"
           },
@@ -410,6 +474,7 @@
           "articlePublishedAt",
           "summary",
           "quote",
+          "keywords",
           "aiNote",
           "confidence",
           "createdAt"
@@ -460,6 +525,15 @@
               "null"
             ],
             "format": "date"
+          },
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "maxItems": 10
           }
         }
       },
@@ -1046,6 +1120,105 @@
                   "required": [
                     "ok"
                   ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Virheellinen pyyntö",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kirjautuminen vaaditaan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Ei käyttöoikeutta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ei löytynyt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validointivirhe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Palvelinvirhe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Palvelu ei tilapäisesti käytettävissä",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/keywords/generate": {
+      "post": {
+        "summary": "Draft search keywords with AI from the given case content",
+        "tags": [
+          "Admin"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateKeywordsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Drafted keywords — not saved until the editor saves the form",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneratedKeywords"
                 }
               }
             }

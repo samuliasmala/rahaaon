@@ -34,6 +34,7 @@ interface SeedItem {
   votes: number;
   summary: string;
   quote: string;
+  keywords: string[];
 }
 
 const ITEMS: SeedItem[] = [
@@ -51,6 +52,7 @@ const ITEMS: SeedItem[] = [
       'käyttää tällä hetkellä 14 henkilöä. Vanha järjestelmä pidetään rinnalla käynnissä "varmuuden ' +
       'vuoksi", mikä maksaa 2 M€ vuodessa.',
     quote: "Hankejohtajan mukaan aikataulu on nyt realistinen, kuten se on ollut joka vuosi.",
+    keywords: ["tietojärjestelmä", "budjettiylitys", "viivästys"],
   },
   {
     title: "Lämmitetty pyörätie, jota ei koskaan kytketty päälle",
@@ -66,6 +68,7 @@ const ITEMS: SeedItem[] = [
       "hoidettu auraamalla lämmitetyn osuuden päältä. Kaupunki selvittää, kenen vastuulla liittymän " +
       "tilaaminen oli.",
     quote: "Kaapelit ovat siellä hyvässä tallessa, totesi yhdyskuntatekniikan päällikkö.",
+    keywords: ["pyörätie", "lämmitys", "suunnitteluvirhe"],
   },
   {
     title: "Konsulttiselvitys konsulttien käytön vähentämisestä",
@@ -80,6 +83,7 @@ const ITEMS: SeedItem[] = [
       "Selvityksen keskeinen suositus oli teettää jatkoselvitys. Jatkoselvityksen kilpailutus on " +
       "parhaillaan käynnissä, ja siihen on varattu 180 000 €.",
     quote: "Ulkopuolinen näkemys oli välttämätön, ministeriöstä perustellaan.",
+    keywords: ["konsultointi", "selvitys", "ministeriö"],
   },
   {
     title: "Taidepenkki, jolla ei taiteilijan mukaan ole tarkoituskaan istua",
@@ -94,6 +98,7 @@ const ITEMS: SeedItem[] = [
       "Teos kommentoi istumista yhteiskunnallisena ilmiönä. Kaupunki hankki lisäksi kyltin " +
       '"Ei saa istua" sekä huoltosopimuksen, joka kattaa istumisen jälkien poistamisen.',
     quote: "Penkki kysyy, kuka saa levätä, kuvailee teoksen tekijä.",
+    keywords: ["julkinen taide", "taidehankinta", "penkki"],
   },
   {
     title: "Kunnan uusi logo muistuttaa erehdyttävästi edellistä",
@@ -108,6 +113,7 @@ const ITEMS: SeedItem[] = [
       "Uudistuksessa kirjasin vaihtui ja väri pysyi samana. Asukaskyselyssä 71 % vastaajista ei " +
       "huomannut eroa. Brändiuudistuksen jalkautus jatkuu vuoteen 2027.",
     quote: "Muutos on hienovarainen mutta merkityksellinen, kertoo viestintäjohtaja.",
+    keywords: ["logo", "brändiuudistus", "graafinen suunnittelu"],
   },
   {
     title: "Virkamiesdelegaation benchmarking-matka Dubaihin lumiosaamisen perässä",
@@ -122,6 +128,7 @@ const ITEMS: SeedItem[] = [
       "Kahdeksan hengen delegaatio tutustui Dubain sisälaskettelukeskuksen lumetusjärjestelmään. " +
       "Matkaraportti on kaksi sivua, joista toinen on kansilehti.",
     quote: "Lumiolosuhteiden ymmärrys syveni merkittävästi, raportissa todetaan.",
+    keywords: ["virkamatka", "benchmarking", "dubai"],
   },
   {
     title: "Sote-kirjaamisjärjestelmän lisenssit, joita kukaan ei käyttänyt",
@@ -136,6 +143,7 @@ const ITEMS: SeedItem[] = [
       "Lisenssejä hankittiin 12 000 käyttäjälle. Käyttöönotto peruuntui, mutta kolmivuotinen " +
       "sopimus ei sisältänyt irtisanomisehtoa. Lisenssit vanhenevat ensi keväänä.",
     quote: "Sopimus oli sen ajan tietojen valossa perusteltu, arvioi hankintajohtaja.",
+    keywords: ["sote", "lisenssit", "hankintasopimus"],
   },
   {
     title: "Silta, joka päättyy peltoon — jatko-osa budjetoitu vuodelle 2031",
@@ -150,6 +158,7 @@ const ITEMS: SeedItem[] = [
       "Sillan itäpää valmistui aikataulussa, mutta jatkotien rahoitus siirtyi kehyskaudelle 2031. " +
       'Siihen asti silta toimii paikallisten mukaan "hienona näköalapaikkana".',
     quote: "Kokonaisuus valmistuu kyllä aikanaan, ELY-keskuksesta vakuutetaan.",
+    keywords: ["silta", "tiehanke", "rahoitus"],
   },
 ];
 
@@ -167,6 +176,7 @@ interface SeedSuggestion {
   confidence: number;
   summary: string;
   quote: string;
+  keywords: string[];
   aiNote: string;
 }
 
@@ -184,6 +194,7 @@ const SUGGESTIONS: SeedSuggestion[] = [
       "Asukassovellus julkaistiin keväällä 2025. Sovelluskaupan mukaan latauksia on 23, joista " +
       "kaupungin viestintäosaston osuus on arviolta 19.",
     quote: "Sovellus on strateginen avaus, jonka arvo ei mittaudu latauksissa, kaupunki vastaa.",
+    keywords: ["mobiilisovellus", "digihanke", "asukassovellus"],
     aiNote:
       "Summa vahvistettu kahdesta kohdasta artikkelia. Latausmäärä voi olla muuttunut julkaisun " +
       "jälkeen.",
@@ -202,6 +213,7 @@ const SUGGESTIONS: SeedSuggestion[] = [
       "Teos asennettiin kiertoliittymään, jonka jälkeen todettiin sen peittävän näkemäalueen. " +
       "Siirto uuteen paikkaan maksoi 60 000 €, mikä sisältyy summaan.",
     quote: "Näkemäalue tarkistettiin, mutta teoksen jalusta yllätti, myöntää kaupungininsinööri.",
+    keywords: ["julkinen taide", "kiertoliittymä", "taideteos"],
     aiNote: "Summa on artikkelin arvio (teos + siirto). Tarkka jakauma ei selviä lähteestä.",
   },
   {
@@ -217,6 +229,7 @@ const SUGGESTIONS: SeedSuggestion[] = [
       'Kaksipäiväinen valmennus sisälsi työpajoja sekä "läsnäoloharjoituksen alpakkojen kanssa". ' +
       "Osallistujapalaute oli erinomainen.",
     quote: "Alpakka ei arvota johtajaa, ja juuri se on harjoituksen ydin, kertoo valmentaja.",
+    keywords: ["johtamisvalmennus", "koulutus", "alpakat"],
     aiNote:
       "Matala varmuus: summa mainitaan vain otsikossa eikä sitä eritellä. Suosittelen " +
       "tarkistamaan lähteen.",
@@ -238,6 +251,7 @@ const REJECTED: SeedSuggestion & { rejectedHoursAgo: number } = {
     "Auto on ladattu naapurikunnan huoltoasemalla. Artikkelin mukaan latausasema on tilattu, " +
     "mutta toimitusaika on 8 kuukautta.",
   quote: "Lataaminen naapurikunnassa on väliaikaisratkaisu, kaupungilta vakuutetaan.",
+  keywords: ["virka-auto", "sähköauto", "latausasema"],
   aiNote: "Matala varmuus: kulu voi olla normaali hankinta. Summa sisältää auton hinnan.",
 };
 
@@ -299,6 +313,7 @@ async function main() {
         sourceUrl: item.sourceUrl,
         summary: item.summary,
         quote: item.quote,
+        keywords: item.keywords,
         publishedAt: new Date(now - item.daysAgo * DAY_MS),
         // The fictional article ran the day before the item hit the feed.
         articlePublishedAt: isoDate(now - (item.daysAgo + 1) * DAY_MS),
@@ -328,6 +343,7 @@ async function main() {
       sourceName: sg.sourceName,
       summary: sg.summary,
       quote: sg.quote,
+      keywords: sg.keywords,
       aiNote: sg.aiNote,
       confidence: sg.confidence,
       articlePublishedAt: isoDate(now - sg.hoursAgo * HOUR_MS - DAY_MS),
@@ -344,6 +360,7 @@ async function main() {
     sourceName: REJECTED.sourceName,
     summary: REJECTED.summary,
     quote: REJECTED.quote,
+    keywords: REJECTED.keywords,
     aiNote: REJECTED.aiNote,
     confidence: REJECTED.confidence,
     status: "rejected",

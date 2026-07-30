@@ -30,6 +30,7 @@ function toView(row: SuggestionRow): SuggestionView {
     articlePublishedAt: row.articlePublishedAt,
     summary: row.summary,
     quote: row.quote,
+    keywords: row.keywords,
     aiNote: row.aiNote,
     confidence: row.confidence,
     createdAt: row.createdAt.toISOString(),
@@ -121,6 +122,7 @@ export async function approveSuggestion(id: string): Promise<{ itemId: string }>
         summary: entry.summary,
         articlePublishedAt: entry.articlePublishedAt,
         quote: entry.quote,
+        keywords: entry.keywords,
       })
       .returning({ id: wasteItem.id });
 

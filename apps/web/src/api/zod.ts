@@ -51,6 +51,7 @@ export const getApiItemsResponseItem = zod.object({
   "sourceUrl": zod.string(),
   "summary": zod.string(),
   "quote": zod.string(),
+  "keywords": zod.array(zod.string()),
   "hidden": zod.boolean(),
   "publishedAt": zod.iso.datetime({}),
   "articlePublishedAt": zod.iso.date().nullable(),
@@ -88,6 +89,7 @@ export const getApiAdminItemsResponseItem = zod.object({
   "sourceUrl": zod.string(),
   "summary": zod.string(),
   "quote": zod.string(),
+  "keywords": zod.array(zod.string()),
   "hidden": zod.boolean(),
   "publishedAt": zod.iso.datetime({}),
   "articlePublishedAt": zod.iso.date().nullable(),
@@ -122,6 +124,10 @@ export const patchApiAdminItemsIdBodyAmountMaxEurMin = 0;
 
 export const patchApiAdminItemsIdBodyEntityMax = 120;
 
+export const patchApiAdminItemsIdBodyKeywordsItemMax = 60;
+
+export const patchApiAdminItemsIdBodyKeywordsMax = 10;
+
 
 
 export const patchApiAdminItemsIdBody = zod.object({
@@ -134,11 +140,35 @@ export const patchApiAdminItemsIdBody = zod.object({
   "entity": zod.string().min(1).max(patchApiAdminItemsIdBodyEntityMax).optional(),
   "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']).optional(),
   "articlePublishedAt": zod.iso.date().nullish(),
+  "keywords": zod.array(zod.string().min(1).max(patchApiAdminItemsIdBodyKeywordsItemMax)).max(patchApiAdminItemsIdBodyKeywordsMax).optional(),
   "hidden": zod.boolean().optional()
 })
 
 export const patchApiAdminItemsIdResponse = zod.object({
   "ok": zod.literal(true)
+})
+
+
+/**
+ * @summary Draft search keywords with AI from the given case content
+ */
+export const postApiAdminKeywordsGenerateBodyTitleMax = 300;
+
+export const postApiAdminKeywordsGenerateBodySummaryMax = 2000;
+
+export const postApiAdminKeywordsGenerateBodyEntityMax = 120;
+
+
+
+export const postApiAdminKeywordsGenerateBody = zod.object({
+  "title": zod.string().min(1).max(postApiAdminKeywordsGenerateBodyTitleMax),
+  "summary": zod.string().min(1).max(postApiAdminKeywordsGenerateBodySummaryMax),
+  "entity": zod.string().max(postApiAdminKeywordsGenerateBodyEntityMax),
+  "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu'])
+})
+
+export const postApiAdminKeywordsGenerateResponse = zod.object({
+  "keywords": zod.array(zod.string())
 })
 
 
@@ -158,6 +188,7 @@ export const getApiAdminSuggestionsResponseItem = zod.object({
   "articlePublishedAt": zod.iso.date().nullable(),
   "summary": zod.string(),
   "quote": zod.string(),
+  "keywords": zod.array(zod.string()),
   "aiNote": zod.string(),
   "confidence": zod.number(),
   "createdAt": zod.iso.datetime({})
@@ -190,6 +221,10 @@ export const patchApiAdminSuggestionsIdBodyAmountMaxEurMin = 0;
 
 export const patchApiAdminSuggestionsIdBodyEntityMax = 120;
 
+export const patchApiAdminSuggestionsIdBodyKeywordsItemMax = 60;
+
+export const patchApiAdminSuggestionsIdBodyKeywordsMax = 10;
+
 
 
 export const patchApiAdminSuggestionsIdBody = zod.object({
@@ -201,7 +236,8 @@ export const patchApiAdminSuggestionsIdBody = zod.object({
   "amountMaxEur": zod.number().min(patchApiAdminSuggestionsIdBodyAmountMaxEurMin).nullish(),
   "entity": zod.string().min(1).max(patchApiAdminSuggestionsIdBodyEntityMax).optional(),
   "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']).optional(),
-  "articlePublishedAt": zod.iso.date().nullish()
+  "articlePublishedAt": zod.iso.date().nullish(),
+  "keywords": zod.array(zod.string().min(1).max(patchApiAdminSuggestionsIdBodyKeywordsItemMax)).max(patchApiAdminSuggestionsIdBodyKeywordsMax).optional()
 })
 
 export const patchApiAdminSuggestionsIdResponse = zod.object({
@@ -217,6 +253,7 @@ export const patchApiAdminSuggestionsIdResponse = zod.object({
   "articlePublishedAt": zod.iso.date().nullable(),
   "summary": zod.string(),
   "quote": zod.string(),
+  "keywords": zod.array(zod.string()),
   "aiNote": zod.string(),
   "confidence": zod.number(),
   "createdAt": zod.iso.datetime({})
@@ -263,6 +300,7 @@ export const getApiAdminSuggestionsRejectedResponseItem = zod.object({
   "articlePublishedAt": zod.iso.date().nullable(),
   "summary": zod.string(),
   "quote": zod.string(),
+  "keywords": zod.array(zod.string()),
   "aiNote": zod.string(),
   "confidence": zod.number(),
   "createdAt": zod.iso.datetime({})
@@ -292,6 +330,7 @@ export const postApiAdminSuggestionsIdRestoreResponse = zod.object({
   "articlePublishedAt": zod.iso.date().nullable(),
   "summary": zod.string(),
   "quote": zod.string(),
+  "keywords": zod.array(zod.string()),
   "aiNote": zod.string(),
   "confidence": zod.number(),
   "createdAt": zod.iso.datetime({})

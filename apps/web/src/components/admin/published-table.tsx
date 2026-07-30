@@ -5,7 +5,7 @@ import { ArchiveInfo } from "./archive-info.js";
 import {
   type ExtractionPatch,
   draftsEqual,
-  syncDraftAmounts,
+  syncDraftToPatch,
   toExtractionDraft,
   toExtractionPatch,
 } from "./extraction-draft.js";
@@ -153,7 +153,7 @@ function PublishedItemEditor({
     const patch = toExtractionPatch(draft);
     // Show the normalised values while the save is in flight, and keep them
     // if it fails and the editor stays open.
-    setDraft((d) => syncDraftAmounts(d, patch));
+    setDraft((d) => syncDraftToPatch(d, patch));
     setSaving(true);
     try {
       await onSave(patch);
@@ -174,7 +174,12 @@ function PublishedItemEditor({
 
   return (
     <div className="flex flex-col gap-4 border-b border-hairline-soft bg-wash-soft px-6 py-5">
-      <ExtractionFields idPrefix={`item-${item.id}`} draft={draft} setDraft={setDraft} />
+      <ExtractionFields
+        idPrefix={`item-${item.id}`}
+        draft={draft}
+        setDraft={setDraft}
+        busy={saving}
+      />
       <div className="flex justify-end gap-2.5">
         <Button variant="outline" disabled={saving} onClick={cancel}>
           Peruuta

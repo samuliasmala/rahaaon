@@ -35,6 +35,7 @@ export async function listItems(opts: {
       sourceUrl: wasteItem.sourceUrl,
       summary: wasteItem.summary,
       quote: wasteItem.quote,
+      keywords: wasteItem.keywords,
       hidden: wasteItem.hidden,
       publishedAt: wasteItem.publishedAt,
       articlePublishedAt: wasteItem.articlePublishedAt,

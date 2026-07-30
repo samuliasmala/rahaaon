@@ -239,6 +239,7 @@ describe("editorial loop", () => {
       sourceName: string;
       articlePublishedAt: string | null;
       quote: string;
+      keywords: string[];
       url: string;
       archive: unknown;
     }[];
@@ -253,6 +254,8 @@ describe("editorial loop", () => {
     expect(entry!.articlePublishedAt).toBe("2025-11-04");
     // The AI-extracted article quote lands on the suggestion.
     expect(entry!.quote).toContain("Viherseinä");
+    // As do the AI-extracted search keywords.
+    expect(entry!.keywords).toEqual(["viherseinä", "muovikasvit", "vuokrasopimus"]);
 
     // Processing is one-shot: a second attempt finds nothing in 'new' state.
     const again = await app.request(`/api/admin/submissions/${submissionId}/process`, {
@@ -287,6 +290,7 @@ describe("editorial loop", () => {
         amountMaxEur: 180_000,
         articlePublishedAt: "2026-01-15",
         quote: "Muokattu sitaatti, toteaa toimittaja.",
+        keywords: ["muokattu avainsana", "toinen"],
       }),
     });
     expect(res.status).toBe(200);
@@ -297,6 +301,7 @@ describe("editorial loop", () => {
       amountMaxEur: number | null;
       articlePublishedAt: string | null;
       quote: string;
+      keywords: string[];
     };
     expect(body.title).toBe("Muokattu otsikko");
     expect(body.amountEur).toBe(123_000);
@@ -304,6 +309,7 @@ describe("editorial loop", () => {
     expect(body.amountMaxEur).toBe(180_000);
     expect(body.articlePublishedAt).toBe("2026-01-15");
     expect(body.quote).toBe("Muokattu sitaatti, toteaa toimittaja.");
+    expect(body.keywords).toEqual(["muokattu avainsana", "toinen"]);
   });
 
   it("publishes on approve and the item appears in the public feed", async () => {
@@ -321,6 +327,7 @@ describe("editorial loop", () => {
       amountMaxEur: number | null;
       articlePublishedAt: string | null;
       quote: string;
+      keywords: string[];
       votes: number;
     }[];
     const published = feed.find((i) => i.id === itemId);
@@ -331,6 +338,8 @@ describe("editorial loop", () => {
     expect(published?.articlePublishedAt).toBe("2026-01-15");
     // As does the (edited) article quote.
     expect(published?.quote).toBe("Muokattu sitaatti, toteaa toimittaja.");
+    // And the (edited) search keywords.
+    expect(published?.keywords).toEqual(["muokattu avainsana", "toinen"]);
     expect(published?.votes).toBe(0);
 
     // Approved entries leave the queue.
@@ -368,6 +377,7 @@ describe("editorial loop", () => {
         entity: "Espoo",
         // "" removes the quote from the feed item.
         quote: "",
+        keywords: ["julkaistun avainsana"],
       }),
     });
     expect(res.status).toBe(200);
@@ -380,6 +390,7 @@ describe("editorial loop", () => {
       amountMaxEur: number | null;
       entity: string;
       quote: string;
+      keywords: string[];
     }[];
     const edited = feed.find((i) => i.id === itemId);
     expect(edited?.title).toBe("Julkaistu ja muokattu");
@@ -388,6 +399,48 @@ describe("editorial loop", () => {
     expect(edited?.amountMaxEur).toBeNull();
     expect(edited?.entity).toBe("Espoo");
     expect(edited?.quote).toBe("");
+    expect(edited?.keywords).toEqual(["julkaistun avainsana"]);
+
+    // The editor-side keyword cap is enforced, not silently truncated.
+    const overCap = await app.request(`/api/admin/items/${itemId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie: editorCookie },
+      body: JSON.stringify({
+        keywords: Array.from({ length: 11 }, (_, i) => `avainsana-${i}`),
+      }),
+    });
+    expect(overCap.status).toBe(422);
+  });
+
+  it("drafts keywords with AI from the posted case content", async () => {
+    const res = await app.request("/api/admin/keywords/generate", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: editorCookie },
+      body: JSON.stringify({
+        title: "Testiotsikko kalliista hankkeesta",
+        summary: "Hanke maksoi paljon eikä valmistunut.",
+        entity: "Espoo",
+        category: "Muu",
+      }),
+    });
+    expect(res.status).toBe(200);
+    // No API key in this suite: the mock generator drafts from the title.
+    expect(await res.json()).toEqual({
+      keywords: ["testiotsikko", "kalliista", "hankkeesta"],
+    });
+
+    // Drafting is an editorial tool — no anonymous generation.
+    const unauth = await app.request("/api/admin/keywords/generate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: "Testiotsikko",
+        summary: "Tiivistelmä",
+        entity: "Espoo",
+        category: "Muu",
+      }),
+    });
+    expect(unauth.status).toBe(401);
   });
 
   it("hides an item from the public feed but keeps it in the admin list", async () => {

@@ -16,6 +16,8 @@ export * from './archiveTextEdit';
 export * from './category';
 export * from './errorResponse';
 export * from './errorResponseError';
+export * from './generateKeywordsRequest';
+export * from './generatedKeywords';
 export * from './getApiAdminSubmissionsIdArchiveTextParams';
 export * from './getApiMe200';
 export * from './health';

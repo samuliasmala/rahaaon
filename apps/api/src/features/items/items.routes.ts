@@ -2,10 +2,13 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { listAdminItems, listItems, toggleVote, updateItem } from "./items.repo.js";
 import {
   adminWasteItemSchema,
+  generateKeywordsRequestSchema,
+  generatedKeywordsSchema,
   patchItemSchema,
   voteResultSchema,
   wasteItemSchema,
 } from "./schemas.js";
+import { generateKeywords } from "../../lib/keyword-ai.js";
 import { commonErrorResponses, createRouter, errorResponse } from "../../lib/openapi.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { rateLimit } from "../../middleware/rate-limit.js";
@@ -106,5 +109,33 @@ itemRoutes.openapi(
   async (c) => {
     await updateItem(c.req.valid("param").id, c.req.valid("json"));
     return c.json({ ok: true as const }, 200);
+  },
+);
+
+// Serves both editors: suggestions get keywords at extraction time, but items
+// published before the feature (and redrafts) need them generated on demand.
+// Works from the request body, not a stored row, so the editor's unsaved
+// draft is what gets keyworded — and one route covers items and suggestions.
+itemRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/admin/keywords/generate",
+    summary: "Draft search keywords with AI from the given case content",
+    tags: ["Admin"],
+    middleware: [requireAuth] as const,
+    request: {
+      body: { content: { "application/json": { schema: generateKeywordsRequestSchema } } },
+    },
+    responses: {
+      200: {
+        description: "Drafted keywords — not saved until the editor saves the form",
+        content: { "application/json": { schema: generatedKeywordsSchema } },
+      },
+      ...commonErrorResponses,
+    },
+  }),
+  async (c) => {
+    const keywords = await generateKeywords(c.req.valid("json"));
+    return c.json({ keywords }, 200);
   },
 );

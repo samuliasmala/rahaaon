@@ -79,6 +79,11 @@ export const wasteItem = pgTable("waste_item", {
   sourceUrl: text("source_url").notNull(),
   summary: text("summary").notNull(),
   quote: text("quote").notNull().default(""),
+  /** Search keywords (AI-drafted, editor-editable) — feed the client-side feed search. */
+  keywords: text("keywords")
+    .array()
+    .notNull()
+    .default(sql`'{}'::text[]`),
   /** Hidden items stay in the admin list but are removed from the feed and the total. */
   hidden: boolean("hidden").notNull().default(false),
   /** When the item went live on the feed (approval time). */
@@ -101,6 +106,11 @@ export const suggestion = pgTable("suggestion", {
   summary: text("summary").notNull(),
   /** A direct quote from the article (AI-extracted, editor-editable); "" when none. */
   quote: text("quote").notNull().default(""),
+  /** Search keywords (AI-extracted, editor-editable); copied to the item on approval. */
+  keywords: text("keywords")
+    .array()
+    .notNull()
+    .default(sql`'{}'::text[]`),
   /** The source article's own publication date (AI-extracted); null when unknown. */
   articlePublishedAt: date("article_published_at", { mode: "string" }),
   /** The AI's caveats for the editor ("summa mainitaan vain otsikossa…"). */

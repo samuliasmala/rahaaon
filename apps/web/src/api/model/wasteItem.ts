@@ -22,6 +22,7 @@ export interface WasteItem {
   sourceUrl: string;
   summary: string;
   quote: string;
+  keywords: string[];
   hidden: boolean;
   publishedAt: string;
   articlePublishedAt: WasteItemArticlePublishedAt;

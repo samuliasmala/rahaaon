@@ -12,6 +12,8 @@ export interface ExtractionDraft {
   entity: string;
   category: Category;
   articlePublishedAt: string;
+  /** Comma-separated in the editor; split back into a list at the patch boundary. */
+  keywords: string;
 }
 
 /**
@@ -32,7 +34,25 @@ export function toExtractionDraft(source: ExtractionPatch): ExtractionDraft {
     entity: source.entity,
     category: source.category,
     articlePublishedAt: source.articlePublishedAt ?? "",
+    keywords: source.keywords.join(", "),
   };
+}
+
+/**
+ * Comma-separated editor input → keyword list, mirroring the server's caps
+ * (10 keywords of 60 chars, no dupes) so a patch can't fail validation.
+ */
+function parseKeywords(input: string): string[] {
+  const seen = new Set<string>();
+  const keywords: string[] = [];
+  for (const part of input.split(",")) {
+    const keyword = part.trim().slice(0, 60).trim();
+    if (!keyword || seen.has(keyword.toLowerCase())) continue;
+    seen.add(keyword.toLowerCase());
+    keywords.push(keyword);
+    if (keywords.length >= 10) break;
+  }
+  return keywords;
 }
 
 export function toExtractionPatch(draft: ExtractionDraft): ExtractionPatch {
@@ -52,6 +72,7 @@ export function toExtractionPatch(draft: ExtractionDraft): ExtractionPatch {
     entity: draft.entity,
     category: draft.category,
     articlePublishedAt: draft.articlePublishedAt || null,
+    keywords: parseKeywords(draft.keywords),
   };
 }
 
@@ -61,15 +82,16 @@ export function draftsEqual(a: ExtractionDraft, b: ExtractionDraft): boolean {
 }
 
 /**
- * Sync a draft's amount fields to what actually got saved, so a
- * normalised-away value (say an upper bound below the amount) can't linger
- * in the editor.
+ * Sync a draft's normalised fields to what actually got saved, so a
+ * normalised-away value (an upper bound below the amount, an over-cap
+ * keyword) can't linger in the editor.
  */
-export function syncDraftAmounts(draft: ExtractionDraft, patch: ExtractionPatch): ExtractionDraft {
+export function syncDraftToPatch(draft: ExtractionDraft, patch: ExtractionPatch): ExtractionDraft {
   return {
     ...draft,
     amount: String(patch.amountEur),
     amountType: patch.amountType,
     amountMax: patch.amountMaxEur === null ? "" : String(patch.amountMaxEur),
+    keywords: patch.keywords.join(", "),
   };
 }

@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ArchiveInfo } from "./archive-info.js";
-import { syncDraftAmounts, toExtractionDraft, toExtractionPatch } from "./extraction-draft.js";
+import { syncDraftToPatch, toExtractionDraft, toExtractionPatch } from "./extraction-draft.js";
 import { ExtractionFields } from "./extraction-fields.js";
 import {
   getGetApiAdminItemsQueryKey,
@@ -41,8 +41,13 @@ export function QueueCard({ entry }: { entry: SuggestionWithArchive }) {
 
   function saveDraft() {
     const patch = toExtractionPatch(draft);
-    setDraft((d) => syncDraftAmounts(d, patch));
-    patchMutation.mutate({ id: entry.id, data: patch });
+    setDraft((d) => syncDraftToPatch(d, patch));
+    // Blur-saves have no save button whose state could reveal a failure —
+    // surface it, or the editor walks away believing the edit landed.
+    patchMutation.mutate(
+      { id: entry.id, data: patch },
+      { onError: () => toast("Tallennus epäonnistui. Yritä uudelleen.") },
+    );
   }
 
   async function refreshQueue() {
@@ -100,6 +105,7 @@ export function QueueCard({ entry }: { entry: SuggestionWithArchive }) {
           setDraft={setDraft}
           onSave={saveDraft}
           summaryLabel="Tekoälyn tiivistelmä"
+          busy={busy}
         />
 
         <div className="flex flex-col gap-3">

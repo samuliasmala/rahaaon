@@ -38,8 +38,12 @@ export function filterFeedItems(
       return false;
     }
     if (query) {
-      const haystack =
-        `${item.title} ${item.entity} ${item.category} ${item.sourceName}`.toLowerCase();
+      // keywords is guarded: an old API deploy without the field must degrade
+      // to a narrower search, not throw in the feed's render body.
+      const haystack = [item.title, item.entity, item.category, item.sourceName]
+        .concat(item.keywords ?? [])
+        .join(" ")
+        .toLowerCase();
       if (!haystack.includes(query)) return false;
     }
     return true;

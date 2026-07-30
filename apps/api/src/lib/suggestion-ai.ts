@@ -2,6 +2,7 @@ import { generateObject } from "ai";
 import { z } from "zod";
 import { normalizeAmount } from "./amount.js";
 import { unavailable } from "./http-errors.js";
+import { normalizeKeywords } from "./keyword-ai.js";
 import { languageModel, llmConfigured } from "./llm.js";
 import { logger } from "./logger.js";
 import { env } from "../config/env.js";
@@ -33,6 +34,8 @@ export interface ArticleExtraction {
   summary: string;
   /** A short direct quote from the article; "" when it offers none. */
   quote: string;
+  /** Search keywords in Finnish for the feed's free-text search. */
+  keywords: string[];
   aiNote: string;
   /** Extraction confidence, 0–100. */
   confidence: number;
@@ -113,6 +116,15 @@ const extractionSchema = z.object({
         "No surrounding quotation marks (the UI adds them). Never paraphrase or invent; " +
         "empty string when the material offers no suitable sentence.",
     ),
+  keywords: z
+    .array(z.string())
+    .describe(
+      "3–6 search keywords for the case, in Finnish, lowercase. Terms a reader might type " +
+        "into the feed search: the concrete thing or project ('viherseinä', " +
+        "'konsulttiselvitys'), the phenomenon, common synonyms. Prefer words that do NOT " +
+        "already appear in the title. No amounts, no entity or category names (those are " +
+        "searched separately).",
+    ),
   aiNote: z
     .string()
     .describe(
@@ -188,6 +200,7 @@ function finishExtraction(raw: z.infer<typeof extractionSchema>, url: string): A
     sourceName: raw.sourceName || sourceNameFromUrl(url),
     articlePublishedAt: validDateOrNull(publishedDate),
     quote: stripWrappingQuotes(raw.quote).slice(0, 500),
+    keywords: normalizeKeywords(raw.keywords),
   };
 }
 
@@ -246,6 +259,7 @@ function mockExtraction(url: string): ArticleExtraction {
       'Kolmivuotinen vuokrasopimus sisältää "kasvillisuuden elinvoimaisuuden ylläpidon". ' +
       "Huoltokäynneillä muovikasvit pyyhitään pölystä. Sopimuksen arvo on 87 000 €.",
     quote: "Viherseinä tuo aulaan luonnon rauhaa, kaupungin tilapalveluista kerrotaan.",
+    keywords: ["viherseinä", "muovikasvit", "vuokrasopimus"],
     aiNote: "Summa poimittu sopimuksen kokonaisarvosta. Vuosikustannus ei selviä lähteestä.",
     confidence: 88,
   };

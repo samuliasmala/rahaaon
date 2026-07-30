@@ -23,6 +23,7 @@ export interface Suggestion {
   articlePublishedAt: SuggestionArticlePublishedAt;
   summary: string;
   quote: string;
+  keywords: string[];
   aiNote: string;
   confidence: number;
   createdAt: string;

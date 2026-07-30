@@ -1,5 +1,5 @@
 import { z } from "@hono/zod-openapi";
-import { amountTypeSchema, categorySchema } from "../items/schemas.js";
+import { amountTypeSchema, categorySchema, keywordListSchema } from "../items/schemas.js";
 import { archiveRefSchema } from "../submissions/schemas.js";
 
 /** A queue entry as the editorial UI sees it. */
@@ -21,6 +21,8 @@ export const suggestionSchema = z
     summary: z.string(),
     /** A direct quote from the article, shown on the feed item; "" when none. */
     quote: z.string(),
+    /** Search keywords (AI-extracted, editor-editable); copied to the item on approval. */
+    keywords: z.array(z.string()),
     aiNote: z.string(),
     confidence: z.number().int(),
     createdAt: z.iso.datetime(),
@@ -62,6 +64,7 @@ export const patchSuggestionSchema = z
     entity: z.string().min(1).max(120),
     category: categorySchema,
     articlePublishedAt: z.iso.date().nullable(),
+    keywords: keywordListSchema,
   })
   .partial()
   .openapi("PatchSuggestion");

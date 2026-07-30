@@ -1,4 +1,8 @@
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
+import { usePostApiAdminKeywordsGenerate } from "../../api/admin/admin.js";
 import { type AmountType, Category } from "../../api/model/index.js";
+import { Button } from "../ui/button.js";
 import { Input } from "../ui/input.js";
 import { FieldLabel } from "../ui/label.js";
 import { Select } from "../ui/select.js";
@@ -25,13 +29,54 @@ export function ExtractionFields({
   setDraft,
   onSave,
   summaryLabel = "Tiivistelmä",
+  busy = false,
 }: {
   idPrefix: string;
   draft: ExtractionDraft;
   setDraft: React.Dispatch<React.SetStateAction<ExtractionDraft>>;
   onSave?: () => void;
   summaryLabel?: string;
+  /** True while the caller is saving/approving — blocks a racing keyword generation. */
+  busy?: boolean;
 }) {
+  const keywordsMutation = usePostApiAdminKeywordsGenerate();
+
+  // Blur-saving callers (the AI queue) never see a blur from the generate
+  // button, so a generation asks for a save itself — via an effect, one render
+  // later, when `onSave` closes over the draft that includes the new keywords.
+  const saveAfterGenerate = useRef(false);
+  useEffect(() => {
+    if (!saveAfterGenerate.current) return;
+    saveAfterGenerate.current = false;
+    onSave?.();
+  });
+
+  // Drafts keywords from the fields as currently edited, not the saved row.
+  async function generateKeywords() {
+    let keywords: string[];
+    try {
+      const result = await keywordsMutation.mutateAsync({
+        data: {
+          title: draft.title,
+          summary: draft.summary.slice(0, 2000),
+          entity: draft.entity,
+          category: draft.category,
+        },
+      });
+      keywords = result.keywords;
+    } catch {
+      toast("Avainsanojen luonti epäonnistui. Yritä uudelleen.");
+      return;
+    }
+    // Never blank a hand-curated field over an empty AI answer.
+    if (keywords.length === 0) {
+      toast("Tekoäly ei löytänyt avainsanoja — kirjoita ne käsin.");
+      return;
+    }
+    setDraft((d) => ({ ...d, keywords: keywords.join(", ") }));
+    saveAfterGenerate.current = true;
+  }
+
   return (
     <div className="flex flex-col gap-3.5">
       <div className="flex flex-col gap-1.5">
@@ -62,6 +107,29 @@ export function ExtractionFields({
           onChange={(e) => setDraft((d) => ({ ...d, quote: e.target.value }))}
           onBlur={onSave}
           className="font-serif italic"
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <FieldLabel htmlFor={`${idPrefix}-keywords`}>Avainsanat (pilkulla erotettuna)</FieldLabel>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-0 text-xs text-accent hover:text-accent-deep"
+            disabled={
+              busy || keywordsMutation.isPending || !draft.title.trim() || !draft.summary.trim()
+            }
+            onClick={() => void generateKeywords()}
+          >
+            {keywordsMutation.isPending ? "Luodaan…" : "Luo tekoälyllä"}
+          </Button>
+        </div>
+        <Input
+          id={`${idPrefix}-keywords`}
+          value={draft.keywords}
+          onChange={(e) => setDraft((d) => ({ ...d, keywords: e.target.value }))}
+          onBlur={onSave}
+          placeholder="esim. tietojärjestelmä, budjettiylitys"
         />
       </div>
       <div className="grid grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-3">

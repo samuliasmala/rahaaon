@@ -28,6 +28,8 @@ import type {
   AdminWasteItem,
   ArchiveTextEdit,
   ErrorResponse,
+  GenerateKeywordsRequest,
+  GeneratedKeywords,
   GetApiAdminSubmissionsIdArchiveTextParams,
   PatchApiAdminItemsId200,
   PatchItem,
@@ -202,6 +204,70 @@ export const usePatchApiAdminItemsId = <TError = ErrorResponse,
       > => {
 
       const mutationOptions = getPatchApiAdminItemsIdMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary Draft search keywords with AI from the given case content
+ */
+export const postApiAdminKeywordsGenerate = (
+    generateKeywordsRequest: GenerateKeywordsRequest,
+ signal?: AbortSignal
+) => {
+      
+      
+      return apiFetch<GeneratedKeywords>(
+      {url: `/api/admin/keywords/generate`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: generateKeywordsRequest, ...(signal ? { signal }: {})
+    },
+      );
+    }
+  
+
+
+export const getPostApiAdminKeywordsGenerateMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminKeywordsGenerate>>, TError,{data: GenerateKeywordsRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof postApiAdminKeywordsGenerate>>, TError,{data: GenerateKeywordsRequest}, TContext> => {
+
+const mutationKey = ['postApiAdminKeywordsGenerate'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiAdminKeywordsGenerate>>, {data: GenerateKeywordsRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  postApiAdminKeywordsGenerate(data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiAdminKeywordsGenerateMutationResult = NonNullable<Awaited<ReturnType<typeof postApiAdminKeywordsGenerate>>>
+    export type PostApiAdminKeywordsGenerateMutationBody = GenerateKeywordsRequest
+    export type PostApiAdminKeywordsGenerateMutationError = ErrorResponse
+
+    /**
+ * @summary Draft search keywords with AI from the given case content
+ */
+export const usePostApiAdminKeywordsGenerate = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminKeywordsGenerate>>, TError,{data: GenerateKeywordsRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiAdminKeywordsGenerate>>,
+        TError,
+        {data: GenerateKeywordsRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getPostApiAdminKeywordsGenerateMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
