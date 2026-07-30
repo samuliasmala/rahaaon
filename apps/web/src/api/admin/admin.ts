@@ -34,10 +34,13 @@ import type {
   PatchApiAdminItemsId200,
   PatchItem,
   PatchSuggestion,
+  PostApiAdminItemsIdReprocess202,
   PostApiAdminSubmissionsIdArchiveRetryParams,
   PostApiAdminSubmissionsIdReject200,
   PostApiAdminSuggestionsIdApprove200,
   PostApiAdminSuggestionsIdReject200,
+  PostApiAdminSuggestionsIdReprocess202,
+  ProcessRequest,
   PutApiAdminSubmissionsIdArchiveText200,
   RejectedSuggestion,
   RejectedUrlSubmission,
@@ -204,6 +207,71 @@ export const usePatchApiAdminItemsId = <TError = ErrorResponse,
       > => {
 
       const mutationOptions = getPatchApiAdminItemsIdMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary Re-run the AI extraction for a published item, optionally with editor instructions; the redraft lands on the live item
+ */
+export const postApiAdminItemsIdReprocess = (
+    id: string,
+    processRequest: ProcessRequest,
+ signal?: AbortSignal
+) => {
+      
+      
+      return apiFetch<PostApiAdminItemsIdReprocess202>(
+      {url: `/api/admin/items/${id}/reprocess`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: processRequest, ...(signal ? { signal }: {})
+    },
+      );
+    }
+  
+
+
+export const getPostApiAdminItemsIdReprocessMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminItemsIdReprocess>>, TError,{id: string;data: ProcessRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof postApiAdminItemsIdReprocess>>, TError,{id: string;data: ProcessRequest}, TContext> => {
+
+const mutationKey = ['postApiAdminItemsIdReprocess'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiAdminItemsIdReprocess>>, {id: string;data: ProcessRequest}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  postApiAdminItemsIdReprocess(id,data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiAdminItemsIdReprocessMutationResult = NonNullable<Awaited<ReturnType<typeof postApiAdminItemsIdReprocess>>>
+    export type PostApiAdminItemsIdReprocessMutationBody = ProcessRequest
+    export type PostApiAdminItemsIdReprocessMutationError = ErrorResponse
+
+    /**
+ * @summary Re-run the AI extraction for a published item, optionally with editor instructions; the redraft lands on the live item
+ */
+export const usePostApiAdminItemsIdReprocess = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminItemsIdReprocess>>, TError,{id: string;data: ProcessRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiAdminItemsIdReprocess>>,
+        TError,
+        {id: string;data: ProcessRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getPostApiAdminItemsIdReprocessMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
@@ -424,6 +492,71 @@ export const usePatchApiAdminSuggestionsId = <TError = ErrorResponse,
       > => {
 
       const mutationOptions = getPatchApiAdminSuggestionsIdMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary Re-run the AI extraction for a pending suggestion, optionally with editor instructions; overwrites the suggestion in place
+ */
+export const postApiAdminSuggestionsIdReprocess = (
+    id: string,
+    processRequest: ProcessRequest,
+ signal?: AbortSignal
+) => {
+      
+      
+      return apiFetch<PostApiAdminSuggestionsIdReprocess202>(
+      {url: `/api/admin/suggestions/${id}/reprocess`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: processRequest, ...(signal ? { signal }: {})
+    },
+      );
+    }
+  
+
+
+export const getPostApiAdminSuggestionsIdReprocessMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSuggestionsIdReprocess>>, TError,{id: string;data: ProcessRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSuggestionsIdReprocess>>, TError,{id: string;data: ProcessRequest}, TContext> => {
+
+const mutationKey = ['postApiAdminSuggestionsIdReprocess'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiAdminSuggestionsIdReprocess>>, {id: string;data: ProcessRequest}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  postApiAdminSuggestionsIdReprocess(id,data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiAdminSuggestionsIdReprocessMutationResult = NonNullable<Awaited<ReturnType<typeof postApiAdminSuggestionsIdReprocess>>>
+    export type PostApiAdminSuggestionsIdReprocessMutationBody = ProcessRequest
+    export type PostApiAdminSuggestionsIdReprocessMutationError = ErrorResponse
+
+    /**
+ * @summary Re-run the AI extraction for a pending suggestion, optionally with editor instructions; overwrites the suggestion in place
+ */
+export const usePostApiAdminSuggestionsIdReprocess = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSuggestionsIdReprocess>>, TError,{id: string;data: ProcessRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiAdminSuggestionsIdReprocess>>,
+        TError,
+        {id: string;data: ProcessRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getPostApiAdminSuggestionsIdReprocessMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
@@ -802,12 +935,15 @@ export function useGetApiAdminSubmissions<TData = Awaited<ReturnType<typeof getA
  */
 export const postApiAdminSubmissionsIdProcess = (
     id: string,
+    processRequest?: ProcessRequest,
  signal?: AbortSignal
 ) => {
       
       
       return apiFetch<UrlSubmission>(
-      {url: `/api/admin/submissions/${id}/process`, method: 'POST', ...(signal ? { signal }: {})
+      {url: `/api/admin/submissions/${id}/process`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: processRequest, ...(signal ? { signal }: {})
     },
       );
     }
@@ -815,8 +951,8 @@ export const postApiAdminSubmissionsIdProcess = (
 
 
 export const getPostApiAdminSubmissionsIdProcessMutationOptions = <TError = ErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdProcess>>, TError,{id: string}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdProcess>>, TError,{id: string}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdProcess>>, TError,{id: string;data: ProcessRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdProcess>>, TError,{id: string;data: ProcessRequest}, TContext> => {
 
 const mutationKey = ['postApiAdminSubmissionsIdProcess'];
 const {mutation: mutationOptions} = options ?
@@ -828,10 +964,10 @@ const {mutation: mutationOptions} = options ?
       
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiAdminSubmissionsIdProcess>>, {id: string}> = (props) => {
-          const {id} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiAdminSubmissionsIdProcess>>, {id: string;data: ProcessRequest}> = (props) => {
+          const {id,data} = props ?? {};
 
-          return  postApiAdminSubmissionsIdProcess(id,)
+          return  postApiAdminSubmissionsIdProcess(id,data,)
         }
 
         
@@ -840,18 +976,18 @@ const {mutation: mutationOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type PostApiAdminSubmissionsIdProcessMutationResult = NonNullable<Awaited<ReturnType<typeof postApiAdminSubmissionsIdProcess>>>
-    
+    export type PostApiAdminSubmissionsIdProcessMutationBody = ProcessRequest
     export type PostApiAdminSubmissionsIdProcessMutationError = ErrorResponse
 
     /**
  * @summary Queue a submission for AI processing (runs in the background)
  */
 export const usePostApiAdminSubmissionsIdProcess = <TError = ErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdProcess>>, TError,{id: string}, TContext>, }
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdProcess>>, TError,{id: string;data: ProcessRequest}, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof postApiAdminSubmissionsIdProcess>>,
         TError,
-        {id: string},
+        {id: string;data: ProcessRequest},
         TContext
       > => {
 

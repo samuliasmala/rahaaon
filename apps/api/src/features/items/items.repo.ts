@@ -2,8 +2,8 @@ import { and, count, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "../../db/client.js";
 import { itemVote, suggestion, urlSubmission, wasteItem } from "../../db/schema/index.js";
 import { normalizeAmount } from "../../lib/amount.js";
-import { notFound } from "../../lib/http-errors.js";
-import { toArchiveRef } from "../submissions/submissions.repo.js";
+import { conflict, notFound } from "../../lib/http-errors.js";
+import { requeueSubmissionForReprocess, toArchiveRef } from "../submissions/submissions.repo.js";
 import type { AdminWasteItemView, WasteItemView, patchItemSchema } from "./schemas.js";
 import type { z } from "@hono/zod-openapi";
 
@@ -54,8 +54,9 @@ export async function listItems(opts: {
 /**
  * The admin listing: every item (hidden included) with the pointer to the
  * page archive of the submission it was published from — resolved through the
- * submission → suggestion → item chain. Null for items with no submission
- * behind them (seeded rows) or whose page was never archived.
+ * submission → suggestion → item chain — plus the state of a reprocess run on
+ * that submission. Archive/reprocess are null/off for items with no
+ * submission behind them (seeded rows).
  */
 export async function listAdminItems(opts: {
   voterId: string | undefined;
@@ -68,19 +69,57 @@ export async function listAdminItems(opts: {
       id: urlSubmission.id,
       archiveStatus: urlSubmission.archiveStatus,
       archiveTextKey: urlSubmission.archiveTextKey,
+      status: urlSubmission.status,
+      processError: urlSubmission.processError,
     })
     .from(urlSubmission)
     .innerJoin(suggestion, eq(suggestion.id, urlSubmission.suggestionId))
     .where(isNotNull(suggestion.publishedItemId));
 
   // Item → submission is one-to-one in practice, but nothing enforces it —
-  // as in listPendingSuggestions, the first usable ref wins.
-  const archiveByItem = new Map<string, ReturnType<typeof toArchiveRef>>();
+  // as in listPendingSuggestions, the first ref with a usable archive wins.
+  const sourceByItem = new Map<string, (typeof refs)[number]>();
   for (const ref of refs) {
-    if (!archiveByItem.get(ref.itemId!)) archiveByItem.set(ref.itemId!, toArchiveRef(ref));
+    const existing = sourceByItem.get(ref.itemId!);
+    if (!existing || (!toArchiveRef(existing) && toArchiveRef(ref))) {
+      sourceByItem.set(ref.itemId!, ref);
+    }
   }
 
-  return items.map((item) => ({ ...item, archive: archiveByItem.get(item.id) ?? null }));
+  return items.map((item) => {
+    const source = sourceByItem.get(item.id);
+    return {
+      ...item,
+      archive: source ? toArchiveRef(source) : null,
+      canReprocess: source !== undefined,
+      reprocessing: source?.status === "processing",
+      reprocessError: source?.processError ?? null,
+    };
+  });
+}
+
+/**
+ * Re-run the AI extraction for a published item, optionally with editor
+ * instructions. The redraft lands straight on the live item (and its
+ * suggestion row) when the background run finishes — the editor asked for it
+ * and can edit or hide the result; the admin view polls `reprocessing`.
+ */
+export async function reprocessItem(itemId: string, instructions: string | null): Promise<void> {
+  const [source] = await db
+    .select({ suggestionId: suggestion.id })
+    .from(suggestion)
+    .where(and(eq(suggestion.publishedItemId, itemId), eq(suggestion.status, "approved")))
+    .limit(1);
+  if (!source) {
+    const exists = await db
+      .select({ id: wasteItem.id })
+      .from(wasteItem)
+      .where(eq(wasteItem.id, itemId))
+      .limit(1);
+    if (exists.length === 0) throw notFound("Juttua ei löytynyt");
+    throw conflict("Uudelleenkäsittely ei onnistu — alkuperäistä linkkiehdotusta ei löydy");
+  }
+  await requeueSubmissionForReprocess(source.suggestionId, instructions);
 }
 
 /** Toggle the visitor's vote on an item; returns the new count and vote state. */

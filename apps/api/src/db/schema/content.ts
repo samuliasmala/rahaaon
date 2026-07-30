@@ -175,6 +175,12 @@ export const urlSubmission = pgTable(
      * again. Shown to the editor on the queue card.
      */
     processError: text("process_error"),
+    /**
+     * Optional editor guidance for the AI extraction ("poimi kokonaiskustannus,
+     * älä vuosihintaa"), set when processing is queued and passed verbatim to
+     * the LLM prompt. Null when the editor gave none.
+     */
+    processInstructions: text("process_instructions"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     /** When the entry left the queue — set on process AND reject, cleared on restore. */
     processedAt: timestamp("processed_at", { withTimezone: true }),

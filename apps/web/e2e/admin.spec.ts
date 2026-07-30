@@ -75,10 +75,11 @@ test("processing a submission moves it to the AI queue", async ({ page }) => {
 
   // Process the newest submission, whichever it is. The name filter keeps
   // the locator on the source URL — cards with archived text also carry a
-  // "Lataa" download link.
+  // "Lataa" download link. Exact match: the card also has the split button's
+  // "Käsittele ohjeiden kanssa" chevron.
   const firstCard = page.locator("section").first();
   const url = await firstCard.getByRole("link", { name: /^http/ }).innerText();
-  await firstCard.getByRole("button", { name: "Käsittele" }).click();
+  await firstCard.getByRole("button", { name: "Käsittele", exact: true }).click();
 
   // The extraction runs in the background: the card locks into "Käsitellään…"
   // and the view polls until the entry moves on. Generous timeouts — with a
@@ -94,6 +95,59 @@ test("processing a submission moves it to the AI queue", async ({ page }) => {
   // The processed entry now sits in the AI queue with its source link intact.
   await page.getByRole("tab", { name: queueTabName }).click();
   await expect(page.getByRole("link", { name: url }).first()).toBeVisible();
+});
+
+test("processing with editor instructions via the split button", async ({ page }) => {
+  await page.goto("/admin");
+  const submissionsBefore = await tabCount(page, "Ehdotusjono");
+  const queueBefore = await tabCount(page, "Tekoälyn käsittelemät");
+
+  // The chevron half of the split button opens the instructions dialog.
+  const firstCard = page.locator("section").first();
+  await firstCard.getByRole("button", { name: "Käsittele ohjeiden kanssa" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("textbox").fill("Poimi hankkeen kokonaiskustannus.");
+  await dialog.getByRole("button", { name: "Käsittele", exact: true }).click();
+  await expect(dialog).toBeHidden();
+
+  // From here the flow matches a plain "Käsittele": the card locks and the
+  // entry moves on to the AI queue when the background extraction finishes.
+  await expect(firstCard.getByRole("button", { name: "Käsitellään…" })).toBeVisible();
+  await expect(
+    page.getByRole("tab", { name: `Ehdotusjono (${submissionsBefore - 1})` }),
+  ).toBeVisible({ timeout: 60_000 });
+  await expect(
+    page.getByRole("tab", { name: `Tekoälyn käsittelemät (${queueBefore + 1})` }),
+  ).toBeVisible({ timeout: 10_000 });
+});
+
+test("reprocessing a queue entry runs through the instructions dialog", async ({ page }) => {
+  await page.goto("/admin");
+  const queueCount = await tabCount(page, "Tekoälyn käsittelemät");
+  await page.getByRole("tab", { name: `Tekoälyn käsittelemät (${queueCount})` }).click();
+
+  // Newest first: the entry the previous test processed from a reader link —
+  // it has a source submission, so the reprocess action is available.
+  const card = page.locator("section").first();
+  await card.getByRole("button", { name: "Käsittele uudelleen" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("textbox").fill("Käytä artikkelin ylärajaa.");
+  await dialog.getByRole("button", { name: "Käsittele uudelleen" }).click();
+  await expect(dialog).toBeHidden();
+
+  // The success toast proves the run was accepted (a 409/500 would toast the
+  // failure instead) — the run itself happens in the background.
+  await expect(page.getByText("Uudelleenkäsittely aloitettu")).toBeVisible();
+
+  // Without asserting the transient "Tekoäly käsittelee…" state (an offline
+  // mock finishes near-instantly), wait for the card to settle back to an
+  // actionable reprocess button with no failure note.
+  await expect(card.getByRole("button", { name: "Käsittele uudelleen" })).toBeEnabled({
+    timeout: 60_000,
+  });
+  await expect(card.getByText("Uudelleenkäsittely epäonnistui", { exact: false })).toBeHidden();
 });
 
 test("rejecting and restoring a suggestion round-trips through Hylätyt", async ({ page }) => {

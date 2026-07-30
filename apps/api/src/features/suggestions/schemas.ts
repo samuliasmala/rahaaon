@@ -1,6 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import { amountTypeSchema, categorySchema, keywordListSchema } from "../items/schemas.js";
-import { archiveRefSchema } from "../submissions/schemas.js";
+import { archiveRefSchema, reprocessStateFields } from "../submissions/schemas.js";
 
 /** A queue entry as the editorial UI sees it. */
 export const suggestionSchema = z
@@ -33,12 +33,12 @@ export type SuggestionView = z.infer<typeof suggestionSchema>;
 
 /**
  * A queue-listing entry: the suggestion plus the pointer to its source
- * submission's page archive. Only the listing carries it — mutation responses
- * (patch/restore) stay plain {@link suggestionSchema}, since the client
- * already holds the archive ref from the list.
+ * submission's page archive and the submission's reprocess state. Only the
+ * listing carries them — mutation responses (patch/restore) stay plain
+ * {@link suggestionSchema}, since the client already holds these from the list.
  */
 export const suggestionWithArchiveSchema = suggestionSchema
-  .extend({ archive: archiveRefSchema.nullable() })
+  .extend({ archive: archiveRefSchema.nullable(), ...reprocessStateFields })
   .openapi("SuggestionWithArchive");
 
 export type SuggestionWithArchiveView = z.infer<typeof suggestionWithArchiveSchema>;

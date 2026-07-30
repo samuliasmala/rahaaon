@@ -6,7 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ArchiveRef } from './archiveRef';
+import type { AdminWasteItemAllOfReprocessError } from './adminWasteItemAllOfReprocessError';
 
 export type AdminWasteItemAllOf = {
   archive: ArchiveRef;
+  canReprocess: boolean;
+  reprocessing: boolean;
+  reprocessError: AdminWasteItemAllOfReprocessError;
 };

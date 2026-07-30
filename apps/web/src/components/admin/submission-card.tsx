@@ -1,5 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { ChevronDown } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
+import { AiInstructionsDialog } from "./ai-instructions-dialog.js";
 import { ArchiveInfo } from "./archive-info.js";
 import { submissionArchiveRef } from "./archive-ref.js";
 import {
@@ -24,6 +27,7 @@ import type { UrlSubmission } from "../../api/model/index.js";
  */
 export function SubmissionCard({ entry }: { entry: UrlSubmission }) {
   const queryClient = useQueryClient();
+  const [instructionsOpen, setInstructionsOpen] = useState(false);
   const processMutation = usePostApiAdminSubmissionsIdProcess();
   const rejectMutation = usePostApiAdminSubmissionsIdReject();
   const processing = entry.processing || processMutation.isPending;
@@ -33,9 +37,12 @@ export function SubmissionCard({ entry }: { entry: UrlSubmission }) {
     await queryClient.invalidateQueries({ queryKey: getGetApiAdminSubmissionsQueryKey() });
   }
 
-  async function process() {
+  async function process(instructions?: string) {
     try {
-      await processMutation.mutateAsync({ id: entry.id });
+      await processMutation.mutateAsync({
+        id: entry.id,
+        data: instructions ? { instructions } : {},
+      });
     } catch {
       toast("Käsittely epäonnistui. Yritä uudelleen.");
       return;
@@ -103,9 +110,26 @@ export function SubmissionCard({ entry }: { entry: UrlSubmission }) {
           )}
         </div>
         <div className="flex shrink-0 gap-2.5 md:self-center">
-          <Button disabled={processing || busy} onClick={() => void process()}>
-            {processing ? "Käsitellään…" : "Käsittele"}
-          </Button>
+          {/* Split button: the main half is the one-click "Käsittele", the
+              chevron opens the optional editor-instructions dialog. */}
+          <div className="flex">
+            <Button
+              disabled={processing || busy}
+              onClick={() => void process()}
+              className="rounded-r-none"
+            >
+              {processing ? "Käsitellään…" : "Käsittele"}
+            </Button>
+            <Button
+              disabled={processing || busy}
+              onClick={() => setInstructionsOpen(true)}
+              aria-label="Käsittele ohjeiden kanssa"
+              title="Käsittele ohjeiden kanssa"
+              className="rounded-l-none border-l border-white/30 px-2"
+            >
+              <ChevronDown aria-hidden className="size-4" />
+            </Button>
+          </div>
           {/* Enabled while processing: rejecting cancels the run (the worker
               discards a finished extraction for a non-processing row). */}
           <Button variant="outlineDanger" disabled={busy} onClick={() => void reject()}>
@@ -113,6 +137,17 @@ export function SubmissionCard({ entry }: { entry: UrlSubmission }) {
           </Button>
         </div>
       </div>
+      <AiInstructionsDialog
+        open={instructionsOpen}
+        onClose={() => setInstructionsOpen(false)}
+        title="Käsittele ohjeiden kanssa"
+        description="Ohjeet annetaan tekoälylle artikkelin lukemisen tueksi — esimerkiksi mikä summa jutusta pitäisi poimia."
+        confirmLabel="Käsittele"
+        onSubmit={(instructions) => {
+          setInstructionsOpen(false);
+          void process(instructions);
+        }}
+      />
     </section>
   );
 }

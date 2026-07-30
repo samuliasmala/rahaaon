@@ -482,6 +482,106 @@ describe("editorial loop", () => {
     expect(edited?.articlePublishedAt).toBeNull();
   });
 
+  it("reprocesses a published item: the redraft lands on the live item", async () => {
+    const res = await app.request(`/api/admin/items/${itemId}/reprocess`, {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: editorCookie },
+      body: JSON.stringify({ instructions: "Tarkista summa." }),
+    });
+    expect(res.status).toBe(202);
+
+    // Poll the admin listing until the background redraft lands (the mock
+    // extraction resets the title to its fixed story).
+    type AdminItem = {
+      id: string;
+      title: string;
+      amountEur: number;
+      hidden: boolean;
+      reprocessing: boolean;
+      reprocessError: string | null;
+      canReprocess: boolean;
+    };
+    const deadline = Date.now() + 15_000;
+    let item: AdminItem | undefined;
+    for (;;) {
+      const adminRes = await app.request("/api/admin/items", {
+        headers: { cookie: editorCookie },
+      });
+      const adminItems = (await adminRes.json()) as AdminItem[];
+      item = adminItems.find((i) => i.id === itemId);
+      if (item && !item.reprocessing && item.title.startsWith("Kaupungintalon aulaan")) break;
+      if (Date.now() > deadline) throw new Error("item reprocess did not finish in time");
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    expect(item.amountEur).toBe(87_000);
+    expect(item.reprocessError).toBeNull();
+    expect(item.canReprocess).toBe(true);
+    // Editorial state is not the AI's to touch: the item stays hidden.
+    expect(item.hidden).toBe(true);
+  });
+
+  it("processes with editor instructions and reprocesses the suggestion in place", async () => {
+    const url = "https://yle.fi.invalid/a/ohjeistettu";
+    const created = await app.request("/api/submissions", json({ url }));
+    const { id: subId } = (await created.json()) as { id: string };
+
+    // First pass with instructions — the offline mock echoes them into aiNote.
+    const processed = await app.request(`/api/admin/submissions/${subId}/process`, {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: editorCookie },
+      body: JSON.stringify({ instructions: "Poimi kokonaissumma." }),
+    });
+    expect(processed.status).toBe(202);
+    await waitUntilProcessed(subId);
+
+    type QueueEntry = {
+      id: string;
+      url: string;
+      aiNote: string;
+      canReprocess: boolean;
+      reprocessing: boolean;
+      reprocessError: string | null;
+    };
+    const listQueue = async () =>
+      (await (
+        await app.request("/api/admin/suggestions", { headers: { cookie: editorCookie } })
+      ).json()) as QueueEntry[];
+
+    const entry = (await listQueue()).find((q) => q.url === url)!;
+    expect(entry.aiNote).toContain("Toimittajan ohje huomioitu: Poimi kokonaissumma.");
+    expect(entry.canReprocess).toBe(true);
+    expect(entry.reprocessing).toBe(false);
+    expect(entry.reprocessError).toBeNull();
+
+    // Reprocess with new instructions; the entry is overwritten in place.
+    const reprocess = await app.request(`/api/admin/suggestions/${entry.id}/reprocess`, {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: editorCookie },
+      body: JSON.stringify({ instructions: "Käytä ylärajaa." }),
+    });
+    expect(reprocess.status).toBe(202);
+
+    // The reprocess run must not resurface the row in the Ehdotusjono.
+    const submissions = (await (
+      await app.request("/api/admin/submissions", { headers: { cookie: editorCookie } })
+    ).json()) as { id: string }[];
+    expect(submissions.map((sub) => sub.id)).not.toContain(subId);
+
+    const deadline = Date.now() + 15_000;
+    let queue: QueueEntry[] = [];
+    let after: QueueEntry | undefined;
+    for (;;) {
+      queue = await listQueue();
+      after = queue.find((q) => q.id === entry.id);
+      if (after && !after.reprocessing && after.aiNote.includes("Käytä ylärajaa.")) break;
+      if (Date.now() > deadline) throw new Error("suggestion reprocess did not finish in time");
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    expect(after.reprocessError).toBeNull();
+    // Same card overwritten in place — no duplicate appeared for the url.
+    expect(queue.filter((q) => q.url === url).length).toBe(1);
+  });
+
   it("rejects a suggestion into the rejected archive", async () => {
     const created = await app.request(
       "/api/submissions",

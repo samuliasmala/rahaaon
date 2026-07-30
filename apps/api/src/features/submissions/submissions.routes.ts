@@ -1,6 +1,8 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import {
+  instructionsOrNull,
   pagePreviewSchema,
+  processRequestSchema,
   rejectedUrlSubmissionSchema,
   submitUrlSchema,
   urlSubmissionSchema,
@@ -111,7 +113,15 @@ submissionRoutes.openapi(
     summary: "Queue a submission for AI processing (runs in the background)",
     tags: ["Admin"],
     middleware: [requireAuth] as const,
-    request: { params: idParam },
+    request: {
+      params: idParam,
+      // Optional editor guidance for the LLM; the endpoint also accepts a
+      // bodyless POST (a plain "Käsittele").
+      body: {
+        content: { "application/json": { schema: processRequestSchema } },
+        required: false,
+      },
+    },
     responses: {
       202: {
         description:
@@ -122,7 +132,11 @@ submissionRoutes.openapi(
     },
   }),
   async (c) => {
-    const queued = await queueSubmissionForProcessing(c.req.valid("param").id);
+    const body = c.req.valid("json") as z.infer<typeof processRequestSchema> | undefined;
+    const queued = await queueSubmissionForProcessing(
+      c.req.valid("param").id,
+      instructionsOrNull(body?.instructions),
+    );
     return c.json(queued, 202);
   },
 );

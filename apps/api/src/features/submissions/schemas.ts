@@ -20,6 +20,36 @@ export const submitUrlSchema = z
   })
   .openapi("SubmitUrl");
 
+/**
+ * Optional editor guidance for an AI processing run ("poimi kokonaiskustannus,
+ * älä vuosihintaa"), passed verbatim to the LLM prompt as trusted. Shared by
+ * the first pass (process) and the reprocess endpoints.
+ */
+export const processRequestSchema = z
+  .object({
+    instructions: z.string().trim().max(2000).optional(),
+  })
+  .openapi("ProcessRequest");
+
+/** Blank (schema-trimmed) or absent instructions mean "none given" — stored as null. */
+export function instructionsOrNull(value: string | undefined): string | null {
+  return value === undefined || value === "" ? null : value;
+}
+
+/**
+ * The state of a reprocess run, carried by the AI-queue and admin-items
+ * listings (both resolve it from the source submission). `canReprocess` is
+ * false when no submission exists behind the entry (seeded rows) — the
+ * reprocess endpoints have nothing to requeue then.
+ */
+export const reprocessStateFields = {
+  canReprocess: z.boolean(),
+  /** True while a background reprocess runs; the admin view polls until it clears. */
+  reprocessing: z.boolean(),
+  /** Why the last reprocess gave up (attempts exhausted); null otherwise. */
+  reprocessError: z.string().nullable(),
+};
+
 /** The google-like result card shown to the reader before they confirm. */
 export const pagePreviewSchema = z
   .object({

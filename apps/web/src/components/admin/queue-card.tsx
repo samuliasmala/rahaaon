@@ -1,8 +1,14 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { AiInstructionsDialog } from "./ai-instructions-dialog.js";
 import { ArchiveInfo } from "./archive-info.js";
-import { syncDraftToPatch, toExtractionDraft, toExtractionPatch } from "./extraction-draft.js";
+import {
+  draftsEqual,
+  syncDraftToPatch,
+  toExtractionDraft,
+  toExtractionPatch,
+} from "./extraction-draft.js";
 import { ExtractionFields } from "./extraction-fields.js";
 import {
   getGetApiAdminItemsQueryKey,
@@ -11,6 +17,7 @@ import {
   usePatchApiAdminSuggestionsId,
   usePostApiAdminSuggestionsIdApprove,
   usePostApiAdminSuggestionsIdReject,
+  usePostApiAdminSuggestionsIdReprocess,
 } from "../../api/admin/admin.js";
 import { getGetApiItemsQueryKey } from "../../api/items/items.js";
 import { type SuggestionWithArchive } from "../../api/model/index.js";
@@ -29,17 +36,42 @@ function confidenceClasses(confidence: number): string {
  * One AI-preprocessed suggestion: editable extraction + source panel + verdict.
  * Edits live in local draft state and are saved on blur; approving saves the
  * draft first so what the editor sees is exactly what gets published.
+ * "Käsittele uudelleen" re-runs the AI extraction (optionally with editor
+ * instructions) through the background pipeline; the card locks until the
+ * redraft lands and then reloads the draft from it.
  */
 export function QueueCard({ entry }: { entry: SuggestionWithArchive }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState(() => toExtractionDraft(entry));
+  const [reprocessOpen, setReprocessOpen] = useState(false);
+  // Covers the whole reprocess kick (POST + the refetch that brings
+  // `entry.reprocessing`), so the card can't unlock in the gap between them.
+  const [reprocessKicked, setReprocessKicked] = useState(false);
 
   const patchMutation = usePatchApiAdminSuggestionsId();
   const approveMutation = usePostApiAdminSuggestionsIdApprove();
   const rejectMutation = usePostApiAdminSuggestionsIdReject();
+  const reprocessMutation = usePostApiAdminSuggestionsIdReprocess();
+  const reprocessing = entry.reprocessing || reprocessKicked;
   const busy = approveMutation.isPending || rejectMutation.isPending;
 
+  // When a redraft lands, the refetched entry's fields change under the local
+  // draft — reload it. Keyed on content, not on observing a `reprocessing`
+  // flank: a run that finishes within one refetch (or is watched from another
+  // tab) never shows the flag at all. An entry refetched unchanged (another
+  // card's action invalidating the list) compares equal and leaves in-progress
+  // edits alone; blur-saves don't refetch the list at all.
+  const prevEntry = useRef(entry);
+  useEffect(() => {
+    const fresh = toExtractionDraft(entry);
+    if (!draftsEqual(fresh, toExtractionDraft(prevEntry.current))) setDraft(fresh);
+    prevEntry.current = entry;
+  }, [entry]);
+
   function saveDraft() {
+    // The fields are disabled while a reprocess runs, but a blur can still
+    // race the finish — don't let a stale draft clobber the fresh redraft.
+    if (reprocessing) return;
     const patch = toExtractionPatch(draft);
     setDraft((d) => syncDraftToPatch(d, patch));
     // Blur-saves have no save button whose state could reveal a failure —
@@ -52,6 +84,23 @@ export function QueueCard({ entry }: { entry: SuggestionWithArchive }) {
 
   async function refreshQueue() {
     await queryClient.invalidateQueries({ queryKey: getGetApiAdminSuggestionsQueryKey() });
+  }
+
+  async function reprocess(instructions?: string) {
+    setReprocessKicked(true);
+    try {
+      await reprocessMutation.mutateAsync({
+        id: entry.id,
+        data: instructions ? { instructions } : {},
+      });
+      // The refetch re-renders this card locked until the background run lands.
+      await refreshQueue();
+      toast("Uudelleenkäsittely aloitettu");
+    } catch {
+      toast("Uudelleenkäsittely epäonnistui. Yritä uudelleen.");
+    } finally {
+      setReprocessKicked(false);
+    }
   }
 
   async function approve() {
@@ -105,7 +154,8 @@ export function QueueCard({ entry }: { entry: SuggestionWithArchive }) {
           setDraft={setDraft}
           onSave={saveDraft}
           summaryLabel="Tekoälyn tiivistelmä"
-          busy={busy}
+          busy={busy || reprocessing}
+          disabled={reprocessing}
         />
 
         <div className="flex flex-col gap-3">
@@ -135,21 +185,51 @@ export function QueueCard({ entry }: { entry: SuggestionWithArchive }) {
             </p>
             <p className="text-[13px]/[1.5] text-body">{entry.aiNote}</p>
           </div>
-          <div className="mt-auto flex gap-2.5 pt-1">
-            <Button
-              variant="success"
-              className="flex-1"
-              disabled={busy}
-              onClick={() => void approve()}
-            >
-              Hyväksy ja julkaise
-            </Button>
-            <Button variant="outlineDanger" disabled={busy} onClick={() => void reject()}>
-              Hylkää
-            </Button>
+          <div className="mt-auto flex flex-col gap-2.5 pt-1">
+            {entry.canReprocess && (
+              <Button
+                variant="outline"
+                disabled={busy || reprocessing}
+                onClick={() => setReprocessOpen(true)}
+              >
+                {reprocessing ? "Tekoäly käsittelee…" : "Käsittele uudelleen"}
+              </Button>
+            )}
+            {entry.reprocessError && !reprocessing && (
+              <p className="text-[13px] text-accent">
+                Uudelleenkäsittely epäonnistui: {entry.reprocessError}
+              </p>
+            )}
+            <div className="flex gap-2.5">
+              <Button
+                variant="success"
+                className="flex-1"
+                disabled={busy || reprocessing}
+                onClick={() => void approve()}
+              >
+                Hyväksy ja julkaise
+              </Button>
+              {/* Enabled while a reprocess runs: rejecting doubles as the way
+                  to cancel it (the worker discards a redraft for a rejected
+                  suggestion), and as the escape hatch if the worker is down. */}
+              <Button variant="outlineDanger" disabled={busy} onClick={() => void reject()}>
+                Hylkää
+              </Button>
+            </div>
           </div>
         </div>
       </div>
+      <AiInstructionsDialog
+        open={reprocessOpen}
+        onClose={() => setReprocessOpen(false)}
+        title="Käsittele uudelleen"
+        description="Tekoäly lukee lähteen uudelleen ja korvaa kortin tiedot — myös käsin tehdyt muokkaukset."
+        confirmLabel="Käsittele uudelleen"
+        onSubmit={(instructions) => {
+          setReprocessOpen(false);
+          void reprocess(instructions);
+        }}
+      />
     </section>
   );
 }

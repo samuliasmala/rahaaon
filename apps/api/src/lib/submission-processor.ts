@@ -5,7 +5,7 @@ import { getTextObject } from "./s3.js";
 import { extractArticle } from "./suggestion-ai.js";
 import { env } from "../config/env.js";
 import { db } from "../db/client.js";
-import { suggestion, urlSubmission } from "../db/schema/index.js";
+import { suggestion, urlSubmission, wasteItem } from "../db/schema/index.js";
 
 /**
  * Background processing of Ehdotusjono entries: the editor's "Käsittele" only
@@ -109,11 +109,13 @@ async function pageTextFor(entry: SubmissionRow): Promise<string> {
 }
 
 /**
- * Finalize a successful extraction: insert the pending suggestion and mark the
- * submission `processed`, in one transaction. Guarded on the row still being
- * `processing` — if an attempt outlived its lease and a duplicate attempt
- * finalized first, the late result is discarded (only the extra LLM call was
- * wasted).
+ * Finalize a successful extraction, in one transaction: insert the pending
+ * suggestion and mark the submission `processed` — or, on a reprocess run
+ * (the row already carries a suggestion_id), overwrite the existing
+ * suggestion's AI fields in place, and the published feed item too when the
+ * suggestion has been approved. Guarded on the row still being `processing` —
+ * if an attempt outlived its lease and a duplicate attempt finalized first,
+ * the late result is discarded (only the extra LLM call was wasted).
  */
 async function finalize(
   entry: SubmissionRow,
@@ -131,17 +133,50 @@ async function finalize(
       return;
     }
 
-    const [created] = await tx
-      .insert(suggestion)
-      .values({ url: entry.url, ...extraction })
-      .returning({ id: suggestion.id });
+    let suggestionId = entry.suggestionId;
+    if (suggestionId) {
+      // Reprocess: replace the AI-drafted fields on the existing row. A
+      // suggestion rejected (or deleted) mid-run keeps its verdict — the
+      // extraction is discarded and only the submission's processing state is
+      // cleared below.
+      const [current] = await tx
+        .select({ status: suggestion.status, publishedItemId: suggestion.publishedItemId })
+        .from(suggestion)
+        .where(eq(suggestion.id, suggestionId))
+        .limit(1)
+        .for("update");
+      if (current && current.status !== "rejected") {
+        await tx.update(suggestion).set(extraction).where(eq(suggestion.id, suggestionId));
+        if (current.status === "approved" && current.publishedItemId) {
+          // The suggestion is live on the feed — carry the redraft onto the
+          // item (same fields approval copies; aiNote/confidence stay
+          // queue-side and publishedAt/hidden/votes are editorial state).
+          const { aiNote: _note, confidence: _conf, ...itemFields } = extraction;
+          await tx
+            .update(wasteItem)
+            .set(itemFields)
+            .where(eq(wasteItem.id, current.publishedItemId));
+        }
+      } else {
+        logger.warn(
+          { id: entry.id, suggestionId },
+          "suggestion gone or rejected mid-reprocess, discarding extraction",
+        );
+      }
+    } else {
+      const [created] = await tx
+        .insert(suggestion)
+        .values({ url: entry.url, ...extraction })
+        .returning({ id: suggestion.id });
+      suggestionId = created!.id;
+    }
 
     await tx
       .update(urlSubmission)
       .set({
         status: "processed",
         processedAt: new Date(),
-        suggestionId: created!.id,
+        suggestionId,
         processNextAttemptAt: null,
         processError: null,
       })
@@ -150,15 +185,20 @@ async function finalize(
 }
 
 /**
- * Give up: return the row to the Ehdotusjono with the failure note, so the
- * editor sees what happened and can retry (or reject). Conditional on the row
- * still being `processing`, like {@link finalize}.
+ * Give up: return the row to where the editor can see the failure note and
+ * retry (or reject) — the Ehdotusjono for a first run, `processed` for a
+ * reprocess (the queue card / published row surfaces the error). Conditional
+ * on the row still being `processing`, like {@link finalize}.
  */
-async function markFailed(id: string, message: string): Promise<void> {
+async function markFailed(entry: SubmissionRow, message: string): Promise<void> {
   await db
     .update(urlSubmission)
-    .set({ status: "new", processNextAttemptAt: null, processError: message })
-    .where(and(eq(urlSubmission.id, id), eq(urlSubmission.status, "processing")));
+    .set({
+      status: entry.suggestionId ? "processed" : "new",
+      processNextAttemptAt: null,
+      processError: message,
+    })
+    .where(and(eq(urlSubmission.id, entry.id), eq(urlSubmission.status, "processing")));
 }
 
 /** Push the next attempt into the future (backoff). Conditional as above. */
@@ -200,6 +240,7 @@ async function processRow(row: SubmissionRow, attempts: number): Promise<void> {
           row.url,
           { title: row.title, description: row.description, siteName: row.siteName },
           await pageTextFor(row),
+          row.processInstructions,
         ))(),
     );
     await finalize(row, extraction);
@@ -212,7 +253,7 @@ async function processRow(row: SubmissionRow, attempts: number): Promise<void> {
         { submissionId: row.id, url: row.url, attempts, err: message },
         "processing giving up",
       );
-      await markFailed(row.id, message).catch((e: unknown) =>
+      await markFailed(row, message).catch((e: unknown) =>
         logger.error(
           { submissionId: row.id, err: (e as Error).message },
           "failed to record processing failure",

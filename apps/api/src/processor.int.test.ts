@@ -51,6 +51,10 @@ let closeDb: () => Promise<void>;
 let queueSubmissionForProcessing: (id: string) => Promise<SubmissionView>;
 let listNewSubmissions: () => Promise<SubmissionView[]>;
 let rejectSubmission: (id: string) => Promise<void>;
+let reprocessSuggestion: (id: string, instructions: string | null) => Promise<void>;
+let approveSuggestion: (id: string) => Promise<{ itemId: string }>;
+let rejectSuggestion: (id: string) => Promise<void>;
+let reprocessItem: (id: string, instructions: string | null) => Promise<void>;
 let stopSubmissionProcessor: () => Promise<void>;
 let extractArticleMock: ReturnType<typeof vi.fn>;
 
@@ -78,6 +82,19 @@ async function waitForStatus(id: string, expected: string, timeoutMs = 15_000): 
     if (Date.now() > deadline) {
       throw new Error(`submission ${id} stuck in '${status}', expected '${expected}'`);
     }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
+/** Poll until the condition holds (or time out) — for outcomes a status alone can't signal. */
+async function waitFor(
+  check: () => Promise<boolean>,
+  what: string,
+  timeoutMs = 15_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!(await check())) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
     await new Promise((r) => setTimeout(r, 50));
   }
 }
@@ -110,6 +127,11 @@ beforeAll(async () => {
   queueSubmissionForProcessing = repo.queueSubmissionForProcessing;
   listNewSubmissions = repo.listNewSubmissions;
   rejectSubmission = repo.rejectSubmission;
+  const suggestionsRepo = await import("./features/suggestions/suggestions.repo.js");
+  reprocessSuggestion = suggestionsRepo.reprocessSuggestion;
+  approveSuggestion = suggestionsRepo.approveSuggestion;
+  rejectSuggestion = suggestionsRepo.rejectSuggestion;
+  reprocessItem = (await import("./features/items/items.repo.js")).reprocessItem;
   extractArticleMock = vi.mocked((await import("./lib/suggestion-ai.js")).extractArticle);
 
   // server.ts starts the worker in production; the test drives the modules
@@ -227,5 +249,173 @@ describe("submission processor", () => {
     expect(row.suggestion_id).toBeNull();
     const created = await sql<{ id: string }[]>`select id from suggestion where url = ${url}`;
     expect(created.length).toBe(0);
+  });
+
+  it("reprocesses in place: the suggestion is overwritten, not duplicated", async () => {
+    extractArticleMock.mockResolvedValue(EXTRACTION);
+    const url = "https://example.invalid/uusiksi";
+    const id = await insertSubmission(url);
+    await queueSubmissionForProcessing(id);
+    await waitForStatus(id, "processed");
+    const { suggestion_id: sid } = await submissionById(id);
+
+    extractArticleMock.mockReset();
+    extractArticleMock.mockResolvedValue({ ...EXTRACTION, title: "Uusi otsikko" });
+    await reprocessSuggestion(sid!, "poimi kokonaiskustannus");
+
+    // A reprocess run must not resurface the row in the Ehdotusjono.
+    expect((await listNewSubmissions()).map((s) => s.id)).not.toContain(id);
+
+    await waitFor(async () => {
+      const [row] = await sql<{ title: string }[]>`select title from suggestion where id = ${sid}`;
+      return row?.title === "Uusi otsikko";
+    }, "suggestion redraft");
+
+    // Overwritten in place: still one pending suggestion for the url.
+    const suggestions = await sql<{ status: string }[]>`
+      select status from suggestion where url = ${url}
+    `;
+    expect(suggestions.length).toBe(1);
+    expect(suggestions[0]!.status).toBe("pending");
+
+    // The editor's instructions reached the LLM call (the 4th argument).
+    expect(extractArticleMock.mock.calls.at(-1)?.[3]).toBe("poimi kokonaiskustannus");
+
+    // The source row settles back to processed with a clean slate.
+    const row = await submissionById(id);
+    expect(row.status).toBe("processed");
+    expect(row.process_error).toBeNull();
+  });
+
+  it("a failed reprocess settles back to 'processed' with the error, keeping the suggestion", async () => {
+    extractArticleMock.mockResolvedValue(EXTRACTION);
+    const id = await insertSubmission("https://example.invalid/uusiksi-kaatuu");
+    await queueSubmissionForProcessing(id);
+    await waitForStatus(id, "processed");
+    const { suggestion_id: sid } = await submissionById(id);
+
+    extractArticleMock.mockReset();
+    extractArticleMock.mockRejectedValue(new Error("uudelleenajo kaatui"));
+    await reprocessSuggestion(sid!, null);
+
+    await waitFor(
+      async () => (await submissionById(id)).process_error === "uudelleenajo kaatui",
+      "reprocess failure to be recorded",
+    );
+    const row = await submissionById(id);
+    // Back to 'processed', not 'new' — the failure belongs to the queue card,
+    // not the Ehdotusjono.
+    expect(row.status).toBe("processed");
+    expect(row.process_attempts).toBe(3);
+
+    // The suggestion kept its previous extraction, and a retry works.
+    const [sugg] = await sql<{ title: string; status: string }[]>`
+      select title, status from suggestion where id = ${sid}
+    `;
+    expect(sugg?.title).toBe(EXTRACTION.title);
+    expect(sugg?.status).toBe("pending");
+  });
+
+  it("reprocessing an approved suggestion lands the redraft on the published item", async () => {
+    extractArticleMock.mockResolvedValue(EXTRACTION);
+    const id = await insertSubmission("https://example.invalid/julkaistu");
+    await queueSubmissionForProcessing(id);
+    await waitForStatus(id, "processed");
+    const { suggestion_id: sid } = await submissionById(id);
+    const { itemId } = await approveSuggestion(sid!);
+
+    extractArticleMock.mockReset();
+    extractArticleMock.mockResolvedValue({
+      ...EXTRACTION,
+      title: "Päivitetty juttu",
+      amountEur: 99_000,
+    });
+    await reprocessItem(itemId, "tarkista summa");
+
+    await waitFor(async () => {
+      const [item] = await sql<{ title: string }[]>`
+        select title from waste_item where id = ${itemId}
+      `;
+      return item?.title === "Päivitetty juttu";
+    }, "item redraft");
+
+    const [item] = await sql<{ amount_eur: number }[]>`
+      select amount_eur from waste_item where id = ${itemId}
+    `;
+    expect(item?.amount_eur).toBe(99_000);
+    // The suggestion row follows the redraft and stays approved.
+    const [sugg] = await sql<{ title: string; status: string }[]>`
+      select title, status from suggestion where id = ${sid}
+    `;
+    expect(sugg?.title).toBe("Päivitetty juttu");
+    expect(sugg?.status).toBe("approved");
+    expect(extractArticleMock.mock.calls.at(-1)?.[3]).toBe("tarkista summa");
+  });
+
+  it("refuses a reprocess without a source submission, or while one is running", async () => {
+    // A seeded-style suggestion with no submission behind it.
+    const [orphan] = await sql<{ id: string }[]>`
+      insert into suggestion (url, title, amount_eur, entity, category, source_name, summary, confidence)
+      values ('https://example.invalid/orpo', 'Orpo ehdotus', 1000, 'Espoo', 'Muu', 'Lehti', 'Tiivistelmä.', 50)
+      returning id
+    `;
+    await expect(reprocessSuggestion(orphan!.id, null)).rejects.toThrow(
+      "alkuperäistä linkkiehdotusta",
+    );
+
+    // A second reprocess while one is in flight comes back as a conflict.
+    extractArticleMock.mockResolvedValue(EXTRACTION);
+    const id = await insertSubmission("https://example.invalid/tupla-ajo");
+    await queueSubmissionForProcessing(id);
+    await waitForStatus(id, "processed");
+    const { suggestion_id: sid } = await submissionById(id);
+
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    extractArticleMock.mockReset();
+    extractArticleMock.mockImplementation(async () => {
+      await gate;
+      return EXTRACTION;
+    });
+    await reprocessSuggestion(sid!, null);
+    await expect(reprocessSuggestion(sid!, null)).rejects.toThrow("jo käynnissä");
+    release();
+    await waitForStatus(id, "processed");
+  });
+
+  it("rejecting the suggestion mid-reprocess discards the redraft", async () => {
+    extractArticleMock.mockResolvedValue(EXTRACTION);
+    const id = await insertSubmission("https://example.invalid/hylataan-kesken");
+    await queueSubmissionForProcessing(id);
+    await waitForStatus(id, "processed");
+    const { suggestion_id: sid } = await submissionById(id);
+
+    // Gate the redraft so the reject reliably lands mid-run.
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    extractArticleMock.mockReset();
+    extractArticleMock.mockImplementation(async () => {
+      await gate;
+      return { ...EXTRACTION, title: "Ei saa näkyä" };
+    });
+    await reprocessSuggestion(sid!, null);
+
+    // A reprocess row is not the Ehdotusjono's to reject (it isn't listed
+    // there); the suggestion itself is — and that's how the run is cancelled.
+    await expect(rejectSubmission(id)).rejects.toThrow("Ehdotusta ei löytynyt");
+    await rejectSuggestion(sid!);
+    release();
+
+    // The worker settles the submission but the rejected verdict stands.
+    await waitForStatus(id, "processed");
+    const [sugg] = await sql<{ title: string; status: string }[]>`
+      select title, status from suggestion where id = ${sid}
+    `;
+    expect(sugg?.status).toBe("rejected");
+    expect(sugg?.title).toBe(EXTRACTION.title);
   });
 });

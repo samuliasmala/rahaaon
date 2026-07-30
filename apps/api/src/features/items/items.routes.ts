@@ -1,5 +1,5 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { listAdminItems, listItems, toggleVote, updateItem } from "./items.repo.js";
+import { listAdminItems, listItems, reprocessItem, toggleVote, updateItem } from "./items.repo.js";
 import {
   adminWasteItemSchema,
   generateKeywordsRequestSchema,
@@ -13,6 +13,7 @@ import { commonErrorResponses, createRouter, errorResponse } from "../../lib/ope
 import { requireAuth } from "../../middleware/auth.js";
 import { rateLimit } from "../../middleware/rate-limit.js";
 import { ensureVisitor, readVisitor } from "../../middleware/visitor.js";
+import { instructionsOrNull, processRequestSchema } from "../submissions/schemas.js";
 
 const idParam = z.object({ id: z.uuid() });
 
@@ -109,6 +110,34 @@ itemRoutes.openapi(
   async (c) => {
     await updateItem(c.req.valid("param").id, c.req.valid("json"));
     return c.json({ ok: true as const }, 200);
+  },
+);
+
+itemRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/admin/items/{id}/reprocess",
+    summary:
+      "Re-run the AI extraction for a published item, optionally with editor instructions; the redraft lands on the live item",
+    tags: ["Admin"],
+    middleware: [requireAuth] as const,
+    request: {
+      params: idParam,
+      body: { content: { "application/json": { schema: processRequestSchema } } },
+    },
+    responses: {
+      202: {
+        description: "Queued — the admin listing reports reprocessing: true until the run finishes",
+        content: { "application/json": { schema: z.object({ ok: z.literal(true) }) } },
+      },
+      409: errorResponse("Uudelleenkäsittely ei ole mahdollinen tai on jo käynnissä"),
+      ...commonErrorResponses,
+    },
+  }),
+  async (c) => {
+    const { instructions } = c.req.valid("json");
+    await reprocessItem(c.req.valid("param").id, instructionsOrNull(instructions));
+    return c.json({ ok: true as const }, 202);
   },
 );
 

@@ -100,7 +100,10 @@ export const getApiAdminItemsResponseItem = zod.object({
   "submissionId": zod.uuid(),
   "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed', 'missing', 'disabled']),
   "hasArchivedText": zod.boolean()
-}).nullable()
+}).nullable(),
+  "canReprocess": zod.boolean(),
+  "reprocessing": zod.boolean(),
+  "reprocessError": zod.string().nullable()
 }))
 export const getApiAdminItemsResponse = zod.array(getApiAdminItemsResponseItem)
 
@@ -146,6 +149,22 @@ export const patchApiAdminItemsIdBody = zod.object({
 
 export const patchApiAdminItemsIdResponse = zod.object({
   "ok": zod.literal(true)
+})
+
+
+/**
+ * @summary Re-run the AI extraction for a published item, optionally with editor instructions; the redraft lands on the live item
+ */
+export const postApiAdminItemsIdReprocessParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const postApiAdminItemsIdReprocessBodyInstructionsMax = 2000;
+
+
+
+export const postApiAdminItemsIdReprocessBody = zod.object({
+  "instructions": zod.string().max(postApiAdminItemsIdReprocessBodyInstructionsMax).optional()
 })
 
 
@@ -197,7 +216,10 @@ export const getApiAdminSuggestionsResponseItem = zod.object({
   "submissionId": zod.uuid(),
   "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed', 'missing', 'disabled']),
   "hasArchivedText": zod.boolean()
-}).nullable()
+}).nullable(),
+  "canReprocess": zod.boolean(),
+  "reprocessing": zod.boolean(),
+  "reprocessError": zod.string().nullable()
 }))
 export const getApiAdminSuggestionsResponse = zod.array(getApiAdminSuggestionsResponseItem)
 
@@ -257,6 +279,22 @@ export const patchApiAdminSuggestionsIdResponse = zod.object({
   "aiNote": zod.string(),
   "confidence": zod.number(),
   "createdAt": zod.iso.datetime({})
+})
+
+
+/**
+ * @summary Re-run the AI extraction for a pending suggestion, optionally with editor instructions; overwrites the suggestion in place
+ */
+export const postApiAdminSuggestionsIdReprocessParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const postApiAdminSuggestionsIdReprocessBodyInstructionsMax = 2000;
+
+
+
+export const postApiAdminSuggestionsIdReprocessBody = zod.object({
+  "instructions": zod.string().max(postApiAdminSuggestionsIdReprocessBodyInstructionsMax).optional()
 })
 
 
@@ -392,6 +430,14 @@ export const getApiAdminSubmissionsResponse = zod.array(getApiAdminSubmissionsRe
  */
 export const postApiAdminSubmissionsIdProcessParams = zod.object({
   "id": zod.uuid()
+})
+
+export const postApiAdminSubmissionsIdProcessBodyInstructionsMax = 2000;
+
+
+
+export const postApiAdminSubmissionsIdProcessBody = zod.object({
+  "instructions": zod.string().max(postApiAdminSubmissionsIdProcessBodyInstructionsMax).optional()
 })
 
 

@@ -30,6 +30,7 @@ export function ExtractionFields({
   onSave,
   summaryLabel = "Tiivistelmä",
   busy = false,
+  disabled = false,
 }: {
   idPrefix: string;
   draft: ExtractionDraft;
@@ -38,6 +39,8 @@ export function ExtractionFields({
   summaryLabel?: string;
   /** True while the caller is saving/approving — blocks a racing keyword generation. */
   busy?: boolean;
+  /** Locks every field — e.g. while a reprocess is about to replace their values. */
+  disabled?: boolean;
 }) {
   const keywordsMutation = usePostApiAdminKeywordsGenerate();
 
@@ -78,7 +81,10 @@ export function ExtractionFields({
   }
 
   return (
-    <div className="flex flex-col gap-3.5">
+    // A fieldset so `disabled` reaches every input natively, with no per-field
+    // wiring. min-w-0 counters the fieldset's min-content default, which would
+    // otherwise let long values break the grid.
+    <fieldset disabled={disabled} className="flex min-w-0 flex-col gap-3.5">
       <div className="flex flex-col gap-1.5">
         <FieldLabel htmlFor={`${idPrefix}-title`}>Otsikko</FieldLabel>
         <Input
@@ -211,6 +217,6 @@ export function ExtractionFields({
           />
         </div>
       </div>
-    </div>
+    </fieldset>
   );
 }

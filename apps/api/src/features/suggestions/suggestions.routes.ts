@@ -10,11 +10,13 @@ import {
   listPendingSuggestions,
   listRejectedSuggestions,
   rejectSuggestion,
+  reprocessSuggestion,
   restoreSuggestion,
   updateSuggestion,
 } from "./suggestions.repo.js";
-import { commonErrorResponses, createRouter } from "../../lib/openapi.js";
+import { commonErrorResponses, createRouter, errorResponse } from "../../lib/openapi.js";
 import { requireAuth } from "../../middleware/auth.js";
+import { instructionsOrNull, processRequestSchema } from "../submissions/schemas.js";
 
 const idParam = z.object({ id: z.uuid() });
 
@@ -63,6 +65,34 @@ suggestionRoutes.openapi(
   async (c) => {
     const updated = await updateSuggestion(c.req.valid("param").id, c.req.valid("json"));
     return c.json(updated, 200);
+  },
+);
+
+suggestionRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/admin/suggestions/{id}/reprocess",
+    summary:
+      "Re-run the AI extraction for a pending suggestion, optionally with editor instructions; overwrites the suggestion in place",
+    tags: ["Admin"],
+    middleware: [requireAuth] as const,
+    request: {
+      params: idParam,
+      body: { content: { "application/json": { schema: processRequestSchema } } },
+    },
+    responses: {
+      202: {
+        description: "Queued — the listing reports reprocessing: true until the run finishes",
+        content: { "application/json": { schema: z.object({ ok: z.literal(true) }) } },
+      },
+      409: errorResponse("Uudelleenkäsittely ei ole mahdollinen tai on jo käynnissä"),
+      ...commonErrorResponses,
+    },
+  }),
+  async (c) => {
+    const { instructions } = c.req.valid("json");
+    await reprocessSuggestion(c.req.valid("param").id, instructionsOrNull(instructions));
+    return c.json({ ok: true as const }, 202);
   },
 );
 

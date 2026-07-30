@@ -1,7 +1,7 @@
 import { z } from "@hono/zod-openapi";
 import { AMOUNT_TYPES, CATEGORIES } from "../../db/schema/content.js";
 import { MAX_KEYWORDS, MAX_KEYWORD_LENGTH } from "../../lib/keyword-ai.js";
-import { archiveRefSchema } from "../submissions/schemas.js";
+import { archiveRefSchema, reprocessStateFields } from "../submissions/schemas.js";
 
 export const categorySchema = z.enum(CATEGORIES).openapi("Category");
 
@@ -45,11 +45,12 @@ export type WasteItemView = z.infer<typeof wasteItemSchema>;
 
 /**
  * The admin listing: a feed item plus the pointer to the page archive of the
- * submission it was published from. Admin-only — the ref carries a submission
- * id, which the public feed must not leak.
+ * submission it was published from and that submission's reprocess state.
+ * Admin-only — the ref carries a submission id, which the public feed must
+ * not leak.
  */
 export const adminWasteItemSchema = wasteItemSchema
-  .extend({ archive: archiveRefSchema.nullable() })
+  .extend({ archive: archiveRefSchema.nullable(), ...reprocessStateFields })
   .openapi("AdminWasteItem");
 
 export type AdminWasteItemView = z.infer<typeof adminWasteItemSchema>;

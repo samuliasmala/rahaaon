@@ -47,11 +47,13 @@ function AdminPage() {
     },
   });
   // The remaining lists carry archive pills too; poll them while a re-archive
-  // kicked off from one of their cards is in flight.
+  // or an AI reprocess kicked off from one of their cards is in flight.
   const { data: queue = [] } = useGetApiAdminSuggestions({
     query: {
       refetchInterval: (query) =>
-        query.state.data?.some((entry) => entry.archive?.archiveStatus === "pending")
+        query.state.data?.some(
+          (entry) => entry.archive?.archiveStatus === "pending" || entry.reprocessing,
+        )
           ? PROCESSING_POLL_MS
           : false,
     },
@@ -90,7 +92,9 @@ function AdminPage() {
   const { data: items = [] } = useGetApiAdminItems({
     query: {
       refetchInterval: (query) =>
-        query.state.data?.some((item) => item.archive?.archiveStatus === "pending")
+        query.state.data?.some(
+          (item) => item.archive?.archiveStatus === "pending" || item.reprocessing,
+        )
           ? PROCESSING_POLL_MS
           : false,
     },

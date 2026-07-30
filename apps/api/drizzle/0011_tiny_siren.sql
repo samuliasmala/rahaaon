@@ -1,0 +1,1 @@
+ALTER TABLE "url_submission" ADD COLUMN "process_instructions" text;

@@ -3,7 +3,7 @@ import { db } from "../../db/client.js";
 import { suggestion, urlSubmission, wasteItem } from "../../db/schema/index.js";
 import { normalizeAmount } from "../../lib/amount.js";
 import { notFound } from "../../lib/http-errors.js";
-import { toArchiveRef } from "../submissions/submissions.repo.js";
+import { requeueSubmissionForReprocess, toArchiveRef } from "../submissions/submissions.repo.js";
 import type {
   RejectedSuggestionView,
   SuggestionView,
@@ -39,7 +39,9 @@ function toView(row: SuggestionRow): SuggestionView {
 
 /**
  * The AI queue: pending suggestions, newest first, each with the pointer to
- * its source submission's page archive (null for seeded/archive-less rows).
+ * its source submission's page archive (null for seeded/archive-less rows)
+ * and the state of a reprocess run on that submission, when one is underway
+ * or has failed.
  */
 export async function listPendingSuggestions(): Promise<SuggestionWithArchiveView[]> {
   const rows = await db
@@ -52,15 +54,43 @@ export async function listPendingSuggestions(): Promise<SuggestionWithArchiveVie
   // it — collapse would-be duplicate join rows instead of duplicating cards.
   const byId = new Map<string, SuggestionWithArchiveView>();
   for (const row of rows) {
+    const sub = row.url_submission;
+    const archive = sub && toArchiveRef(sub);
     const existing = byId.get(row.suggestion.id);
-    const archive = row.url_submission && toArchiveRef(row.url_submission);
     if (!existing) {
-      byId.set(row.suggestion.id, { ...toView(row.suggestion), archive: archive ?? null });
-    } else if (!existing.archive && archive) {
-      existing.archive = archive;
+      byId.set(row.suggestion.id, {
+        ...toView(row.suggestion),
+        archive: archive ?? null,
+        canReprocess: sub !== null,
+        reprocessing: sub?.status === "processing",
+        reprocessError: sub?.processError ?? null,
+      });
+      continue;
+    }
+    if (!existing.archive && archive) existing.archive = archive;
+    if (!existing.canReprocess && sub) {
+      existing.canReprocess = true;
+      existing.reprocessing = sub.status === "processing";
+      existing.reprocessError = sub.processError;
     }
   }
   return [...byId.values()];
+}
+
+/**
+ * Re-run the AI extraction for a pending suggestion, optionally with editor
+ * instructions — the result overwrites the card's fields in place (edits
+ * included; the editor asked for a redraft). Runs through the same background
+ * pipeline as the first pass; the queue view polls `reprocessing` until done.
+ */
+export async function reprocessSuggestion(id: string, instructions: string | null): Promise<void> {
+  const rows = await db
+    .select({ id: suggestion.id })
+    .from(suggestion)
+    .where(and(eq(suggestion.id, id), eq(suggestion.status, "pending")))
+    .limit(1);
+  if (rows.length === 0) throw notFound("Ehdotusta ei löytynyt");
+  await requeueSubmissionForReprocess(id, instructions);
 }
 
 /**
@@ -101,11 +131,16 @@ export async function updateSuggestion(
 /** Publish a pending suggestion as a feed item; returns the new item's id. */
 export async function approveSuggestion(id: string): Promise<{ itemId: string }> {
   return db.transaction(async (tx) => {
+    // Locked: a reprocess finalizing concurrently must not slip its redraft
+    // into the suggestion between this read and the insert below — the item
+    // would be published from the pre-redraft snapshot while the worker,
+    // still seeing 'pending', skips the item update.
     const [entry] = await tx
       .select()
       .from(suggestion)
       .where(and(eq(suggestion.id, id), eq(suggestion.status, "pending")))
-      .limit(1);
+      .limit(1)
+      .for("update");
     if (!entry) throw notFound("Ehdotusta ei löytynyt");
 
     const [item] = await tx

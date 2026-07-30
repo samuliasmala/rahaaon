@@ -79,13 +79,17 @@ export async function createSubmission(url: string): Promise<UrlSubmissionView> 
 /**
  * The admin Ehdotusjono: unprocessed reader links, newest first. Rows the
  * background processor is working on stay in the list (`processing: true`) so
- * the queue card can show a persistent "Käsitellään…" state.
+ * the queue card can show a persistent "Käsitellään…" state. Reprocess runs
+ * (`processing` rows that already carry a suggestion_id) belong to the AI
+ * queue / published views, not here.
  */
 export async function listNewSubmissions(): Promise<UrlSubmissionView[]> {
   const rows = await db
     .select()
     .from(urlSubmission)
-    .where(inArray(urlSubmission.status, ["new", "processing"]))
+    .where(
+      and(inArray(urlSubmission.status, ["new", "processing"]), isNull(urlSubmission.suggestionId)),
+    )
     .orderBy(desc(urlSubmission.createdAt));
   return rows.map(toView);
 }
@@ -94,7 +98,11 @@ export async function listNewSubmissions(): Promise<UrlSubmissionView[]> {
  * Reject a link out of the queue (kept in the rejected archive). Also allowed
  * mid-processing — it doubles as the editor's way to cancel a run (the worker
  * discards a finished extraction for a row that is no longer `processing`),
- * and the escape hatch should the worker be down and the row stuck.
+ * and the escape hatch should the worker be down and the row stuck. First-run
+ * rows only (no suggestion_id): a reprocess row isn't the Ehdotusjono's to
+ * reject — without this guard a stale tab could reject one mid-reprocess and
+ * a later restore would strand it invisible in every list ('new' rows with a
+ * suggestion_id are filtered out of {@link listNewSubmissions}).
  */
 export async function rejectSubmission(id: string): Promise<void> {
   const updated = await db
@@ -105,7 +113,13 @@ export async function rejectSubmission(id: string): Promise<void> {
       processNextAttemptAt: null,
       processError: null,
     })
-    .where(and(eq(urlSubmission.id, id), inArray(urlSubmission.status, ["new", "processing"])))
+    .where(
+      and(
+        eq(urlSubmission.id, id),
+        inArray(urlSubmission.status, ["new", "processing"]),
+        isNull(urlSubmission.suggestionId),
+      ),
+    )
     .returning({ id: urlSubmission.id });
   if (updated.length === 0) throw notFound("Ehdotusta ei löytynyt");
 }
@@ -245,7 +259,10 @@ export async function retrySubmissionArchive(
  * the concurrency guard — a second click (or a reject that raced this) finds a
  * non-'new' status and 404s.
  */
-export async function queueSubmissionForProcessing(id: string): Promise<UrlSubmissionView> {
+export async function queueSubmissionForProcessing(
+  id: string,
+  instructions: string | null = null,
+): Promise<UrlSubmissionView> {
   const [row] = await db
     .update(urlSubmission)
     .set({
@@ -253,6 +270,7 @@ export async function queueSubmissionForProcessing(id: string): Promise<UrlSubmi
       processAttempts: 0,
       processNextAttemptAt: null,
       processError: null,
+      processInstructions: instructions,
     })
     .where(and(eq(urlSubmission.id, id), eq(urlSubmission.status, "new")))
     .returning();
@@ -261,4 +279,44 @@ export async function queueSubmissionForProcessing(id: string): Promise<UrlSubmi
   // starts right away (the periodic poll would otherwise pick it up shortly).
   void runProcessorOnce();
   return toView(row);
+}
+
+/**
+ * Send a processed submission back through the AI extraction — the reprocess
+ * behind the AI queue's and published table's "Käsittele uudelleen". Keyed on
+ * the suggestion because that's what the caller holds; the kept suggestion_id
+ * is also what routes the worker's finalize into updating the existing
+ * suggestion (and its published item) instead of inserting a new one. The
+ * conditional update doubles as the guard: only a settled ('processed') source
+ * row can be requeued, so a double click comes back 409 — and a suggestion
+ * with no source submission (seeded rows) can't be reprocessed at all.
+ */
+export async function requeueSubmissionForReprocess(
+  suggestionId: string,
+  instructions: string | null,
+): Promise<void> {
+  const [row] = await db
+    .update(urlSubmission)
+    .set({
+      status: "processing",
+      processAttempts: 0,
+      processNextAttemptAt: null,
+      processError: null,
+      processInstructions: instructions,
+    })
+    .where(and(eq(urlSubmission.suggestionId, suggestionId), eq(urlSubmission.status, "processed")))
+    .returning({ id: urlSubmission.id });
+  if (!row) {
+    const exists = await db
+      .select({ id: urlSubmission.id })
+      .from(urlSubmission)
+      .where(eq(urlSubmission.suggestionId, suggestionId))
+      .limit(1);
+    if (exists.length === 0) {
+      throw conflict("Uudelleenkäsittely ei onnistu — alkuperäistä linkkiehdotusta ei löydy");
+    }
+    throw conflict("Tekoälykäsittely on jo käynnissä");
+  }
+  // As on the first run: the row is claimable work, kick an immediate drain.
+  void runProcessorOnce();
 }

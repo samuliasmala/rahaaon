@@ -6,7 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ArchiveRef } from './archiveRef';
+import type { SuggestionWithArchiveAllOfReprocessError } from './suggestionWithArchiveAllOfReprocessError';
 
 export type SuggestionWithArchiveAllOf = {
   archive: ArchiveRef;
+  canReprocess: boolean;
+  reprocessing: boolean;
+  reprocessError: SuggestionWithArchiveAllOfReprocessError;
 };
