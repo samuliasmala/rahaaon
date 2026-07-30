@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import { toast } from "sonner";
+import { useArchiveRetry } from "./use-archive-retry.js";
 import {
   getGetApiAdminSubmissionsIdArchiveTextQueryKey,
   useGetApiAdminSubmissionsIdArchiveText,
@@ -17,9 +18,11 @@ import type { QueryKey } from "@tanstack/react-query";
  * Viewer/editor for the archived article text (Markdown). Viewing renders the
  * markdown; editing exposes the raw text — the escape hatch for paywalled
  * articles the archiver couldn't read, which the editor pastes in by hand.
- * Rows without any stored text open straight in edit mode. The archive is
- * submission-scoped wherever the ref came from (submission card, queue card,
- * published item), so the endpoints always address the submission id.
+ * Rows without any stored text open straight in edit mode. The view mode also
+ * offers a forced re-archive (refetch the page, replace the stored text) for
+ * captures that came out stale or mangled. The archive is submission-scoped
+ * wherever the ref came from (submission card, queue card, published item),
+ * so the endpoints always address the submission id.
  *
  * On `processed` entries the AI extraction already ran and there is no way to
  * re-run it, so the editor shows a note that edits land in the archive only —
@@ -45,6 +48,12 @@ export function ArchiveTextDialog({
     query: { enabled: open && archive.hasArchivedText },
   });
   const saveMutation = usePutApiAdminSubmissionsIdArchiveText();
+  // The text query is invalidated alongside the lists: the stored text is
+  // discarded on a forced re-archive, and a reopened dialog must not show it.
+  const { retrying, retryArchive } = useArchiveRetry([
+    ...listQueryKeys,
+    getGetApiAdminSubmissionsIdArchiveTextQueryKey(archive.submissionId),
+  ]);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -67,6 +76,15 @@ export function ArchiveTextDialog({
     setDraft(initial);
     setBaseline(initial);
     setEditing(true);
+  }
+
+  // Refetch the page and replace the stored text (forced re-archive) — for a
+  // capture that came out stale or mangled. Destroys the current text, so it
+  // asks first; on success the dialog closes and the row's pill shows the
+  // capture running.
+  async function refetchArchive() {
+    if (!window.confirm("Haetaanko sivu uudelleen? Nykyinen arkistoitu teksti korvataan.")) return;
+    if (await retryArchive(archive.submissionId, { force: true })) onClose();
   }
 
   // A hand-pasted paywalled article is exactly what this editor exists for —
@@ -175,8 +193,15 @@ export function ArchiveTextDialog({
                   the editor's browser (tracking pixels etc.). */}
               <Markdown disallowedElements={["img"]}>{textQuery.data ?? ""}</Markdown>
             </div>
-            <div className="flex justify-end">
-              <Button variant="outline" onClick={() => startEditing(textQuery.data ?? "")}>
+            <div className="flex justify-end gap-2.5">
+              <Button variant="outline" disabled={retrying} onClick={() => void refetchArchive()}>
+                {retrying ? "Arkistoidaan…" : "Arkistoi uudelleen"}
+              </Button>
+              <Button
+                variant="outline"
+                disabled={retrying}
+                onClick={() => startEditing(textQuery.data ?? "")}
+              >
                 Muokkaa
               </Button>
             </div>

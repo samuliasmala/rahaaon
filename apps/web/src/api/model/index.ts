@@ -30,6 +30,7 @@ export * from './patchItemArticlePublishedAt';
 export * from './patchSuggestion';
 export * from './patchSuggestionAmountMaxEur';
 export * from './patchSuggestionArticlePublishedAt';
+export * from './postApiAdminSubmissionsIdArchiveRetryParams';
 export * from './postApiAdminSubmissionsIdReject200';
 export * from './postApiAdminSuggestionsIdApprove200';
 export * from './postApiAdminSuggestionsIdReject200';

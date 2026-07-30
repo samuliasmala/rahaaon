@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { db } from "../../db/client.js";
 import { urlSubmission } from "../../db/schema/index.js";
 import {
@@ -195,26 +195,32 @@ export async function saveSubmissionArchiveText(id: string, text: string): Promi
  * marks the row as pending work and kicks the worker. The conditional update
  * is the guard: a retry can't clobber a good archive (ok/paywalled) or
  * double-kick a pending one — those come back 409.
+ *
+ * `force` widens the eligible states to the settled captures (ok/paywalled),
+ * for refetching a page whose archive is stale or mangled. The stored text is
+ * discarded up front (the fresh 'pending' row must not report
+ * hasArchivedText); a worker success overwrites the S3 object, while a
+ * failure leaves it orphaned — acceptable, since the editor asked for the
+ * replacement. Even forced, an in-flight 'pending' capture stays off-limits.
  */
-export async function retrySubmissionArchive(id: string): Promise<UrlSubmissionView> {
+export async function retrySubmissionArchive(
+  id: string,
+  force = false,
+): Promise<UrlSubmissionView> {
   if (!archiveEnabled) throw unavailable("Arkistointi ei ole käytössä (S3 puuttuu)");
+  // NULL fails both eq and ne in SQL, so "never attempted" needs its own arm.
+  const eligible = force
+    ? or(ne(urlSubmission.archiveStatus, "pending"), isNull(urlSubmission.archiveStatus))
+    : or(eq(urlSubmission.archiveStatus, "failed"), isNull(urlSubmission.archiveStatus));
   const [row] = await db
     .update(urlSubmission)
-    // The eligible states never carry a text key; nulling it here makes that
-    // an enforced invariant rather than an assumption — a fresh 'pending' row
-    // must not report hasArchivedText.
     .set({
       archiveStatus: "pending",
       archiveTextKey: null,
       archiveAttempts: 0,
       archiveNextAttemptAt: null,
     })
-    .where(
-      and(
-        eq(urlSubmission.id, id),
-        or(eq(urlSubmission.archiveStatus, "failed"), isNull(urlSubmission.archiveStatus)),
-      ),
-    )
+    .where(and(eq(urlSubmission.id, id), eligible))
     .returning();
   if (!row) {
     const exists = await db
@@ -223,7 +229,9 @@ export async function retrySubmissionArchive(id: string): Promise<UrlSubmissionV
       .where(eq(urlSubmission.id, id))
       .limit(1);
     if (exists.length === 0) throw notFound("Ehdotusta ei löytynyt");
-    throw conflict("Arkisto on jo olemassa tai arkistointi on käynnissä");
+    throw conflict(
+      force ? "Arkistointi on jo käynnissä" : "Arkisto on jo olemassa tai arkistointi on käynnissä",
+    );
   }
   // The row is now a 'pending' work item; kick an immediate drain as on submit.
   void runArchiveOnce();

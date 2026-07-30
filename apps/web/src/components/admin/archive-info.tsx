@@ -1,8 +1,6 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { toast } from "sonner";
 import { ArchiveTextDialog } from "./archive-text-dialog.js";
-import { usePostApiAdminSubmissionsIdArchiveRetry } from "../../api/admin/admin.js";
+import { useArchiveRetry } from "./use-archive-retry.js";
 import { Pill } from "../ui/pill.js";
 import type { ArchiveRef } from "../../api/model/index.js";
 import type { QueryKey } from "@tanstack/react-query";
@@ -20,7 +18,8 @@ const linkClasses =
  * null (seeded entries with no submission behind them; queue/item rows whose
  * page was never archived while archiving is off). A `failed` or `missing`
  * archive offers a re-archive action — the API resets the row to pending and
- * the worker takes another shot at the page.
+ * the worker takes another shot at the page. A settled capture gets the same
+ * action inside the text dialog (next to Muokkaa), as a forced refetch.
  *
  * `processed` marks refs whose entry already went through the AI extraction
  * (queue cards, published items): the "retried at processing" note would be a
@@ -43,12 +42,7 @@ export function ArchiveInfo({
   processed?: boolean;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
-  // Covers the whole retry round-trip including the list refetch — the
-  // mutation's own isPending drops the moment the POST resolves, which would
-  // re-enable the button while the pill still says the archive failed.
-  const [retrying, setRetrying] = useState(false);
-  const queryClient = useQueryClient();
-  const retryMutation = usePostApiAdminSubmissionsIdArchiveRetry();
+  const { retrying, retryArchive } = useArchiveRetry(listQueryKeys);
 
   if (!archive) return null;
 
@@ -77,29 +71,7 @@ export function ArchiveInfo({
   // 'disabled' has no actions: the archive endpoints refuse without S3.
   const canRetry = archive.archiveStatus === "failed" || archive.archiveStatus === "missing";
   const canOpenText = archive.archiveStatus !== "pending" && archive.archiveStatus !== "disabled";
-
-  async function retryArchive() {
-    if (!archive || retrying) return;
-    setRetrying(true);
-    let started = true;
-    try {
-      await retryMutation.mutateAsync({ id: archive.submissionId });
-    } catch {
-      started = false;
-      toast("Arkistoinnin käynnistys epäonnistui.");
-    }
-    try {
-      // Refetch on failure too: a 409 means the pill is stale (the archive
-      // already finished or is running) and the refetch is what clears it.
-      // On success the row is pending again and the lists poll it onward.
-      await Promise.all(
-        listQueryKeys.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
-      );
-    } finally {
-      setRetrying(false);
-    }
-    if (started) toast("Arkistointi käynnistetty");
-  }
+  const submissionId = archive.submissionId;
 
   return (
     <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 pt-1">
@@ -114,7 +86,7 @@ export function ArchiveInfo({
           type="button"
           className={linkClasses}
           disabled={retrying}
-          onClick={() => void retryArchive()}
+          onClick={() => void retryArchive(submissionId)}
         >
           {archive.archiveStatus === "failed" ? "Arkistoi uudelleen" : "Arkistoi sivu"}
         </button>

@@ -196,10 +196,14 @@ submissionRoutes.openapi(
   createRoute({
     method: "post",
     path: "/admin/submissions/{id}/archive/retry",
-    summary: "Re-run the page archive for a failed or never-archived submission",
+    summary:
+      "Re-run the page archive for a failed or never-archived submission; ?force=1 refetches even a settled capture, replacing the stored text",
     tags: ["Admin"],
     middleware: [requireAuth] as const,
-    request: { params: idParam },
+    request: {
+      params: idParam,
+      query: z.object({ force: z.string().optional() }),
+    },
     responses: {
       202: {
         description:
@@ -211,7 +215,8 @@ submissionRoutes.openapi(
     },
   }),
   async (c) => {
-    const queued = await retrySubmissionArchive(c.req.valid("param").id);
+    const { force } = c.req.valid("query");
+    const queued = await retrySubmissionArchive(c.req.valid("param").id, force === "1");
     return c.json(queued, 202);
   },
 );

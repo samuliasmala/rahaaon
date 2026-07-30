@@ -366,6 +366,63 @@ describe("article archive", () => {
     expect(retry.status).toBe(409);
   });
 
+  it("force re-archives a settled capture, replacing the stored text", async () => {
+    const id = await submit("/article?ref=force-retry");
+    const entry = await waitForArchive(id);
+    expect(entry.archiveStatus).toBe("ok");
+
+    // Overwrite the capture by hand — the forced refetch must replace even a
+    // manually pasted text, that's the point of asking for confirmation.
+    const pasted = "# Käsin liitetty versio\n\nVanhentunut teksti joka halutaan korvata.";
+    const save = await app.request(`/api/admin/submissions/${id}/archive/text`, {
+      method: "PUT",
+      headers: { cookie: editorCookie, "content-type": "application/json" },
+      body: JSON.stringify({ text: pasted }),
+    });
+    expect(save.status).toBe(200);
+
+    const forced = await app.request(`/api/admin/submissions/${id}/archive/retry?force=1`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(forced.status).toBe(202);
+    const queued = (await forced.json()) as { archiveStatus: string; hasArchivedText: boolean };
+    expect(queued.archiveStatus).toBe("pending");
+    expect(queued.hasArchivedText).toBe(false); // the old text is gone up front
+
+    const refetched = await waitForArchive(id);
+    expect(refetched.archiveStatus).toBe("ok");
+    expect(refetched.hasArchivedText).toBe(true);
+
+    const read = await app.request(`/api/admin/submissions/${id}/archive/text`, {
+      headers: { cookie: editorCookie },
+    });
+    const text = await read.text();
+    expect(text).toContain(ARTICLE_MARKER);
+    expect(text).not.toContain("Käsin liitetty versio");
+  });
+
+  it("refuses a forced re-archive while a capture is in flight", async () => {
+    const id = await submit("/article?ref=force-pending");
+    await waitForArchive(id);
+
+    // Pin the row to 'pending' with a far-future lease so the worker leaves
+    // it alone — the shape of a capture another request just kicked off.
+    const { db } = await import("./db/client.js");
+    const { urlSubmission } = await import("./db/schema/index.js");
+    const { eq } = await import("drizzle-orm");
+    await db
+      .update(urlSubmission)
+      .set({ archiveStatus: "pending", archiveNextAttemptAt: new Date(Date.now() + 60_000) })
+      .where(eq(urlSubmission.id, id));
+
+    const forced = await app.request(`/api/admin/submissions/${id}/archive/retry?force=1`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(forced.status).toBe(409);
+  });
+
   it("reports a never-archived row as missing and archives it on retry", async () => {
     const id = await submit("/article?ref=missing");
     await waitForArchive(id);

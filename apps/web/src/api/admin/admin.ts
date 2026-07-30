@@ -32,6 +32,7 @@ import type {
   PatchApiAdminItemsId200,
   PatchItem,
   PatchSuggestion,
+  PostApiAdminSubmissionsIdArchiveRetryParams,
   PostApiAdminSubmissionsIdReject200,
   PostApiAdminSuggestionsIdApprove200,
   PostApiAdminSuggestionsIdReject200,
@@ -957,16 +958,18 @@ export const usePutApiAdminSubmissionsIdArchiveText = <TError = ErrorResponse,
       return useMutation(mutationOptions, queryClient);
     }
     /**
- * @summary Re-run the page archive for a failed or never-archived submission
+ * @summary Re-run the page archive for a failed or never-archived submission; ?force=1 refetches even a settled capture, replacing the stored text
  */
 export const postApiAdminSubmissionsIdArchiveRetry = (
     id: string,
+    params?: PostApiAdminSubmissionsIdArchiveRetryParams,
  signal?: AbortSignal
 ) => {
       
       
       return apiFetch<UrlSubmission>(
-      {url: `/api/admin/submissions/${id}/archive/retry`, method: 'POST', ...(signal ? { signal }: {})
+      {url: `/api/admin/submissions/${id}/archive/retry`, method: 'POST',
+        params, ...(signal ? { signal }: {})
     },
       );
     }
@@ -974,8 +977,8 @@ export const postApiAdminSubmissionsIdArchiveRetry = (
 
 
 export const getPostApiAdminSubmissionsIdArchiveRetryMutationOptions = <TError = ErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdArchiveRetry>>, TError,{id: string}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdArchiveRetry>>, TError,{id: string}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdArchiveRetry>>, TError,{id: string;params?: PostApiAdminSubmissionsIdArchiveRetryParams}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdArchiveRetry>>, TError,{id: string;params?: PostApiAdminSubmissionsIdArchiveRetryParams}, TContext> => {
 
 const mutationKey = ['postApiAdminSubmissionsIdArchiveRetry'];
 const {mutation: mutationOptions} = options ?
@@ -987,10 +990,10 @@ const {mutation: mutationOptions} = options ?
       
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiAdminSubmissionsIdArchiveRetry>>, {id: string}> = (props) => {
-          const {id} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiAdminSubmissionsIdArchiveRetry>>, {id: string;params?: PostApiAdminSubmissionsIdArchiveRetryParams}> = (props) => {
+          const {id,params} = props ?? {};
 
-          return  postApiAdminSubmissionsIdArchiveRetry(id,)
+          return  postApiAdminSubmissionsIdArchiveRetry(id,params,)
         }
 
         
@@ -1003,14 +1006,14 @@ const {mutation: mutationOptions} = options ?
     export type PostApiAdminSubmissionsIdArchiveRetryMutationError = ErrorResponse
 
     /**
- * @summary Re-run the page archive for a failed or never-archived submission
+ * @summary Re-run the page archive for a failed or never-archived submission; ?force=1 refetches even a settled capture, replacing the stored text
  */
 export const usePostApiAdminSubmissionsIdArchiveRetry = <TError = ErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdArchiveRetry>>, TError,{id: string}, TContext>, }
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdArchiveRetry>>, TError,{id: string;params?: PostApiAdminSubmissionsIdArchiveRetryParams}, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof postApiAdminSubmissionsIdArchiveRetry>>,
         TError,
-        {id: string},
+        {id: string;params?: PostApiAdminSubmissionsIdArchiveRetryParams},
         TContext
       > => {
 

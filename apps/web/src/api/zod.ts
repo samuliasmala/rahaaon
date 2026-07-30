@@ -389,10 +389,14 @@ export const putApiAdminSubmissionsIdArchiveTextResponse = zod.object({
 
 
 /**
- * @summary Re-run the page archive for a failed or never-archived submission
+ * @summary Re-run the page archive for a failed or never-archived submission; ?force=1 refetches even a settled capture, replacing the stored text
  */
 export const postApiAdminSubmissionsIdArchiveRetryParams = zod.object({
   "id": zod.uuid()
+})
+
+export const postApiAdminSubmissionsIdArchiveRetryQueryParams = zod.object({
+  "force": zod.string().optional()
 })
 
 
