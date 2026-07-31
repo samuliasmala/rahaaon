@@ -175,8 +175,8 @@ export function SuggestDialog() {
           </div>
           <p className="font-display text-[21px] font-bold">Kiitos! Ehdotus on jonossa.</p>
           <p className="max-w-[380px] text-sm/[1.6] text-body">
-            Tekoäly lukee jutun ja toimitus tarkistaa poiminnat. Juttu julkaistaan, jos raha todella
-            on mennyt harakoille.
+            Tekoäly tekee tiivistelmän, jonka toimitus tarkastaa. Juttu julkaistaan, jos raha
+            todella on mennyt harakoille.
           </p>
           <Button variant="dark" onClick={closeSuggest} className="mt-1.5 px-7">
             Selvä
