@@ -53,8 +53,8 @@ test("the suggest flow works from the admin view", async ({ page }) => {
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
 
-  // A page the API server can always fetch: the web app itself.
-  await dialog.getByRole("textbox").fill("http://127.0.0.1:5174/");
+  // A page the API server can always fetch: the E2E web server itself.
+  await dialog.getByRole("textbox").fill("http://127.0.0.1:5274/");
   await dialog.getByRole("button", { name: "Lähetä tekoälyn luettavaksi" }).click();
 
   // The google-like preview card shows the fetched page metadata.
@@ -82,8 +82,9 @@ test("processing a submission moves it to the AI queue", async ({ page }) => {
   await firstCard.getByRole("button", { name: "Käsittele", exact: true }).click();
 
   // The extraction runs in the background: the card locks into "Käsitellään…"
-  // and the view polls until the entry moves on. Generous timeouts — with a
-  // real OPENAI_API_KEY in .env this waits on an actual LLM call.
+  // and the view polls until the entry moves on. The E2E API runs without an
+  // OPENAI_API_KEY (playwright.config.ts blanks it), so this is always the
+  // offline mock — the generous timeouts just cover slow CI.
   await expect(firstCard.getByRole("button", { name: "Käsitellään…" })).toBeVisible();
 
   await expect(

@@ -61,7 +61,11 @@ export default defineConfig({
     proxy: {
       // Forward API + auth calls to the Hono server (path preserved), so the
       // browser treats them as same-origin and the session cookie is shared.
-      "/api": { target: "http://localhost:3001", changeOrigin: true },
+      // The E2E run points this at its own API instance (playwright.config.ts).
+      "/api": {
+        target: process.env.API_PROXY_TARGET ?? "http://localhost:3001",
+        changeOrigin: true,
+      },
     },
     // Published through the host Caddy (TLS + reverse proxy to this port).
     allowedHosts: ["rahaaon.asmala.fi"],
