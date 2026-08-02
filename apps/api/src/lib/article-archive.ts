@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { logger } from "./logger.js";
-import { fetchPageText, markdownContentLength } from "./page-preview.js";
+import { fetchPageText, markdownContentLength, proseContentLength } from "./page-preview.js";
 import { putTextObject, s3Configured } from "./s3.js";
 import { env } from "../config/env.js";
 import { db } from "../db/client.js";
@@ -31,6 +31,17 @@ import { urlSubmission } from "../db/schema/index.js";
  * inflate a link-heavy but content-free page past any threshold.
  */
 const PAYWALL_TEXT_THRESHOLD = 600;
+
+/**
+ * And below this much *paragraph-like* text we assume the same regardless of
+ * total length: a client-rendered article shell's furniture — headline, lead,
+ * captions, "Lue myös" teasers — can outgrow {@link PAYWALL_TEXT_THRESHOLD}
+ * while carrying no story at all. iltalehti.fi's login-walled articles (body
+ * withheld server-side, wall drawn by JS) measure ~790 total chars but zero
+ * prose; free pages measured ≥370 prose chars even for short news briefs. See
+ * `proseContentLength` in lib/page-preview.ts for what counts as prose.
+ */
+const PROSE_TEXT_THRESHOLD = 250;
 
 /** Whether submissions should attempt archiving at all. */
 export const archiveEnabled = s3Configured;
@@ -94,8 +105,9 @@ export function manualArchiveKeyFor(submissionId: string): string {
  * schema.org marking (`accessibleForFree`, see `isAccessibleForFree` in
  * lib/page-preview.ts) beats the length heuristic when it says paywalled — a
  * paywalled hs.fi page still renders a teaser long enough to sail past the
- * threshold. Marked-free and unmarked pages take the length check: a consent
- * wall or bot block can eat a page whose markup calls it free.
+ * threshold. Marked-free and unmarked pages take the length checks — total
+ * and prose, since a consent wall, bot block or client-rendered shell can eat
+ * a page whose markup calls it free (or says nothing).
  */
 export function classifyArchive(
   fetched: boolean,
@@ -104,7 +116,8 @@ export function classifyArchive(
 ): "ok" | "paywalled" | "failed" {
   if (!fetched) return "failed";
   if (accessibleForFree === false) return "paywalled";
-  return markdownContentLength(text) < PAYWALL_TEXT_THRESHOLD ? "paywalled" : "ok";
+  if (markdownContentLength(text) < PAYWALL_TEXT_THRESHOLD) return "paywalled";
+  return proseContentLength(text) < PROSE_TEXT_THRESHOLD ? "paywalled" : "ok";
 }
 
 /** Backoff before the next attempt, doubling per attempt up to the cap. */

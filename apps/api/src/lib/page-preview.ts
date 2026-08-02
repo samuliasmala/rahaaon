@@ -474,6 +474,33 @@ export function markdownContentLength(markdown: string): number {
 }
 
 /**
+ * A block shorter than this is furniture, not body text: headlines, bylines,
+ * captions and related-article teasers almost never reach 100 characters,
+ * while real story paragraphs — even in short news briefs — keep several
+ * blocks past it.
+ */
+const MIN_PROSE_BLOCK_CHARS = 100;
+
+/**
+ * Length of the Markdown's paragraph-like prose alone: the converter's
+ * `\n\n`-separated blocks that are not headings and carry at least
+ * {@link MIN_PROSE_BLOCK_CHARS}, link targets removed. Distinguishes "we got
+ * story text" from "we got a long page" where total length cannot: a
+ * client-rendered article shell's furniture (kicker, headline, lead, captions,
+ * teaser list) can outgrow any total-length threshold while containing no body
+ * at all — iltalehti.fi serves exactly that shape for its login-walled
+ * articles.
+ */
+export function proseContentLength(markdown: string): number {
+  return markdown
+    .replace(/\]\([^)]*\)/g, "]")
+    .split("\n\n")
+    .map((block) => block.replace(/^(?:> )+/, ""))
+    .filter((block) => !block.startsWith("#") && block.length >= MIN_PROSE_BLOCK_CHARS)
+    .reduce((sum, block) => sum + block.length, 0);
+}
+
+/**
  * Top-level `<tag …>…</tag>` slices of the document, in order. Nested
  * same-tag elements are depth-counted so only the outermost boundaries
  * delimit; an element left unclosed is dropped rather than guessed at.

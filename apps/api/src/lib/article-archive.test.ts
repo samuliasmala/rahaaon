@@ -10,12 +10,30 @@ import { describe, expect, it } from "vitest";
 // throwaway value so the pure functions can be tested without a database.
 process.env.DATABASE_URL ??= "postgres://unit:unit@localhost:5432/unit";
 const { classifyArchive, effectiveArchiveStatus } = await import("./article-archive.js");
+const { markdownContentLength, proseContentLength } = await import("./page-preview.js");
 
 describe("classifyArchive", () => {
   // Comfortably past the paywall threshold — the length of a marked-paywalled
   // hs.fi teaser (headline, standfirst, captions).
   const longText = "Pitkä uutisteksti jossa riittää sisältöä. ".repeat(30);
   const thinText = "Tilaajille.";
+  // The shape iltalehti.fi serves for a login-walled article (body withheld
+  // server-side, wall drawn by JS, no schema.org marking): kicker, headline,
+  // lead, caption, byline and a teaser list — every block furniture-short,
+  // yet the total beats the overall length threshold.
+  const furnitureText = [
+    "Kotimaa",
+    "# Otsikko joka tiivistää jutun ytimen yhteen virkkeeseen",
+    "Ingressi kertaa jutun pääpointin parilla lauseella heti otsikon alla.",
+    "Kuvituskuva paikan päältä kesällä 2010. ETUNIMI SUKUNIMI / TOIMISTO",
+    "Toimittajan Nimi",
+    "perjantai 29.3.2024 klo 21:10",
+    "### Lue myös",
+    ...Array.from(
+      { length: 10 },
+      (_, i) => `Aiheeseen liittyvän jutun otsikko numero ${i} – jatkoa vielä pidemmälle`,
+    ),
+  ].join("\n\n");
 
   it("trusts an explicit paywall marking even when the teaser is long", () => {
     expect(classifyArchive(true, longText, false)).toBe("paywalled");
@@ -29,6 +47,14 @@ describe("classifyArchive", () => {
   it("length-checks marked-free pages too — a consent wall can eat one", () => {
     expect(classifyArchive(true, longText, true)).toBe("ok");
     expect(classifyArchive(true, thinText, true)).toBe("paywalled");
+  });
+
+  it("flags a furniture-only page whose total length beats the threshold", () => {
+    // Guard the fixture itself: it must be long overall yet prose-free, or
+    // the assertion below stops exercising the prose gate.
+    expect(markdownContentLength(furnitureText)).toBeGreaterThanOrEqual(600);
+    expect(proseContentLength(furnitureText)).toBe(0);
+    expect(classifyArchive(true, furnitureText, null)).toBe("paywalled");
   });
 
   it("keeps unfetched pages failed regardless of marking", () => {

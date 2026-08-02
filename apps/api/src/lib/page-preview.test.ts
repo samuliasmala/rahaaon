@@ -10,8 +10,13 @@ import { describe, expect, it } from "vitest";
 // env.ts (imported transitively) demands DATABASE_URL at module load; give a
 // throwaway value so the pure functions can be tested without a database.
 process.env.DATABASE_URL ??= "postgres://unit:unit@localhost:5432/unit";
-const { extractArticleMarkdown, htmlToMarkdown, isAccessibleForFree, isPrivateAddress } =
-  await import("./page-preview.js");
+const {
+  extractArticleMarkdown,
+  htmlToMarkdown,
+  isAccessibleForFree,
+  isPrivateAddress,
+  proseContentLength,
+} = await import("./page-preview.js");
 
 describe("isPrivateAddress (SSRF guard classification)", () => {
   // map→toEqual (rather than expect-with-message) so a failure names the IP in
@@ -200,6 +205,37 @@ describe("extractArticleMarkdown", () => {
     extractArticleMarkdown(nearMisses);
     extractArticleMarkdown(deepNest);
     expect(performance.now() - start).toBeLessThan(500);
+  });
+});
+
+describe("proseContentLength", () => {
+  // Comfortably past the 100-char per-block bar, like any real story paragraph.
+  const para =
+    "Tämä kappale on tarpeeksi pitkä laskettavaksi leipätekstiksi, sillä siinä on " +
+    "toista sataa merkkiä asiallista sisältöä kertomassa uutisen kulusta lukijalle.";
+
+  it("counts long non-heading blocks and ignores headings and short furniture", () => {
+    expect(proseContentLength(para)).toBe(para.length);
+    expect(proseContentLength(`## ${para}`)).toBe(0);
+    expect(proseContentLength("Kotimaa\n\nToimittajan Nimi\n\nperjantai 29.3.2024 klo 21:10")).toBe(
+      0,
+    );
+    expect(proseContentLength(`Lyhyt kuvateksti. KUVAAJA\n\n${para}\n\n# Otsikko`)).toBe(
+      para.length,
+    );
+  });
+
+  it("measures links by their text, not their targets", () => {
+    // A teaser-list block: short link text, long URL. The URL must not lift
+    // the block over the prose bar.
+    const teaser =
+      "[Lue myös tämä](https://example.fi/aihe/a/0123456789abcdef-0123456789abcdef-juttu-jatkuu)";
+    expect(proseContentLength(teaser)).toBe(0);
+  });
+
+  it("sees prose inside blockquotes but not quoted headings", () => {
+    expect(proseContentLength(`> ${para}`)).toBe(para.length);
+    expect(proseContentLength(`> # ${para}`)).toBe(0);
   });
 });
 
