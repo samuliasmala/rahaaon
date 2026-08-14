@@ -240,6 +240,29 @@ test("editing a published item from the inline editor updates the row", async ({
   await expect(page.getByText("Hylättävä muutos")).toBeHidden();
 });
 
+test("previewing a published item opens the reader's own detail dialog", async ({ page }) => {
+  await page.goto("/admin");
+  const count = await tabCount(page, "Julkaistut");
+  await page.getByRole("tab", { name: `Julkaistut (${count})` }).click();
+
+  // Read the row's title first, so the assertions below prove the modal shows
+  // *this* item — whichever row happens to be newest at this point.
+  const preview = page.getByRole("button", { name: "Näytä juttu etusivun näkymässä" }).first();
+  const row = preview.locator("xpath=ancestor::div[contains(@class, 'grid')][1]");
+  const title = (await row.locator("span").first().innerText()).trim();
+
+  await preview.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  // The feed's view, not an admin variant: headline, AI-summary card, vote button.
+  await expect(dialog.getByRole("heading", { name: title })).toBeVisible();
+  await expect(dialog.getByText("Tekoälyn tiivistelmä · toimituksen tarkistama")).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /Tämä on turhaa/ })).toBeVisible();
+
+  await dialog.getByRole("button", { name: "Sulje" }).click();
+  await expect(dialog).toBeHidden();
+});
+
 test.describe("logged out", () => {
   // Fresh session without the persisted admin state.
   test.use({ storageState: { cookies: [], origins: [] } });

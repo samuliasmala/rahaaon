@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { Eye, RefreshCw } from "lucide-react";
 import { Fragment, useState } from "react";
 import { toast } from "sonner";
 import { AiInstructionsDialog } from "./ai-instructions-dialog.js";
@@ -20,10 +20,11 @@ import {
 import { getGetApiItemsQueryKey } from "../../api/items/items.js";
 import { cn } from "../../lib/cn.js";
 import { daysSince, formatAgeShort, formatAmount, formatCount } from "../../lib/format.js";
+import { DetailDialog } from "../feed/detail-dialog.js";
 import { Button } from "../ui/button.js";
 import type { AdminWasteItem, WasteItem } from "../../api/model/index.js";
 
-const GRID_COLS = "grid-cols-[1fr_150px_110px_90px_220px]";
+const GRID_COLS = "grid-cols-[1fr_150px_110px_90px_250px]";
 
 /** Every published item — hidden ones stay listed here, greyed out. */
 export function PublishedTable({ items }: { items: AdminWasteItem[] }) {
@@ -31,6 +32,8 @@ export function PublishedTable({ items }: { items: AdminWasteItem[] }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   // The row whose "Käsittele uudelleen" dialog is open; one dialog serves the table.
   const [reprocessId, setReprocessId] = useState<string | null>(null);
+  // The row being previewed in the reader's own modal; likewise one per table.
+  const [previewId, setPreviewId] = useState<string | null>(null);
   // One mutation for hide/restore and inline edits alike: every patch touches
   // the live feed, so refresh it alongside the admin list.
   const patchMutation = usePatchApiAdminItemsId({
@@ -80,7 +83,7 @@ export function PublishedTable({ items }: { items: AdminWasteItem[] }) {
 
   return (
     <div className="overflow-x-auto rounded-[10px] border border-hairline bg-surface">
-      <div className="min-w-[850px]">
+      <div className="min-w-[880px]">
         <div
           className={cn(
             "grid gap-4 border-b border-hairline bg-wash px-6 py-3",
@@ -136,6 +139,16 @@ export function PublishedTable({ items }: { items: AdminWasteItem[] }) {
                 ▲ {formatCount(item.votes)}
               </span>
               <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="px-2"
+                  aria-label="Näytä juttu etusivun näkymässä"
+                  title="Näytä juttu etusivun näkymässä"
+                  onClick={() => setPreviewId(item.id)}
+                >
+                  <Eye aria-hidden className="size-3.5" />
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -204,6 +217,14 @@ export function PublishedTable({ items }: { items: AdminWasteItem[] }) {
         onSubmit={(instructions) => {
           if (reprocessId) void reprocess(reprocessId, instructions);
         }}
+      />
+      {/* The reader's own modal, unchanged — the preview has to show exactly
+          what the feed shows, so edits are checked against the real thing.
+          Looked up from `items` rather than captured on click, so a save (or a
+          finished reprocess) refreshes what's on screen. */}
+      <DetailDialog
+        item={items.find((item) => item.id === previewId) ?? null}
+        onClose={() => setPreviewId(null)}
       />
     </div>
   );
