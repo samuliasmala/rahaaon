@@ -102,9 +102,9 @@ export function SuggestDialog() {
         {step === "input" && (
           <div className="flex flex-col gap-4.5 p-4.5 md:p-8">
             <p className="text-[15px]/[1.6] text-body">
-              Liitä linkki lehtijuttuun tai uutiseen. Näytämme sivun esikatselun — vahvistuksen
-              jälkeen linkki siirtyy jonoon tekoälyn luettavaksi, ja toimitus tarkistaa poiminnat
-              ennen julkaisua.
+              Liitä linkki lehtijuttuun, uutiseen tai julkiseen PDF-asiakirjaan. Näytämme sivun
+              esikatselun — vahvistuksen jälkeen linkki siirtyy jonoon tekoälyn luettavaksi, ja
+              toimitus tarkistaa poiminnat ennen julkaisua.
             </p>
             <Input
               autoFocus

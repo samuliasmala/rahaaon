@@ -5,14 +5,18 @@ import net from "node:net";
 import { pipeline, Readable } from "node:stream";
 import zlib from "node:zlib";
 import { logger } from "./logger.js";
+import { pdfToMarkdown } from "./pdf-markdown.js";
 import { env } from "../config/env.js";
 
 /**
  * Fetches the metadata a reader confirms before submitting a link — the
- * "google-like" result card (site, title, description). Best-effort by design:
- * an unreachable or unparsable page degrades to `fetched: false` with just the
- * hostname, and the reader can still submit. The submitted link is only a
- * pointer for the editorial/AI pipeline, so nothing downstream trusts this.
+ * "google-like" result card (site, title, description) — and, for the archive,
+ * the page text as Markdown. Handles the two things readers link: HTML pages
+ * and PDFs (public-sector lausunnot, pöytäkirjat and the like), the latter via
+ * lib/pdf-markdown.ts. Best-effort by design: an unreachable or unparsable
+ * document degrades to `fetched: false` with just the hostname, and the reader
+ * can still submit. The submitted link is only a pointer for the editorial/AI
+ * pipeline, so nothing downstream trusts this.
  */
 
 export interface PagePreview {
@@ -27,6 +31,12 @@ export interface PagePreview {
 
 const FETCH_TIMEOUT_MS = 5_000;
 /**
+ * The archive/AI fetch gets a longer budget than the reader-facing preview:
+ * nobody is waiting on it, and a public-sector PDF is megabytes where an
+ * article is kilobytes — the timeout covers the body, not just the connect.
+ */
+const ARCHIVE_FETCH_TIMEOUT_MS = 20_000;
+/**
  * The body read stops at this many bytes. Sized for the archive, not the
  * preview (metadata lives in <head>): news pages carry hundreds of KB of
  * inline JSON state before the story markup, and a cap that cuts the page
@@ -35,6 +45,23 @@ const FETCH_TIMEOUT_MS = 5_000;
  * parsers are single-pass linear scans, so a few MB stays cheap.
  */
 const MAX_HTML_BYTES = 5 * 1024 * 1024;
+/**
+ * PDFs get a bigger budget — an illustrated city publication runs to ten-odd
+ * megabytes — but a much harder one: unlike HTML, a truncated PDF is not
+ * partially readable, so an over-cap document is dropped rather than parsed
+ * (see {@link readBytesCapped}), and the whole file is held in memory while
+ * pdf.js walks it. Parses are serialized process-wide, so this bounds the peak
+ * for the 512 MB API container rather than being multiplied by the batch size.
+ */
+const MAX_PDF_BYTES = 16 * 1024 * 1024;
+/**
+ * The reader's confirmation card only needs the title and a lead paragraph, so
+ * the preview stops after the first pages instead of walking a 40-page report
+ * while they wait. The archive later converts the whole document.
+ */
+const PREVIEW_PDF_PAGES = 3;
+/** Cap for the PDF lead used as the card's description. */
+const MAX_PDF_DESCRIPTION = 300;
 /** Redirect hops followed manually, so the SSRF guard applies to every hop. */
 const MAX_REDIRECTS = 3;
 const USER_AGENT = "Mozilla/5.0 (compatible; RahaaOnBot/0.1; +https://rahaaon.fi)";
@@ -147,6 +174,41 @@ function parseMetadata(html: string, url: string): Omit<PagePreview, "url" | "fe
   return { title, description, siteName };
 }
 
+/**
+ * Read the whole body as bytes, or nothing if it runs past `max`. Unlike HTML,
+ * a truncated PDF is not a smaller PDF — pdf.js needs the trailer that a cut
+ * stream loses — so an over-cap document reads as unfetchable instead of being
+ * handed on in pieces.
+ */
+async function readBytesCapped(res: Response, max: number): Promise<Uint8Array | null> {
+  if (!res.body) return null;
+  const declared = Number(res.headers.get("content-length"));
+  if (declared > max) {
+    await res.body.cancel();
+    return null;
+  }
+  const reader = res.body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    received += value.byteLength;
+    if (received > max) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
 /** Read at most `max` bytes of the body, then cancel the rest of the stream. */
 async function readBodyCapped(res: Response, max: number): Promise<string> {
   if (!res.body) return "";
@@ -231,10 +293,11 @@ function decodeBody(res: http.IncomingMessage): Readable {
  * hook — the mechanism that lets {@link guardedLookup} pin the dialed IP while
  * TLS still validates against the original hostname (SNI and cert unchanged).
  * Content-encoding is decoded here since, unlike `fetch`, the raw client does
- * not; `readBodyCapped` bounds the decoded size, so a decompression bomb can't
- * blow past the byte budget.
+ * not; the readers bound the decoded size ({@link readBodyCapped} for HTML,
+ * {@link readBytesCapped} for a PDF), so a decompression bomb can't blow past
+ * the byte budget.
  */
-function requestOnce(url: string): Promise<Response> {
+function requestOnce(url: string, timeoutMs: number): Promise<Response> {
   const parsed = new URL(url);
   const client = parsed.protocol === "https:" ? https : http;
   return new Promise((resolve, reject) => {
@@ -244,11 +307,13 @@ function requestOnce(url: string): Promise<Response> {
         method: "GET",
         headers: {
           "User-Agent": USER_AGENT,
-          Accept: "text/html",
+          // PDFs are first-class here (see fetchDocument), and a content-
+          // negotiating server should hear that before it picks a variant.
+          Accept: "text/html, application/pdf;q=0.9, */*;q=0.8",
           // Not deflate: it's ambiguous (zlib vs raw) and gzip/br cover the web.
           "Accept-Encoding": "gzip, br",
         },
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
         // Pin the connection to a vetted public IP in production. Dev/test skip
         // the guard so E2E can reach localhost.
         ...(env.isProd ? { lookup: guardedLookup } : {}),
@@ -274,7 +339,7 @@ function requestOnce(url: string): Promise<Response> {
  * re-applied to every hop — auto-follow would let a public page bounce the
  * request to an internal address on a connection that never re-ran the check.
  */
-async function fetchGuarded(url: string): Promise<Response | null> {
+async function fetchGuarded(url: string, timeoutMs: number): Promise<Response | null> {
   let current = url;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     const parsed = new URL(current);
@@ -287,7 +352,7 @@ async function fetchGuarded(url: string): Promise<Response | null> {
     const literalHost = parsed.hostname.replace(/^\[|\]$/g, "");
     if (env.isProd && net.isIP(literalHost) && isPrivateAddress(literalHost)) return null;
 
-    const res = await requestOnce(current);
+    const res = await requestOnce(current, timeoutMs);
     if (res.status < 300 || res.status >= 400) return res;
 
     const location = res.headers.get("location");
@@ -660,7 +725,7 @@ export function isAccessibleForFree(html: string): boolean | null {
 }
 
 export interface PageText {
-  /** False when the page couldn't be read at all (network, non-HTML, blocked). */
+  /** False when the page couldn't be read at all (network, wrong type, blocked). */
   fetched: boolean;
   /** The page content as Markdown (headings/links/lists preserved). */
   text: string;
@@ -668,28 +733,168 @@ export interface PageText {
   accessibleForFree: boolean | null;
 }
 
+/** What a submitted link turned out to be, once fetched. */
+type FetchedDocument =
+  { kind: "html"; html: string } | { kind: "pdf"; bytes: Uint8Array; fileName: string } | null;
+
+/**
+ * The bare type off a Content-Type: parameters dropped, and only the first of
+ * the values a duplicated header collapses into ("text/html, text/html").
+ */
+const mediaType = (contentType: string): string =>
+  contentType.split(",")[0]!.split(";")[0]!.trim().toLowerCase();
+
+/**
+ * Types worth reading as bytes and sniffing: a declared PDF, or the
+ * nothing-in-particular types behind which file servers commonly hide one.
+ * Anything else (images, JSON, plain text) is dropped unread.
+ */
+function mayBePdf(contentType: string): boolean {
+  const type = mediaType(contentType);
+  return (
+    type === "application/pdf" ||
+    type === "application/x-pdf" ||
+    type === "application/octet-stream" ||
+    type === "binary/octet-stream" ||
+    type === ""
+  );
+}
+
+/** Header signature every PDF starts with — the declared type is not trusted alone. */
+function hasPdfMagic(bytes: Uint8Array): boolean {
+  const magic = [0x25, 0x50, 0x44, 0x46, 0x2d]; // %PDF-
+  return magic.every((byte, i) => bytes[i] === byte);
+}
+
+/** `filename="…"` off Content-Disposition; the PDF's name when it carries no title. */
+function dispositionFileName(headers: Headers): string {
+  const disposition = headers.get("content-disposition") ?? "";
+  const match = /filename\*?=(?:UTF-8''|")?([^";]+)/i.exec(disposition);
+  if (!match?.[1]) return "";
+  try {
+    return decodeURIComponent(match[1].trim());
+  } catch {
+    return match[1].trim(); // malformed percent-escapes — take it as-is
+  }
+}
+
+/**
+ * Fetch a submitted link and say what it is. HTML is read as text (capped,
+ * decoded), a PDF as bytes; everything else reads as "not a document we can
+ * archive", which puts the caller on its unreadable-page path.
+ */
+async function fetchDocument(url: string, timeoutMs: number): Promise<FetchedDocument> {
+  const res = await fetchGuarded(url, timeoutMs);
+  if (!res) return null;
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!res.ok) {
+    await res.body?.cancel();
+    return null;
+  }
+  if (mediaType(contentType) === "text/html") {
+    return { kind: "html", html: await readBodyCapped(res, MAX_HTML_BYTES) };
+  }
+  if (mayBePdf(contentType)) {
+    const fileName = dispositionFileName(res.headers);
+    const bytes = await readBytesCapped(res, MAX_PDF_BYTES);
+    if (bytes && hasPdfMagic(bytes)) return { kind: "pdf", bytes, fileName };
+    // Over the size cap, or something else wearing a PDF's content type (a
+    // login page, an error page). Worth a line: from the outside both look
+    // like an archive that simply failed.
+    logger.debug({ url, contentType, capped: !bytes }, "not a readable PDF");
+    return null;
+  }
+  await res.body?.cancel();
+  return null;
+}
+
+/**
+ * The document's opening paragraph, for the confirmation card. Measured against
+ * the same bar as the archive's prose check ({@link MIN_PROSE_BLOCK_CHARS}) so a
+ * publication's cover furniture — "Julkaisija | Helsingin kaupunki", an ISBN
+ * row — doesn't pass for a lead.
+ */
+function leadParagraph(markdown: string): string {
+  const lead = markdown
+    .split("\n\n")
+    .find(
+      (block) =>
+        !block.startsWith("#") && !block.startsWith("- ") && block.length >= MIN_PROSE_BLOCK_CHARS,
+    );
+  if (!lead) return "";
+  return lead.length > MAX_PDF_DESCRIPTION ? `${lead.slice(0, MAX_PDF_DESCRIPTION).trim()}…` : lead;
+}
+
+/**
+ * The confirmation card for a PDF. It has no og: tags to read, so the card is
+ * assembled from what a PDF does carry: its metadata title (or first heading,
+ * or file name) and its opening paragraph (or the abstract in its Subject
+ * metadata). Only the first pages are converted — see {@link PREVIEW_PDF_PAGES}.
+ */
+async function pdfMetadata(
+  bytes: Uint8Array,
+  fileName: string,
+  url: string,
+): Promise<Omit<PagePreview, "url" | "fetched">> {
+  const { title, subject, markdown } = await pdfToMarkdown(bytes, {
+    maxPages: PREVIEW_PDF_PAGES,
+  });
+  return {
+    siteName: hostnameOf(url),
+    title: title || pdfFileTitle(fileName, url),
+    description: leadParagraph(markdown) || subject.slice(0, MAX_PDF_DESCRIPTION),
+  };
+}
+
+/**
+ * A readable name for a PDF that carries no title of its own: the file name
+ * from the response or, failing that, from the URL — public-sector links bury
+ * it mid-path (`…/Lausunto_valtiontuki.pdf/c6ccc7d9-…?t=1771314457437`), so
+ * every segment is a candidate. Underscores read as spaces; hyphens stay, since
+ * they are as often part of a Finnish compound as a separator.
+ */
+function pdfFileTitle(fileName: string, url: string): string {
+  let name = fileName;
+  if (!name) {
+    try {
+      const segments = new URL(url).pathname.split("/").map(decodeURIComponent);
+      name = segments.reverse().find((segment) => /\.pdf$/i.test(segment)) ?? "";
+    } catch {
+      name = "";
+    }
+  }
+  return name
+    .replace(/\.pdf$/i, "")
+    .replace(/_+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /**
  * Fetch a page and reduce its main content to Markdown for the archive/AI
  * pipeline (see {@link extractArticleMarkdown} — nav/footer furniture is
- * sliced away when the page marks its main content). Same guarded fetch as
- * the preview (SSRF check per redirect hop, timeout, size cap). Best-effort
- * like the preview: `fetched: false` with empty text when the page can't be
- * read — callers fall back to the submit-time metadata.
+ * sliced away when the page marks its main content). A PDF link goes through
+ * {@link pdfToMarkdown} instead and reaches the archive as the same Markdown;
+ * it carries no schema.org marking, so the archive's length heuristics alone
+ * decide whether the capture is usable — a scanned PDF yields no text and lands
+ * where a walled page lands, with the editor's manual paste as the way out.
+ * Same guarded fetch as the preview (SSRF check per redirect hop, timeout, size
+ * cap), on a longer timeout since no reader is waiting. Best-effort: `fetched:
+ * false` with empty text when the link can't be read — callers fall back to the
+ * submit-time metadata.
  */
 export async function fetchPageText(url: string, maxChars = 30_000): Promise<PageText> {
   try {
-    const res = await fetchGuarded(url);
-    if (!res) return { fetched: false, text: "", accessibleForFree: null };
-    const contentType = res.headers.get("content-type") ?? "";
-    if (!res.ok || !contentType.includes("text/html")) {
-      await res.body?.cancel();
-      return { fetched: false, text: "", accessibleForFree: null };
+    const doc = await fetchDocument(url, ARCHIVE_FETCH_TIMEOUT_MS);
+    if (!doc) return { fetched: false, text: "", accessibleForFree: null };
+    if (doc.kind === "pdf") {
+      const { markdown } = await pdfToMarkdown(doc.bytes);
+      return { fetched: true, text: markdown.slice(0, maxChars), accessibleForFree: null };
     }
-    const html = await readBodyCapped(res, MAX_HTML_BYTES);
     return {
       fetched: true,
-      text: extractArticleMarkdown(html).slice(0, maxChars),
-      accessibleForFree: isAccessibleForFree(html),
+      text: extractArticleMarkdown(doc.html).slice(0, maxChars),
+      accessibleForFree: isAccessibleForFree(doc.html),
     };
   } catch (err) {
     logger.debug({ url, err: (err as Error).message }, "page text fetch failed");
@@ -711,16 +916,13 @@ export async function fetchPagePreview(url: string): Promise<PagePreview> {
   };
 
   try {
-    const res = await fetchGuarded(url);
-    if (!res) return fallback;
-    const contentType = res.headers.get("content-type") ?? "";
-    if (!res.ok || !contentType.includes("text/html")) {
-      await res.body?.cancel();
-      return fallback;
-    }
+    const doc = await fetchDocument(url, FETCH_TIMEOUT_MS);
+    if (!doc) return fallback;
 
-    const html = await readBodyCapped(res, MAX_HTML_BYTES);
-    const preview: PagePreview = { url, fetched: true, ...parseMetadata(html, url) };
+    const preview: PagePreview =
+      doc.kind === "pdf"
+        ? { url, fetched: true, ...(await pdfMetadata(doc.bytes, doc.fileName, url)) }
+        : { url, fetched: true, ...parseMetadata(doc.html, url) };
     if (cache.size >= CACHE_MAX_ENTRIES) {
       cache.delete(cache.keys().next().value!); // Map iterates in insertion order
     }

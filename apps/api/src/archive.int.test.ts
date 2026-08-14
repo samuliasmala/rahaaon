@@ -6,6 +6,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { buildPdf, type FixtureLine } from "./lib/pdf-fixture.js";
 import type { Hono } from "hono";
 
 /**
@@ -40,6 +41,25 @@ const MARKED_PAYWALLED_HTML = `<html><head><title>Merkitty maksulliseksi</title>
 })}</script></head>
 <body><article><h1>Pitkä esikatselu maksumuurin edellä</h1>
 <p>${"Esikatselutekstiä joka ylittää pituusrajan reilusti. ".repeat(30)}</p></article></body></html>`;
+
+// The other thing readers link: a public-sector PDF. Built here rather than
+// committed as a binary — see lib/pdf-fixture.ts.
+const PDF_HEADING = "TARKASTUSLAUTAKUNNAN ARVIO";
+const PDF_LINE = "Kaupunki maksoi konsulttiyhtiolle 250 000 euron palkkion selvityksesta, joka";
+const pdfBody = (count: number): FixtureLine[] => [
+  ...Array.from({ length: count }, (_, i) => ({ text: PDF_LINE, y: 650 - i * 13.4 })),
+  { text: "Rahat jaivat lopulta kayttamatta.", y: 650 - count * 13.4 },
+];
+const ARTICLE_PDF = buildPdf(
+  [[{ text: PDF_HEADING, y: 670, size: 18, font: "bold" }, ...pdfBody(9)]],
+  {
+    title: "Tarkastuslautakunnan arvio 2026",
+  },
+);
+/** No heading, no title metadata — the card has only the file name to go on. */
+const UNTITLED_PDF = buildPdf([pdfBody(9)]);
+/** A scan: pages, but no text layer to extract. */
+const SCANNED_PDF = buildPdf([[]], { title: "Skannattu liite" });
 
 let dbContainer: StartedPostgreSqlContainer;
 let minio: StartedTestContainer;
@@ -139,6 +159,17 @@ beforeAll(async () => {
     } else if (req.url?.startsWith("/article")) {
       res.setHeader("content-type", "text/html; charset=utf-8");
       res.end(ARTICLE_HTML);
+    } else if (req.url?.startsWith("/pdf")) {
+      res.setHeader("content-type", "application/pdf");
+      res.end(ARTICLE_PDF);
+    } else if (req.url?.startsWith("/documents/")) {
+      // Served the way document servers often do: an opaque content type, no
+      // disposition header, and the file name buried mid-path.
+      res.setHeader("content-type", "application/octet-stream");
+      res.end(UNTITLED_PDF);
+    } else if (req.url?.startsWith("/scanned")) {
+      res.setHeader("content-type", "application/pdf");
+      res.end(SCANNED_PDF);
     } else if (req.url?.startsWith("/thin")) {
       res.setHeader("content-type", "text/html; charset=utf-8");
       res.end(THIN_HTML);
@@ -265,6 +296,52 @@ describe("article archive", () => {
       headers: { cookie: editorCookie },
     });
     expect(after.status).toBe(200);
+  });
+
+  it("archives a PDF link as Markdown, with the PDF's own title on the card", async () => {
+    // The card is built from the document itself — a PDF has no og: tags.
+    const card = await app.request("/api/submissions/preview", json({ url: `${articleBase}/pdf` }));
+    expect(card.status).toBe(200);
+    const preview = (await card.json()) as { fetched: boolean; title: string; description: string };
+    expect(preview.fetched).toBe(true);
+    expect(preview.title).toBe("Tarkastuslautakunnan arvio 2026");
+    expect(preview.description).toContain("Kaupunki maksoi konsulttiyhtiolle");
+
+    const id = await submit("/pdf");
+    const entry = await waitForArchive(id);
+    expect(entry.archiveStatus).toBe("ok");
+    expect(entry.hasArchivedText).toBe(true);
+
+    const stored = await app.request(`/api/admin/submissions/${id}/archive/text`, {
+      headers: { cookie: editorCookie },
+    });
+    const text = await stored.text();
+    expect(text).toContain(`# ${PDF_HEADING}`); // the bigger, bolder line is the title
+    expect(text).toContain(`${PDF_LINE} ${PDF_LINE}`); // wrapped lines joined into a paragraph
+  });
+
+  it("sniffs a PDF served as octet-stream and names it after the file", async () => {
+    const path = "/documents/Lausunto_testi.pdf/c6ccc7d9-7bca?t=17713";
+    const card = await app.request(
+      "/api/submissions/preview",
+      json({ url: `${articleBase}${path}` }),
+    );
+    const preview = (await card.json()) as { fetched: boolean; title: string };
+    expect(preview.fetched).toBe(true);
+    // No metadata title and no heading in the document: the URL's file name.
+    expect(preview.title).toBe("Lausunto testi");
+
+    const entry = await waitForArchive(await submit(path));
+    expect(entry.archiveStatus).toBe("ok");
+    expect(entry.hasArchivedText).toBe(true);
+  });
+
+  it("flags a PDF with no text layer as paywalled, the same as a walled page", async () => {
+    // A scan is exactly the case the editor's manual paste exists for.
+    const id = await submit("/scanned.pdf");
+    const entry = await waitForArchive(id);
+    expect(entry.archiveStatus).toBe("paywalled");
+    expect(entry.hasArchivedText).toBe(false);
   });
 
   it("retries a transient failure and eventually archives", async () => {
