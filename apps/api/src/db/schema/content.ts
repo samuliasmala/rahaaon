@@ -188,6 +188,17 @@ export const urlSubmission = pgTable(
      * the LLM prompt. Null when the editor gave none.
      */
     processInstructions: text("process_instructions"),
+    /**
+     * When the "uusi ehdotus" push went out for this row (lib/queue-notifier.ts).
+     * Null means the arrival is still unannounced, and that is exactly what the
+     * notifier claims — so an announcement survives a restart and never repeats.
+     * Backfilled to created_at for pre-feature rows so switching the notifier on
+     * cannot replay history. Rows submitted while the notifier is off (no
+     * NTFY_TOPIC, i.e. the dev/test stacks) keep a null here; if one is later
+     * restored from the rejected archive it announces then, which is honest —
+     * it is back in the queue and was never announced.
+     */
+    notifiedAt: timestamp("notified_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     /** When the entry left the queue — set on process AND reject, cleared on restore. */
     processedAt: timestamp("processed_at", { withTimezone: true }),
@@ -208,6 +219,12 @@ export const urlSubmission = pgTable(
     // 'processing' in the same migration transaction that ADDs it, which
     // Postgres forbids.
     index("url_submission_process_claim_idx").on(t.status, t.processNextAttemptAt),
+    // Backs the notifier's claim query, polled forever like the archive one.
+    // Partial, and the cheapest of the three: an announced row leaves the index
+    // for good, so it only ever holds the handful of rows still unannounced.
+    index("url_submission_notify_claim_idx")
+      .on(t.createdAt)
+      .where(sql`${t.notifiedAt} is null`),
   ],
 );
 

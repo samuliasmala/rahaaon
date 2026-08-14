@@ -184,6 +184,30 @@ untested restore is a hypothesis, not a capability.
    URL; `backup.sh` pings it on success, so a failed dump _or_ a timer that never
    fires is noticed.
 
+## Editorial queue notifications
+
+The api pushes to **ntfy** when a reader's link lands in the Ehdotusjono, then
+nudges every hour for as long as the admin badge still shows anything. Prod
+only — the switch is `NTFY_TOPIC`, which dev/test leave empty.
+
+1. `make env ENV=prod` generates a random `NTFY_TOPIC` and prints it. For a
+   stack whose `.env.prod` already exists, add the line by hand:
+   `echo "NTFY_TOPIC=rahaaon-$(openssl rand -hex 12)" >> .env.prod`
+2. Install the **ntfy** app (Android/iOS, or ntfy.sh in a browser) and subscribe
+   to that exact topic. On the public ntfy.sh the topic name is the only secret
+   there is — anyone who learns it can read the queue notifications and publish
+   into them, so never share it and never pick a guessable name. For real auth,
+   point `NTFY_SERVER` at an ntfy.sh account (or your own server) and set
+   `NTFY_TOKEN`.
+3. Redeploy (or `docker compose … up -d api`) for the api to pick the vars up.
+   Confirm with a test push:
+   `curl -d "testi" https://ntfy.sh/<your-topic>`
+
+Cadence knobs (both optional): `NOTIFY_POLL_INTERVAL_MS` (arrival sweep, default
+60 s — the submit path also kicks a sweep, so this is mostly a safety net) and
+`NOTIFY_REMINDER_INTERVAL_MS` (default 1 h). The reminder clock is in-process, so
+a deploy costs at most one skipped nudge; arrivals are not lost across restarts.
+
 ## Scaling — single-server assumption
 
 Each stack runs **one `api` replica**. Some state lives in that process's
@@ -204,6 +228,11 @@ each of these silently misbehaves:
   replicas allow up to N× that. Correctness is fine (the worklist is DB-backed
   and claims rows with `FOR UPDATE SKIP LOCKED`); only the outbound-fetch
   ceiling multiplies.
+
+- **Queue-reminder clock** (`api/src/lib/queue-notifier.ts`) — the "queue still
+  waiting" nudge is timed in process memory, so N replicas send N nudges per
+  interval. (The _arrival_ push is safe: it is claimed via `notified_at` in the
+  DB, so exactly one replica announces each link.)
 
 Scale-out path: back the limiters and the preview cache with Redis (or
 Postgres). Nothing else needs restructuring.

@@ -10,6 +10,7 @@ import {
 import { conflict, notFound, unavailable } from "../../lib/http-errors.js";
 import { logger } from "../../lib/logger.js";
 import { fetchPagePreview } from "../../lib/page-preview.js";
+import { notifierEnabled, runQueueNotifierOnce } from "../../lib/queue-notifier.js";
 import { getTextObject, putTextObject } from "../../lib/s3.js";
 import { runProcessorOnce } from "../../lib/submission-processor.js";
 import type { ArchiveRefView, RejectedUrlSubmissionView, UrlSubmissionView } from "./schemas.js";
@@ -73,6 +74,10 @@ export async function createSubmission(url: string): Promise<UrlSubmissionView> 
   // The row is now a 'pending' work item; kick an immediate drain so archiving
   // starts right away (the periodic poll would otherwise pick it up shortly).
   if (archiveEnabled) void runArchiveOnce();
+  // Same idea for the editor's push: announce the arrival now rather than at
+  // the notifier's next sweep. Fire-and-forget — the reader is not kept waiting
+  // on a notification, and the sweep is the fallback if this drops.
+  if (notifierEnabled) void runQueueNotifierOnce();
   return toView(row!);
 }
 

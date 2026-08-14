@@ -98,6 +98,26 @@ const rawSchema = z.object({
   PROCESS_MAX_ATTEMPTS: z.coerce.number().int().positive().default(3),
   PROCESS_RETRY_BASE_MS: z.coerce.number().int().nonnegative().default(15_000),
   PROCESS_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(15_000),
+
+  /**
+   * Push notifications for the editorial queue (lib/queue-notifier.ts), sent
+   * via ntfy. NTFY_TOPIC is the on/off switch — without it the notifier never
+   * starts, which is how the dev/test stacks stay quiet. On the public ntfy.sh
+   * the topic name is also the only thing keeping strangers out of the feed, so
+   * it must be long and random; NTFY_TOKEN adds real auth on a server that
+   * supports it (ntfy.sh accounts, or self-hosted).
+   */
+  NTFY_SERVER: z.preprocess(emptyToUndefined, z.string().url().default("https://ntfy.sh")),
+  NTFY_TOPIC: z.preprocess(emptyToUndefined, z.string().optional()),
+  NTFY_TOKEN: z.preprocess(emptyToUndefined, z.string().optional()),
+
+  /**
+   * Queue notifier cadence: how often to sweep for unannounced arrivals, and
+   * how long a non-empty queue may sit before the next reminder goes out.
+   */
+  NOTIFY_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
+  /** One hour: often enough to nag, rare enough to stay ignorable overnight. */
+  NOTIFY_REMINDER_INTERVAL_MS: z.coerce.number().int().positive().default(3_600_000),
 });
 
 const DEV_AUTH_SECRET = "dev-only-insecure-auth-secret-0000000000";

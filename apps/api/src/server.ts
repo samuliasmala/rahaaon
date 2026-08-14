@@ -4,18 +4,23 @@ import { env } from "./config/env.js";
 import { closeDb } from "./db/client.js";
 import { startArchiveWorker, stopArchiveWorker } from "./lib/article-archive.js";
 import { logger } from "./lib/logger.js";
+import { startQueueNotifier, stopQueueNotifier } from "./lib/queue-notifier.js";
 import { startSubmissionProcessor, stopSubmissionProcessor } from "./lib/submission-processor.js";
 
 const app = createApp();
 
-// Background workers (archive capture + submission processing): they resume
-// rows a restart stranded and poll for retries. Fire-and-forget start: a
-// failure here must not stop the server from serving.
+// Background workers (archive capture + submission processing + the editor's
+// queue notifications): they resume rows a restart stranded and poll for
+// retries. Fire-and-forget start: a failure here must not stop the server from
+// serving.
 void startArchiveWorker().catch((err: Error) => {
   logger.error({ err: err.message }, "archive worker failed to start");
 });
 void startSubmissionProcessor().catch((err: Error) => {
   logger.error({ err: err.message }, "submission processor failed to start");
+});
+void startQueueNotifier().catch((err: Error) => {
+  logger.error({ err: err.message }, "queue notifier failed to start");
 });
 
 const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
@@ -38,7 +43,7 @@ function shutdown(signal: string): void {
   server.close(() => {
     // Stop the workers (and let their in-flight drains finish) before closing
     // the pool, so a mid-drain query doesn't hit a closed connection.
-    void Promise.all([stopArchiveWorker(), stopSubmissionProcessor()])
+    void Promise.all([stopArchiveWorker(), stopSubmissionProcessor(), stopQueueNotifier()])
       .then(() => closeDb())
       .finally(() => {
         clearTimeout(force);

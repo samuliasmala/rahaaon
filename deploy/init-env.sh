@@ -36,6 +36,13 @@ sed -i \
   -e "s|^SEED_ADMIN_PASSWORD=.*|SEED_ADMIN_PASSWORD=$(openssl rand -base64 18)|" \
   "$TARGET"
 
+if [ "$ENV" = prod ]; then
+  # Editorial push notifications run in prod only. On the public ntfy.sh the
+  # topic name doubles as the shared secret, so generate it rather than let
+  # anyone pick something guessable; subscribe to it in the ntfy app.
+  sed -i -e "s|^NTFY_TOPIC=.*|NTFY_TOPIC=rahaaon-$(openssl rand -hex 12)|" "$TARGET"
+fi
+
 if [ "$ENV" != prod ]; then
   # dev/test use the bundled MinIO service (profile "minio") instead of R2
   sed -i \
@@ -50,5 +57,7 @@ fi
 echo "Created $TARGET with generated secrets."
 if [ "$ENV" = prod ]; then
   echo "Fill in manually: S3_ENDPOINT, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY (Cloudflare R2)."
+  echo "Subscribe to the generated NTFY_TOPIC in the ntfy app to get queue notifications:"
+  grep '^NTFY_TOPIC=' "$TARGET"
 fi
 echo "Optional manual fill: BACKUP_PING_URL (dead-man's-switch for backups)."
