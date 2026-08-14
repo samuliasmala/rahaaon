@@ -841,3 +841,71 @@ describe("duplicate detection", () => {
     expect(queue.find((row) => row.id === second.id)?.duplicate).toBeNull();
   });
 });
+
+/**
+ * What the capture bookmarklet needs from the API: find the row a captured
+ * article belongs to (the editor's browser reports the canonical URL, the
+ * reader submitted whatever link they were sent), and create one when the
+ * article hasn't been submitted at all. Pasting the captured text is the
+ * existing archive/text endpoint, covered in archive.int.test.ts.
+ */
+describe("capture lookup", () => {
+  const capturedUrl = "https://www.kaappaus.fi.invalid/uutiset/testijuttu/?utm_source=some";
+  let capturedId: string;
+
+  const lookup = (url: string, cookie = editorCookie) =>
+    app.request(`/api/admin/submissions/by-url?url=${encodeURIComponent(url)}`, {
+      headers: { cookie },
+    });
+
+  it("guards both capture endpoints with 401", async () => {
+    expect((await lookup(capturedUrl, "")).status).toBe(401);
+    const create = await app.request("/api/admin/submissions", json({ url: capturedUrl }));
+    expect(create.status).toBe(401);
+  });
+
+  it("reports no match before the article has been submitted", async () => {
+    const res = await lookup(capturedUrl);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({});
+  });
+
+  it("creates the submission the editor captured", async () => {
+    const res = await app.request("/api/admin/submissions", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: editorCookie },
+      body: JSON.stringify({ url: capturedUrl }),
+    });
+    expect(res.status).toBe(201);
+    const created = (await res.json()) as { id: string; url: string };
+    capturedId = created.id;
+    expect(created.url).toBe(capturedUrl);
+
+    const listRes = await app.request("/api/admin/submissions", {
+      headers: { cookie: editorCookie },
+    });
+    const list = (await listRes.json()) as { id: string }[];
+    expect(list.map((sub) => sub.id)).toContain(capturedId);
+  });
+
+  it("finds that submission from any form of the same article's URL", async () => {
+    const variants = [
+      capturedUrl,
+      "https://kaappaus.fi.invalid/uutiset/testijuttu",
+      "http://www.kaappaus.fi.invalid/uutiset/testijuttu#kommentit",
+      "https://kaappaus.fi.invalid/uutiset/testijuttu/?fbclid=abc123",
+    ];
+    // Keyed by the variant so a failure names the form that missed.
+    const found: Record<string, string | undefined> = {};
+    for (const variant of variants) {
+      const body = (await (await lookup(variant)).json()) as { submission?: { id: string } };
+      found[variant] = body.submission?.id;
+    }
+    expect(found).toEqual(Object.fromEntries(variants.map((url) => [url, capturedId])));
+  });
+
+  it("keeps another article on the same site apart", async () => {
+    const res = await lookup("https://kaappaus.fi.invalid/uutiset/toinen-juttu");
+    expect(await res.json()).toEqual({});
+  });
+});

@@ -8,12 +8,16 @@ import { Button } from "../components/ui/button.js";
 import { Input } from "../components/ui/input.js";
 import { FieldLabel } from "../components/ui/label.js";
 import { signIn } from "../lib/auth-client.js";
+import { captureSearch, parseCaptureSearch } from "../lib/capture-search.js";
 import { ensureMe, invalidateMe } from "../lib/session.js";
 
 export const Route = createFileRoute("/login")({
-  beforeLoad: async ({ context }) => {
+  // Only ever set when /admin bounced a capture here (see the admin route):
+  // the article's address rides along so signing in lands back on it.
+  validateSearch: parseCaptureSearch,
+  beforeLoad: async ({ context, search }) => {
     const me = await ensureMe(context.queryClient);
-    if (me) throw redirect({ to: "/admin" });
+    if (me) throw redirect({ to: "/admin", search: captureSearch(search.kaappaus) });
   },
   component: LoginPage,
 });
@@ -25,6 +29,7 @@ interface LoginForm {
 
 function LoginPage() {
   const navigate = useNavigate();
+  const { kaappaus } = Route.useSearch();
   const queryClient = useQueryClient();
   const [submitting, setSubmitting] = useState(false);
   const {
@@ -43,7 +48,7 @@ function LoginPage() {
     }
     // The guards read a cached `me`; refresh it so /admin sees the new session.
     await invalidateMe(queryClient);
-    await navigate({ to: "/admin" });
+    await navigate({ to: "/admin", search: captureSearch(kaappaus) });
   }
 
   return (

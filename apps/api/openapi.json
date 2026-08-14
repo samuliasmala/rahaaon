@@ -768,6 +768,14 @@
           "rejectedCount"
         ]
       },
+      "SubmissionMatch": {
+        "type": "object",
+        "properties": {
+          "submission": {
+            "$ref": "#/components/schemas/UrlSubmission"
+          }
+        }
+      },
       "ArchiveTextEdit": {
         "type": "object",
         "properties": {
@@ -2536,6 +2544,206 @@
                   "items": {
                     "$ref": "#/components/schemas/UrlSubmission"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Virheellinen pyyntö",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kirjautuminen vaaditaan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Ei käyttöoikeutta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ei löytynyt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validointivirhe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Palvelinvirhe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Palvelu ei tilapäisesti käytettävissä",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a link to the Ehdotusjono as the editor (the capture tool's fallback)",
+        "description": "Same row as an anonymous submission — page metadata is fetched, the page archive is attempted, and an existing live entry for the same link is reused — but without the reader-facing rate limits, and without the \"uusi ehdotus\" push (the editor is the one adding it). For an article the editor found, or captured, themselves.",
+        "tags": [
+          "Admin"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitUrl"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Queued for editorial processing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UrlSubmission"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Virheellinen pyyntö",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kirjautuminen vaaditaan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Ei käyttöoikeutta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ei löytynyt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validointivirhe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Palvelinvirhe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Palvelu ei tilapäisesti käytettävissä",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/submissions/by-url": {
+      "get": {
+        "summary": "The submission for a given article URL, if the link has already been submitted",
+        "description": "Matching ignores the noise between a shared link and the canonical one (scheme, `www.`, trailing slash, tracking params). An absent `submission` means nobody has submitted this article.",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "required": true,
+            "name": "url",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The matching submission, if there is one",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionMatch"
                 }
               }
             }

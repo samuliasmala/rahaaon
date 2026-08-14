@@ -4,11 +4,13 @@ import {
   pagePreviewSchema,
   processRequestSchema,
   rejectedUrlSubmissionSchema,
+  submissionMatchSchema,
   submitUrlSchema,
   urlSubmissionSchema,
 } from "./schemas.js";
 import {
   createSubmission,
+  findSubmissionByUrl,
   findUrlDuplicate,
   getSubmissionArchiveText,
   listNewSubmissions,
@@ -134,6 +136,56 @@ submissionRoutes.openapi(
   async (c) => {
     const rows = await listNewSubmissions();
     return c.json(rows, 200);
+  },
+);
+
+submissionRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/admin/submissions",
+    summary: "Add a link to the Ehdotusjono as the editor (the capture tool's fallback)",
+    description:
+      'Same row as an anonymous submission — page metadata is fetched, the page archive is attempted, and an existing live entry for the same link is reused — but without the reader-facing rate limits, and without the "uusi ehdotus" push (the editor is the one adding it). For an article the editor found, or captured, themselves.',
+    tags: ["Admin"],
+    middleware: [requireAuth] as const,
+    request: { body: { content: { "application/json": { schema: submitUrlSchema } } } },
+    responses: {
+      201: {
+        description: "Queued for editorial processing",
+        content: { "application/json": { schema: urlSubmissionSchema } },
+      },
+      ...commonErrorResponses,
+    },
+  }),
+  async (c) => {
+    const { url } = c.req.valid("json");
+    const { submission } = await createSubmission(url, { announce: false });
+    return c.json(submission, 201);
+  },
+);
+
+submissionRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/admin/submissions/by-url",
+    summary: "The submission for a given article URL, if the link has already been submitted",
+    description:
+      "Matching ignores the noise between a shared link and the canonical one (scheme, `www.`, trailing slash, tracking params). An absent `submission` means nobody has submitted this article.",
+    tags: ["Admin"],
+    middleware: [requireAuth] as const,
+    request: { query: z.object({ url: z.string().max(2000) }) },
+    responses: {
+      200: {
+        description: "The matching submission, if there is one",
+        content: { "application/json": { schema: submissionMatchSchema } },
+      },
+      ...commonErrorResponses,
+    },
+  }),
+  async (c) => {
+    const { url } = c.req.valid("query");
+    const submission = await findSubmissionByUrl(url);
+    return c.json(submission ? { submission } : {}, 200);
   },
 );
 

@@ -126,6 +126,18 @@ export const urlSubmissionSchema = z
 export type UrlSubmissionView = z.infer<typeof urlSubmissionSchema>;
 
 /**
+ * The answer to "has this article already been submitted?" — the lookup the
+ * capture tool runs before it offers to paste text into a row. A miss is a
+ * normal answer (the editor found the article themselves), so it comes back as
+ * a 200 with the field absent rather than a 404. Absent, not null: a nullable
+ * $ref generates as `UrlSubmission & (… | null)` in the orval client, which
+ * quietly loses the null.
+ */
+export const submissionMatchSchema = z
+  .object({ submission: urlSubmissionSchema.optional() })
+  .openapi("SubmissionMatch");
+
+/**
  * A pointer from a queue entry / published item back to the submission whose
  * page archive it came from — enough for the admin UI to render the archive
  * pill and open the shared viewer/editor (the archive endpoints stay

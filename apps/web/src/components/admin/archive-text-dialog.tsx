@@ -27,6 +27,11 @@ import type { QueryKey } from "@tanstack/react-query";
  * On `processed` entries the AI extraction already ran and there is no way to
  * re-run it, so the editor shows a note that edits land in the archive only —
  * on a submission card the same paste feeds the upcoming extraction.
+ *
+ * `initialDraft` opens the editor with text already in it, whatever the row
+ * holds — how the capture tool (see lib/capture-bookmarklet.ts) delivers an
+ * article read from the editor's own logged-in browser session. The text is
+ * only proposed: it lands in the archive when the editor saves it.
  */
 export function ArchiveTextDialog({
   archive,
@@ -35,6 +40,7 @@ export function ArchiveTextDialog({
   open,
   onClose,
   processed = false,
+  initialDraft,
 }: {
   archive: NonNullable<ArchiveRef>;
   url: string;
@@ -42,6 +48,7 @@ export function ArchiveTextDialog({
   open: boolean;
   onClose: () => void;
   processed?: boolean;
+  initialDraft?: string;
 }) {
   const queryClient = useQueryClient();
   const textQuery = useGetApiAdminSubmissionsIdArchiveText(archive.submissionId, undefined, {
@@ -59,14 +66,16 @@ export function ArchiveTextDialog({
   const [draft, setDraft] = useState("");
   const [baseline, setBaseline] = useState("");
 
-  // Fresh slate every time the dialog opens: text-less rows go straight to
-  // the editor, rows with text start in the rendered view. Depends on `open`
-  // only — a background refetch flipping hasArchivedText mid-edit (another
-  // tab saving, list invalidation) must not silently wipe an active draft.
+  // Fresh slate every time the dialog opens: text-less rows (and a capture
+  // carrying its own draft) go straight to the editor, rows with text start in
+  // the rendered view. Depends on `open` only — a background refetch flipping
+  // hasArchivedText mid-edit (another tab saving, list invalidation) must not
+  // silently wipe an active draft. The baseline stays empty even for a capture,
+  // so closing without saving still asks before dropping the text.
   useEffect(() => {
     if (open) {
-      setEditing(!archive.hasArchivedText);
-      setDraft("");
+      setEditing(!archive.hasArchivedText || initialDraft !== undefined);
+      setDraft(initialDraft ?? "");
       setBaseline("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- see comment above

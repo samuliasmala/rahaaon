@@ -9,6 +9,8 @@ import {
   useGetApiAdminSuggestions,
   useGetApiAdminSuggestionsRejected,
 } from "../api/admin/admin.js";
+import { CaptureBanner } from "../components/admin/capture-banner.js";
+import { CaptureTool } from "../components/admin/capture-tool.js";
 import { PublishedTable } from "../components/admin/published-table.js";
 import { QueueCard } from "../components/admin/queue-card.js";
 import { RejectedCard } from "../components/admin/rejected-card.js";
@@ -16,15 +18,18 @@ import { RejectedSubmissionCard } from "../components/admin/rejected-submission-
 import { SubmissionCard } from "../components/admin/submission-card.js";
 import { VersionInfo } from "../components/layout/version-info.js";
 import { signOut } from "../lib/auth-client.js";
+import { captureSearch, parseCaptureSearch } from "../lib/capture-search.js";
 import { cn } from "../lib/cn.js";
 import { ensureMe, invalidateMe, meQueryOptions } from "../lib/session.js";
 
 type AdminTab = "submissions" | "queue" | "published" | "rejected";
 
 export const Route = createFileRoute("/admin")({
-  beforeLoad: async ({ context }) => {
+  validateSearch: parseCaptureSearch,
+  beforeLoad: async ({ context, search }) => {
     const me = await ensureMe(context.queryClient);
-    if (!me) throw redirect({ to: "/login" });
+    // The capture rides through the login so an expired session doesn't lose it.
+    if (!me) throw redirect({ to: "/login", search: captureSearch(search.kaappaus) });
   },
   component: AdminPage,
 });
@@ -36,6 +41,7 @@ function AdminPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: me } = useQuery(meQueryOptions);
+  const { kaappaus } = Route.useSearch();
   // Poll while any entry is being processed or archived in the background, so
   // the queue updates the moment the work finishes — also after a page refresh.
   const { data: submissions = [] } = useGetApiAdminSubmissions({
@@ -129,6 +135,14 @@ function AdminPage() {
         </p>
       </div>
 
+      {kaappaus && (
+        <CaptureBanner
+          key={kaappaus}
+          url={kaappaus}
+          onDismiss={() => void navigate({ to: "/admin", search: {} })}
+        />
+      )}
+
       <div role="tablist" className="mb-6 flex gap-1 border-b border-hairline">
         <TabButton active={tab === "submissions"} onClick={() => setTab("submissions")}>
           Ehdotusjono ({submissions.length})
@@ -146,6 +160,7 @@ function AdminPage() {
 
       {tab === "submissions" && (
         <div className="flex flex-col gap-5">
+          <CaptureTool />
           {submissions.length === 0 && (
             <p className="py-14 text-center text-[15px] text-muted">
               Ei uusia linkkiehdotuksia. ☕

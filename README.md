@@ -21,6 +21,12 @@ Anonymous readers browse the feed, vote ("tämä on turhaa", one vote per visito
 retract) and submit article links. The AI extraction (`apps/api/src/lib/suggestion-ai.ts`) is still
 a mock — swap `extractArticle` for a real LLM pipeline without touching routes or UI.
 
+Paywalled articles the server can't read are captured by the editor instead: a bookmarklet
+(`apps/web/src/lib/capture-bookmarklet.ts`, installed from the admin's Ehdotusjono tab) turns the
+article open in their own logged-in browser into the same Markdown the archiver stores, copies it,
+and opens `/admin?kaappaus=<article url>` — where one click pastes it into that submission's
+archive, creating the submission first if nobody has sent the link in.
+
 ## Development
 
 ```bash

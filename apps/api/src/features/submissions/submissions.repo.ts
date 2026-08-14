@@ -182,9 +182,16 @@ function toView(row: SubmissionRow, duplicate: UrlDuplicate | null = null): UrlS
  * just confirmed it) so the admin list can show what was submitted. The page
  * text archive runs fire-and-forget after the response — the submitter never
  * waits on (or hears about) it; the row's archive_status tells the admin.
+ *
+ * `announce: false` is for a row the editor added themselves (the capture
+ * tool): the arrival push says "a reader sent something", which is not true
+ * of a link the editor is looking at, so the row goes in already claimed as
+ * announced. It still counts toward the reminder — it is queued work like any
+ * other.
  */
 export async function createSubmission(
   url: string,
+  { announce = true }: { announce?: boolean } = {},
 ): Promise<{ submission: UrlSubmissionView; duplicate: boolean }> {
   const urlKey = normalizeUrl(url);
 
@@ -213,6 +220,7 @@ export async function createSubmission(
       description: preview.description,
       siteName: preview.siteName,
       ...(archiveEnabled ? { archiveStatus: "pending" as const } : {}),
+      ...(announce ? {} : { notifiedAt: new Date() }),
     })
     .returning();
   // The row is now a 'pending' work item; kick an immediate drain so archiving
@@ -221,8 +229,39 @@ export async function createSubmission(
   // Same idea for the editor's push: announce the arrival now rather than at
   // the notifier's next sweep. Fire-and-forget — the reader is not kept waiting
   // on a notification, and the sweep is the fallback if this drops.
-  if (notifierEnabled) void runQueueNotifierOnce();
+  if (announce && notifierEnabled) void runQueueNotifierOnce();
   return { submission: toView(row!), duplicate: false };
+}
+
+/**
+ * How many rows for one article the capture lookup pulls before picking. The
+ * key already selects a single article, so this only bounds the pathological
+ * case (the same link submitted over and over).
+ */
+const URL_MATCH_CANDIDATES = 50;
+
+/**
+ * The submission a captured page belongs to, or null when nobody has submitted
+ * that article. The editor captures the page's canonical address while the
+ * reader submitted whatever link they were sent, so the match is on the same
+ * `url_key` that duplicate detection uses ({@link normalizeUrl}) — one
+ * definition of "same article" for the whole desk, and an indexed lookup.
+ *
+ * A rejected row loses to a live one: capturing text for an article that is
+ * both in the queue and in the rejected archive is about the queued one. The
+ * pre-backfill empty key matches nothing, or it would match every legacy row.
+ */
+export async function findSubmissionByUrl(url: string): Promise<UrlSubmissionView | null> {
+  const key = normalizeUrl(url);
+  if (!key) return null;
+  const rows = await db
+    .select()
+    .from(urlSubmission)
+    .where(eq(urlSubmission.urlKey, key))
+    .orderBy(desc(urlSubmission.createdAt))
+    .limit(URL_MATCH_CANDIDATES);
+  const best = rows.find((row) => row.status !== "rejected") ?? rows[0];
+  return best ? toView(best) : null;
 }
 
 /**

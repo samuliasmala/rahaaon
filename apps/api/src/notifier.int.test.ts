@@ -190,6 +190,21 @@ describe("queue notifier", () => {
     expect(arrivals()).toHaveLength(0);
   });
 
+  it("stays quiet for a link the editor added themselves", async () => {
+    // The capture tool's fallback: the editor found the article, so pushing
+    // "uusi ehdotus" back at them would announce their own click. The row is
+    // queued work all the same, so the reminder still counts it.
+    const { createSubmission } = await import("./features/submissions/submissions.repo.js");
+    await createSubmission("https://example.invalid/toimittajan-oma", { announce: false });
+
+    await runQueueNotifierOnce();
+    expect(published).toHaveLength(0);
+
+    await wait(REMINDER_MS + 150);
+    await runQueueNotifierOnce();
+    expect(reminders()[0]!.message).toContain("1 ehdotus jonossa");
+  });
+
   it("drops an announcement the push server refused, rather than replaying it", async () => {
     const id = await insertSubmission("https://example.invalid/palvelin-nurin", { title: "Juttu" });
     failNextWith = 500;

@@ -448,6 +448,52 @@ export const getApiAdminSubmissionsResponse = zod.array(getApiAdminSubmissionsRe
 
 
 /**
+ * Same row as an anonymous submission — page metadata is fetched, the page archive is attempted, and an existing live entry for the same link is reused — but without the reader-facing rate limits, and without the "uusi ehdotus" push (the editor is the one adding it). For an article the editor found, or captured, themselves.
+ * @summary Add a link to the Ehdotusjono as the editor (the capture tool's fallback)
+ */
+export const postApiAdminSubmissionsBodyUrlMax = 2000;
+
+
+
+export const postApiAdminSubmissionsBody = zod.object({
+  "url": zod.url().max(postApiAdminSubmissionsBodyUrlMax)
+})
+
+
+/**
+ * Matching ignores the noise between a shared link and the canonical one (scheme, `www.`, trailing slash, tracking params). An absent `submission` means nobody has submitted this article.
+ * @summary The submission for a given article URL, if the link has already been submitted
+ */
+export const getApiAdminSubmissionsByUrlQueryUrlMax = 2000;
+
+
+
+export const getApiAdminSubmissionsByUrlQueryParams = zod.object({
+  "url": zod.string().max(getApiAdminSubmissionsByUrlQueryUrlMax)
+})
+
+export const getApiAdminSubmissionsByUrlResponse = zod.object({
+  "submission": zod.object({
+  "id": zod.uuid(),
+  "url": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "siteName": zod.string(),
+  "createdAt": zod.iso.datetime({}),
+  "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed', 'missing', 'disabled']),
+  "hasArchivedText": zod.boolean(),
+  "processing": zod.boolean(),
+  "processError": zod.string().nullable(),
+  "duplicate": zod.object({
+  "activeCount": zod.number(),
+  "publishedItemId": zod.uuid().nullable(),
+  "rejectedCount": zod.number()
+}).nullable()
+}).optional()
+})
+
+
+/**
  * @summary Queue a submission for AI processing (runs in the background)
  */
 export const postApiAdminSubmissionsIdProcessParams = zod.object({

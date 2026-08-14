@@ -30,6 +30,7 @@ import type {
   ErrorResponse,
   GenerateKeywordsRequest,
   GeneratedKeywords,
+  GetApiAdminSubmissionsByUrlParams,
   GetApiAdminSubmissionsIdArchiveTextParams,
   PatchApiAdminItemsId200,
   PatchItem,
@@ -44,6 +45,8 @@ import type {
   PutApiAdminSubmissionsIdArchiveText200,
   RejectedSuggestion,
   RejectedUrlSubmission,
+  SubmissionMatch,
+  SubmitUrl,
   Suggestion,
   SuggestionWithArchive,
   UrlSubmission
@@ -919,6 +922,165 @@ export function useGetApiAdminSubmissions<TData = Awaited<ReturnType<typeof getA
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetApiAdminSubmissionsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
+ * Same row as an anonymous submission — page metadata is fetched, the page archive is attempted, and an existing live entry for the same link is reused — but without the reader-facing rate limits, and without the "uusi ehdotus" push (the editor is the one adding it). For an article the editor found, or captured, themselves.
+ * @summary Add a link to the Ehdotusjono as the editor (the capture tool's fallback)
+ */
+export const postApiAdminSubmissions = (
+    submitUrl: SubmitUrl,
+ signal?: AbortSignal
+) => {
+      
+      
+      return apiFetch<UrlSubmission>(
+      {url: `/api/admin/submissions`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: submitUrl, ...(signal ? { signal }: {})
+    },
+      );
+    }
+  
+
+
+export const getPostApiAdminSubmissionsMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissions>>, TError,{data: SubmitUrl}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissions>>, TError,{data: SubmitUrl}, TContext> => {
+
+const mutationKey = ['postApiAdminSubmissions'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiAdminSubmissions>>, {data: SubmitUrl}> = (props) => {
+          const {data} = props ?? {};
+
+          return  postApiAdminSubmissions(data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiAdminSubmissionsMutationResult = NonNullable<Awaited<ReturnType<typeof postApiAdminSubmissions>>>
+    export type PostApiAdminSubmissionsMutationBody = SubmitUrl
+    export type PostApiAdminSubmissionsMutationError = ErrorResponse
+
+    /**
+ * @summary Add a link to the Ehdotusjono as the editor (the capture tool's fallback)
+ */
+export const usePostApiAdminSubmissions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissions>>, TError,{data: SubmitUrl}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiAdminSubmissions>>,
+        TError,
+        {data: SubmitUrl},
+        TContext
+      > => {
+
+      const mutationOptions = getPostApiAdminSubmissionsMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * Matching ignores the noise between a shared link and the canonical one (scheme, `www.`, trailing slash, tracking params). An absent `submission` means nobody has submitted this article.
+ * @summary The submission for a given article URL, if the link has already been submitted
+ */
+export const getApiAdminSubmissionsByUrl = (
+    params: GetApiAdminSubmissionsByUrlParams,
+ signal?: AbortSignal
+) => {
+      
+      
+      return apiFetch<SubmissionMatch>(
+      {url: `/api/admin/submissions/by-url`, method: 'GET',
+        params, ...(signal ? { signal }: {})
+    },
+      );
+    }
+  
+
+
+
+export const getGetApiAdminSubmissionsByUrlQueryKey = (params?: GetApiAdminSubmissionsByUrlParams,) => {
+    return [
+    `/api/admin/submissions/by-url`, ...(params ? [params]: [])
+    ] as const;
+    }
+
+    
+export const getGetApiAdminSubmissionsByUrlQueryOptions = <TData = Awaited<ReturnType<typeof getApiAdminSubmissionsByUrl>>, TError = ErrorResponse>(params: GetApiAdminSubmissionsByUrlParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsByUrl>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetApiAdminSubmissionsByUrlQueryKey(params);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiAdminSubmissionsByUrl>>> = ({ signal }) => getApiAdminSubmissionsByUrl(params, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsByUrl>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiAdminSubmissionsByUrlQueryResult = NonNullable<Awaited<ReturnType<typeof getApiAdminSubmissionsByUrl>>>
+export type GetApiAdminSubmissionsByUrlQueryError = ErrorResponse
+
+
+export function useGetApiAdminSubmissionsByUrl<TData = Awaited<ReturnType<typeof getApiAdminSubmissionsByUrl>>, TError = ErrorResponse>(
+ params: GetApiAdminSubmissionsByUrlParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsByUrl>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAdminSubmissionsByUrl>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAdminSubmissionsByUrl>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAdminSubmissionsByUrl<TData = Awaited<ReturnType<typeof getApiAdminSubmissionsByUrl>>, TError = ErrorResponse>(
+ params: GetApiAdminSubmissionsByUrlParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsByUrl>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAdminSubmissionsByUrl>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAdminSubmissionsByUrl>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAdminSubmissionsByUrl<TData = Awaited<ReturnType<typeof getApiAdminSubmissionsByUrl>>, TError = ErrorResponse>(
+ params: GetApiAdminSubmissionsByUrlParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsByUrl>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The submission for a given article URL, if the link has already been submitted
+ */
+
+export function useGetApiAdminSubmissionsByUrl<TData = Awaited<ReturnType<typeof getApiAdminSubmissionsByUrl>>, TError = ErrorResponse>(
+ params: GetApiAdminSubmissionsByUrlParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSubmissionsByUrl>>, TError, TData>>, }
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetApiAdminSubmissionsByUrlQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
