@@ -9,6 +9,7 @@ import {
 } from "./schemas.js";
 import {
   createSubmission,
+  findUrlDuplicate,
   getSubmissionArchiveText,
   listNewSubmissions,
   listRejectedSubmissions,
@@ -20,6 +21,7 @@ import {
 } from "./submissions.repo.js";
 import { commonErrorResponses, createRouter, errorResponse } from "../../lib/openapi.js";
 import { fetchPagePreview } from "../../lib/page-preview.js";
+import { normalizeUrl } from "../../lib/url.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { rateLimit } from "../../middleware/rate-limit.js";
 
@@ -57,7 +59,23 @@ submissionRoutes.openapi(
   }),
   async (c) => {
     const { url } = c.req.valid("json");
-    return c.json(await fetchPagePreview(url), 200);
+    // Deliberately not folded into fetchPagePreview: that has a 5-minute TTL
+    // cache keyed on the URL, and duplicate state changes independently of the
+    // page metadata — a cached "not yet submitted" would outlive the truth.
+    const [preview, duplicate] = await Promise.all([
+      fetchPagePreview(url),
+      findUrlDuplicate(normalizeUrl(url)),
+    ]);
+    const published = duplicate?.publishedItem;
+    return c.json(
+      {
+        ...preview,
+        publishedItem:
+          published && !published.hidden ? { id: published.id, title: published.title } : null,
+        alreadySubmitted: (duplicate?.activeCount ?? 0) > 0,
+      },
+      200,
+    );
   },
 );
 
@@ -72,7 +90,20 @@ submissionRoutes.openapi(
     responses: {
       201: {
         description: "Queued for editorial processing",
-        content: { "application/json": { schema: z.object({ id: z.uuid() }) } },
+        content: {
+          "application/json": {
+            schema: z.object({
+              id: z.uuid(),
+              /**
+               * True when the link was already in the pipeline and this submit
+               * was absorbed into the existing entry — `id` is that entry's.
+               * The reader is told at the preview step and sees the same
+               * thank-you either way; nothing new was queued.
+               */
+              duplicate: z.boolean(),
+            }),
+          },
+        },
       },
       429: errorResponse("Liikaa pyyntöjä"),
       ...commonErrorResponses,
@@ -80,8 +111,8 @@ submissionRoutes.openapi(
   }),
   async (c) => {
     const { url } = c.req.valid("json");
-    const created = await createSubmission(url);
-    return c.json({ id: created.id }, 201);
+    const { submission, duplicate } = await createSubmission(url);
+    return c.json({ id: submission.id, duplicate }, 201);
   },
 );
 

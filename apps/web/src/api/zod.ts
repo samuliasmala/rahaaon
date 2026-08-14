@@ -403,7 +403,12 @@ export const postApiSubmissionsPreviewResponse = zod.object({
   "siteName": zod.string(),
   "title": zod.string(),
   "description": zod.string(),
-  "fetched": zod.boolean()
+  "fetched": zod.boolean(),
+  "publishedItem": zod.object({
+  "id": zod.uuid(),
+  "title": zod.string()
+}).nullable(),
+  "alreadySubmitted": zod.boolean()
 })
 
 
@@ -432,7 +437,12 @@ export const getApiAdminSubmissionsResponseItem = zod.object({
   "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed', 'missing', 'disabled']),
   "hasArchivedText": zod.boolean(),
   "processing": zod.boolean(),
-  "processError": zod.string().nullable()
+  "processError": zod.string().nullable(),
+  "duplicate": zod.object({
+  "activeCount": zod.number(),
+  "publishedItemId": zod.uuid().nullable(),
+  "rejectedCount": zod.number()
+}).nullable()
 })
 export const getApiAdminSubmissionsResponse = zod.array(getApiAdminSubmissionsResponseItem)
 
@@ -522,7 +532,12 @@ export const getApiAdminSubmissionsRejectedResponseItem = zod.object({
   "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed', 'missing', 'disabled']),
   "hasArchivedText": zod.boolean(),
   "processing": zod.boolean(),
-  "processError": zod.string().nullable()
+  "processError": zod.string().nullable(),
+  "duplicate": zod.object({
+  "activeCount": zod.number(),
+  "publishedItemId": zod.uuid().nullable(),
+  "rejectedCount": zod.number()
+}).nullable()
 }).and(zod.object({
   "rejectedAt": zod.iso.datetime({})
 }))
@@ -546,5 +561,10 @@ export const postApiAdminSubmissionsIdRestoreResponse = zod.object({
   "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed', 'missing', 'disabled']),
   "hasArchivedText": zod.boolean(),
   "processing": zod.boolean(),
-  "processError": zod.string().nullable()
+  "processError": zod.string().nullable(),
+  "duplicate": zod.object({
+  "activeCount": zod.number(),
+  "publishedItemId": zod.uuid().nullable(),
+  "rejectedCount": zod.number()
+}).nullable()
 })

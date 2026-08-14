@@ -68,6 +68,28 @@ test("the suggest flow works from the admin view", async ({ page }) => {
   await expect(page.getByRole("tab", { name: `Ehdotusjono (${before + 1})` })).toBeVisible();
 });
 
+test("resubmitting the same link is caught at the preview step", async ({ page }) => {
+  await page.goto("/admin");
+  const before = await tabCount(page, "Ehdotusjono");
+
+  // The link the previous test submitted, in the shape a share sheet produces:
+  // a trailing campaign parameter over the same page.
+  await page.getByRole("button", { name: "Ehdota kohde" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("textbox").fill("http://127.0.0.1:5274/?utm_source=whatsapp");
+  await dialog.getByRole("button", { name: "Lähetä tekoälyn luettavaksi" }).click();
+
+  await expect(dialog.getByText("Tämä linkki odottaa jo toimituksen käsittelyä.")).toBeVisible();
+
+  // Sending it anyway is harmless: absorbed into the existing entry, so the
+  // reader gets the usual thank-you and the queue count does not move.
+  await dialog.getByRole("button", { name: "Vahvista ja lähetä jonoon" }).click();
+  await expect(dialog.getByText("Kiitos! Ehdotus on jonossa.")).toBeVisible();
+  await dialog.getByRole("button", { name: "Selvä" }).click();
+
+  await expect(page.getByRole("tab", { name: `Ehdotusjono (${before})` })).toBeVisible();
+});
+
 test("processing a submission moves it to the AI queue", async ({ page }) => {
   await page.goto("/admin");
   const submissionsBefore = await tabCount(page, "Ehdotusjono");

@@ -14,7 +14,38 @@ import {
 } from "../../api/admin/admin.js";
 import { formatTimeAgo } from "../../lib/format.js";
 import { Button } from "../ui/button.js";
+import { Pill } from "../ui/pill.js";
 import type { UrlSubmission } from "../../api/model/index.js";
+
+/**
+ * What the desk already holds for this link, as one pill. Only one is shown,
+ * strongest first: a published story settles the verdict on its own, and a past
+ * rejection is the case submit deliberately lets through (the desk is allowed
+ * to change its mind, so the editor is told rather than the reader blocked).
+ * A live-entry pill is the rare leftover — submit absorbs same-link resubmits,
+ * so it only appears for rows that predate this or for two racing submits.
+ */
+function duplicatePill(
+  duplicate: UrlSubmission["duplicate"],
+): { label: string; classes: string } | null {
+  if (!duplicate) return null;
+  if (duplicate.publishedItemId) {
+    return { label: "Jo julkaistu", classes: "bg-warn-wash text-warn" };
+  }
+  if (duplicate.rejectedCount > 0) {
+    return {
+      label:
+        duplicate.rejectedCount > 1
+          ? `Hylätty aiemmin ×${duplicate.rejectedCount}`
+          : "Hylätty aiemmin",
+      classes: "bg-wash-soft text-muted",
+    };
+  }
+  if (duplicate.activeCount > 0) {
+    return { label: "Sama linkki jonossa", classes: "bg-warn-wash text-warn" };
+  }
+  return null;
+}
 
 /**
  * One reader-submitted link in the Ehdotusjono: the page metadata captured at
@@ -32,6 +63,7 @@ export function SubmissionCard({ entry }: { entry: UrlSubmission }) {
   const rejectMutation = usePostApiAdminSubmissionsIdReject();
   const processing = entry.processing || processMutation.isPending;
   const busy = processMutation.isPending || rejectMutation.isPending;
+  const duplicateNotice = duplicatePill(entry.duplicate);
 
   async function refreshSubmissions() {
     await queryClient.invalidateQueries({ queryKey: getGetApiAdminSubmissionsQueryKey() });
@@ -78,6 +110,9 @@ export function SubmissionCard({ entry }: { entry: UrlSubmission }) {
         <span className="text-[11px] font-semibold tracking-[0.08em] text-body uppercase">
           Lukijan ehdottama linkki
         </span>
+        {duplicateNotice && (
+          <Pill className={duplicateNotice.classes}>{duplicateNotice.label}</Pill>
+        )}
         <span className="ml-auto text-xs text-muted">
           Saapunut {formatTimeAgo(entry.createdAt)}
         </span>

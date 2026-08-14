@@ -7,6 +7,7 @@
  */
 import type { UrlSubmissionArchiveStatus } from './urlSubmissionArchiveStatus';
 import type { UrlSubmissionProcessError } from './urlSubmissionProcessError';
+import type { SubmissionDuplicate } from './submissionDuplicate';
 
 export interface UrlSubmission {
   id: string;
@@ -19,4 +20,5 @@ export interface UrlSubmission {
   hasArchivedText: boolean;
   processing: boolean;
   processError: UrlSubmissionProcessError;
+  duplicate: SubmissionDuplicate;
 }

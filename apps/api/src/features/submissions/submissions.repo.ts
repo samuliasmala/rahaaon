@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { db } from "../../db/client.js";
-import { urlSubmission } from "../../db/schema/index.js";
+import { suggestion, urlSubmission, wasteItem } from "../../db/schema/index.js";
 import {
   archiveEnabled,
   effectiveArchiveStatus,
@@ -13,6 +13,7 @@ import { fetchPagePreview } from "../../lib/page-preview.js";
 import { notifierEnabled, runQueueNotifierOnce } from "../../lib/queue-notifier.js";
 import { getTextObject, putTextObject } from "../../lib/s3.js";
 import { runProcessorOnce } from "../../lib/submission-processor.js";
+import { normalizeUrl } from "../../lib/url.js";
 import type { ArchiveRefView, RejectedUrlSubmissionView, UrlSubmissionView } from "./schemas.js";
 
 type SubmissionRow = typeof urlSubmission.$inferSelect;
@@ -37,7 +38,125 @@ export function toArchiveRef(
   };
 }
 
-function toView(row: SubmissionRow): UrlSubmissionView {
+/**
+ * What else the desk already holds for one link, keyed on the normalized URL
+ * (lib/url.ts). Drives both ends: the reader is told before confirming, and
+ * the editor sees a pill on the Ehdotusjono card.
+ */
+export interface UrlDuplicate {
+  /**
+   * A live pipeline entry for this key — a first-run Ehdotusjono row or an
+   * entry already in the AI queue. A fresh submit is absorbed into it rather
+   * than queueing a second card. Null when nothing live matches.
+   */
+  activeSubmissionId: string | null;
+  activeCount: number;
+  /** The newest feed item published from this link; `hidden` items are on it too. */
+  publishedItem: { id: string; title: string; hidden: boolean } | null;
+  /** Times the desk already said no to this link — submission- or suggestion-side. */
+  rejectedCount: number;
+}
+
+const NO_DUPLICATE: UrlDuplicate = {
+  activeSubmissionId: null,
+  activeCount: 0,
+  publishedItem: null,
+  rejectedCount: 0,
+};
+
+/** True when nothing at all is on record for the key — the caller reports null. */
+function isEmpty(duplicate: UrlDuplicate): boolean {
+  return (
+    duplicate.activeCount === 0 && duplicate.publishedItem === null && duplicate.rejectedCount === 0
+  );
+}
+
+/**
+ * What the desk already holds for each of these URL keys. Batched (two queries
+ * regardless of input size) because the Ehdotusjono asks for a whole listing at
+ * once. Keys absent from the result have nothing on record.
+ *
+ * Empty keys are dropped up front: "" is the pre-backfill default, so looking
+ * one up would match every legacy row at once.
+ */
+export async function findUrlDuplicates(urlKeys: string[]): Promise<Map<string, UrlDuplicate>> {
+  const keys = [...new Set(urlKeys)].filter((key) => key !== "");
+  const found = new Map<string, UrlDuplicate>();
+  if (keys.length === 0) return found;
+
+  const forKey = (key: string): UrlDuplicate => {
+    const existing = found.get(key);
+    if (existing) return existing;
+    const fresh = { ...NO_DUPLICATE };
+    found.set(key, fresh);
+    return fresh;
+  };
+
+  // Newest first, so the first item seen for a key is the one reported.
+  const items = await db
+    .select({
+      id: wasteItem.id,
+      title: wasteItem.title,
+      hidden: wasteItem.hidden,
+      urlKey: wasteItem.urlKey,
+    })
+    .from(wasteItem)
+    .where(inArray(wasteItem.urlKey, keys))
+    .orderBy(desc(wasteItem.publishedAt));
+  for (const item of items) {
+    const entry = forKey(item.urlKey);
+    entry.publishedItem ??= { id: item.id, title: item.title, hidden: item.hidden };
+  }
+
+  const entries = await db
+    .select({
+      urlKey: urlSubmission.urlKey,
+      submissionId: urlSubmission.id,
+      submissionStatus: urlSubmission.status,
+      suggestionId: urlSubmission.suggestionId,
+      suggestionStatus: suggestion.status,
+    })
+    .from(urlSubmission)
+    .leftJoin(suggestion, eq(suggestion.id, urlSubmission.suggestionId))
+    .where(inArray(urlSubmission.urlKey, keys))
+    .orderBy(desc(urlSubmission.createdAt));
+  for (const row of entries) {
+    const entry = forKey(row.urlKey);
+    // "Live" is the same shape listNewSubmissions filters for — a first-run row
+    // still awaiting a verdict, or one that became a pending suggestion. A
+    // 'processing' row that already carries a suggestion is a reprocess of a
+    // settled entry, not a queue occupant, so it doesn't count.
+    const firstRun = row.suggestionId === null;
+    const active =
+      (firstRun && (row.submissionStatus === "new" || row.submissionStatus === "processing")) ||
+      row.suggestionStatus === "pending";
+    if (active) {
+      entry.activeCount += 1;
+      entry.activeSubmissionId ??= row.submissionId;
+    }
+    if (row.submissionStatus === "rejected" || row.suggestionStatus === "rejected") {
+      entry.rejectedCount += 1;
+    }
+  }
+
+  for (const [key, duplicate] of found) {
+    if (isEmpty(duplicate)) found.delete(key);
+  }
+  return found;
+}
+
+/** Single-key convenience for the submit and preview paths. */
+export async function findUrlDuplicate(urlKey: string): Promise<UrlDuplicate | null> {
+  return (await findUrlDuplicates([urlKey])).get(urlKey) ?? null;
+}
+
+/**
+ * `duplicate` is only filled by {@link listNewSubmissions} — the Ehdotusjono is
+ * the one place the pill is rendered, and the client refetches that list after
+ * every mutation, so single-entry responses leave it null rather than pay for a
+ * lookup nothing reads.
+ */
+function toView(row: SubmissionRow, duplicate: UrlDuplicate | null = null): UrlSubmissionView {
   return {
     id: row.id,
     url: row.url,
@@ -49,6 +168,11 @@ function toView(row: SubmissionRow): UrlSubmissionView {
     hasArchivedText: row.archiveTextKey !== null,
     processing: row.status === "processing",
     processError: row.processError,
+    duplicate: duplicate && {
+      activeCount: duplicate.activeCount,
+      publishedItemId: duplicate.publishedItem?.id ?? null,
+      rejectedCount: duplicate.rejectedCount,
+    },
   };
 }
 
@@ -59,12 +183,32 @@ function toView(row: SubmissionRow): UrlSubmissionView {
  * text archive runs fire-and-forget after the response — the submitter never
  * waits on (or hears about) it; the row's archive_status tells the admin.
  */
-export async function createSubmission(url: string): Promise<UrlSubmissionView> {
+export async function createSubmission(
+  url: string,
+): Promise<{ submission: UrlSubmissionView; duplicate: boolean }> {
+  const urlKey = normalizeUrl(url);
+
+  // Absorbed, not refused: the reader was already warned at the preview step,
+  // and a second card for one article costs the desk a duplicate AI extraction
+  // and a duplicate archive fetch. Rejected entries are deliberately not
+  // matched here — the desk can change its mind, and the Ehdotusjono card
+  // badges the resubmit so the editor sees the history.
+  const existing = await findUrlDuplicate(urlKey);
+  if (existing?.activeSubmissionId) {
+    const [row] = await db
+      .select()
+      .from(urlSubmission)
+      .where(eq(urlSubmission.id, existing.activeSubmissionId))
+      .limit(1);
+    if (row) return { submission: toView(row), duplicate: true };
+  }
+
   const preview = await fetchPagePreview(url);
   const [row] = await db
     .insert(urlSubmission)
     .values({
       url,
+      urlKey,
       title: preview.title,
       description: preview.description,
       siteName: preview.siteName,
@@ -78,7 +222,7 @@ export async function createSubmission(url: string): Promise<UrlSubmissionView> 
   // the notifier's next sweep. Fire-and-forget — the reader is not kept waiting
   // on a notification, and the sweep is the fallback if this drops.
   if (notifierEnabled) void runQueueNotifierOnce();
-  return toView(row!);
+  return { submission: toView(row!), duplicate: false };
 }
 
 /**
@@ -96,7 +240,16 @@ export async function listNewSubmissions(): Promise<UrlSubmissionView[]> {
       and(inArray(urlSubmission.status, ["new", "processing"]), isNull(urlSubmission.suggestionId)),
     )
     .orderBy(desc(urlSubmission.createdAt));
-  return rows.map(toView);
+
+  const duplicates = await findUrlDuplicates(rows.map((row) => row.urlKey));
+  return rows.map((row) => {
+    const found = duplicates.get(row.urlKey);
+    if (!found) return toView(row);
+    // Every row in this listing is itself a live entry, so it is in its own
+    // activeCount — the pill must count the others.
+    const others = { ...found, activeCount: found.activeCount - 1 };
+    return toView(row, isEmpty(others) ? null : others);
+  });
 }
 
 /**

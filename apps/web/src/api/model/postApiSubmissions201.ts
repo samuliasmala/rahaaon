@@ -8,4 +8,5 @@
 
 export type PostApiSubmissions201 = {
   id: string;
+  duplicate: boolean;
 };

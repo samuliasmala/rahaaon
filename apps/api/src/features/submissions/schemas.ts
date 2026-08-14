@@ -58,6 +58,22 @@ export const pagePreviewSchema = z
     title: z.string(),
     description: z.string(),
     fetched: z.boolean(),
+    /**
+     * Set when this link is already a story on the feed — the reader gets the
+     * headline and a way to go read it instead of submitting again. Hidden
+     * items are left out: they aren't on the feed, so "jo julkaistu" would send
+     * the reader after something they can't see.
+     */
+    publishedItem: z
+      .object({ id: z.uuid(), title: z.string() })
+      .nullable()
+      .openapi("PublishedItemRef"),
+    /**
+     * True when the link is already somewhere in the editorial pipeline. A bare
+     * boolean on purpose: the Ehdotusjono is not public, so the reader learns
+     * that submitting again is pointless and nothing more.
+     */
+    alreadySubmitted: z.boolean(),
   })
   .openapi("PagePreview");
 
@@ -87,6 +103,23 @@ export const urlSubmissionSchema = z
     processing: z.boolean(),
     /** Why the last processing run failed (attempts exhausted); null otherwise. */
     processError: z.string().nullable(),
+    /**
+     * What else the desk holds for this link, matched on the normalized URL.
+     * Null when nothing does — and also on single-entry responses, which don't
+     * compute it: the pill lives on the Ehdotusjono listing, which the client
+     * refetches after every mutation.
+     */
+    duplicate: z
+      .object({
+        /** Other live entries with this link — normally 0, since submit absorbs them. */
+        activeCount: z.number().int(),
+        /** The feed item this link was already published as, hidden ones included. */
+        publishedItemId: z.uuid().nullable(),
+        /** Times the desk already rejected this link — resubmits are allowed, not silent. */
+        rejectedCount: z.number().int(),
+      })
+      .nullable()
+      .openapi("SubmissionDuplicate"),
   })
   .openapi("UrlSubmission");
 

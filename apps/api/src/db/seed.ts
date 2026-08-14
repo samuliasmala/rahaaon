@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { closeDb, db, schema as s } from "./client.js";
 import { auth } from "../auth/auth.js";
 import { env } from "../config/env.js";
+import { normalizeUrl } from "../lib/url.js";
 import type { AmountType, Category } from "./schema/content.js";
 
 /**
@@ -327,6 +328,7 @@ async function main() {
         category: item.category,
         sourceName: item.sourceName,
         sourceUrl: item.sourceUrl,
+        urlKey: normalizeUrl(item.sourceUrl),
         summary: item.summary,
         quote: item.quote,
         keywords: item.keywords,
@@ -389,6 +391,7 @@ async function main() {
   await db.insert(s.urlSubmission).values(
     SUBMISSIONS.map((sub) => ({
       url: sub.url,
+      urlKey: normalizeUrl(sub.url),
       title: sub.title,
       description: sub.description,
       siteName: sub.siteName,
@@ -397,6 +400,7 @@ async function main() {
   );
   await db.insert(s.urlSubmission).values({
     url: REJECTED_SUBMISSION.url,
+    urlKey: normalizeUrl(REJECTED_SUBMISSION.url),
     title: REJECTED_SUBMISSION.title,
     description: REJECTED_SUBMISSION.description,
     siteName: REJECTED_SUBMISSION.siteName,

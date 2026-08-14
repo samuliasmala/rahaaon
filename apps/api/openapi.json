@@ -628,6 +628,12 @@
           },
           "fetched": {
             "type": "boolean"
+          },
+          "publishedItem": {
+            "$ref": "#/components/schemas/PublishedItemRef"
+          },
+          "alreadySubmitted": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -635,7 +641,28 @@
           "siteName",
           "title",
           "description",
-          "fetched"
+          "fetched",
+          "publishedItem",
+          "alreadySubmitted"
+        ]
+      },
+      "PublishedItemRef": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
         ]
       },
       "SubmitUrl": {
@@ -696,6 +723,9 @@
               "string",
               "null"
             ]
+          },
+          "duplicate": {
+            "$ref": "#/components/schemas/SubmissionDuplicate"
           }
         },
         "required": [
@@ -708,7 +738,34 @@
           "archiveStatus",
           "hasArchivedText",
           "processing",
-          "processError"
+          "processError",
+          "duplicate"
+        ]
+      },
+      "SubmissionDuplicate": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "activeCount": {
+            "type": "integer"
+          },
+          "publishedItemId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "rejectedCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "activeCount",
+          "publishedItemId",
+          "rejectedCount"
         ]
       },
       "ArchiveTextEdit": {
@@ -2367,10 +2424,14 @@
                     "id": {
                       "type": "string",
                       "format": "uuid"
+                    },
+                    "duplicate": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
-                    "id"
+                    "id",
+                    "duplicate"
                   ]
                 }
               }

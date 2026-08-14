@@ -3,6 +3,7 @@ import { db } from "../../db/client.js";
 import { suggestion, urlSubmission, wasteItem } from "../../db/schema/index.js";
 import { normalizeAmount } from "../../lib/amount.js";
 import { notFound } from "../../lib/http-errors.js";
+import { normalizeUrl } from "../../lib/url.js";
 import { requeueSubmissionForReprocess, toArchiveRef } from "../submissions/submissions.repo.js";
 import type {
   RejectedSuggestionView,
@@ -155,6 +156,7 @@ export async function approveSuggestion(id: string): Promise<{ itemId: string }>
         category: entry.category,
         sourceName: entry.sourceName,
         sourceUrl: entry.url,
+        urlKey: normalizeUrl(entry.url),
         articleTitle: entry.articleTitle,
         summary: entry.summary,
         articlePublishedAt: entry.articlePublishedAt,

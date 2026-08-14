@@ -708,3 +708,136 @@ describe("editorial loop", () => {
     expect(again.status).toBe(404);
   });
 });
+
+/**
+ * Same-link handling end to end. The URLs differ only in the ways one article
+ * actually arrives — www, trailing slash, campaign parameters, a fragment,
+ * http vs https — so these also assert that lib/url.ts's key is what the
+ * pipeline compares on.
+ */
+describe("duplicate detection", () => {
+  type Preview = {
+    alreadySubmitted: boolean;
+    publishedItem: { id: string; title: string } | null;
+  };
+  type Submitted = { id: string; duplicate: boolean };
+  type QueueRow = {
+    id: string;
+    url: string;
+    duplicate: {
+      activeCount: number;
+      publishedItemId: string | null;
+      rejectedCount: number;
+    } | null;
+  };
+
+  const previewOf = async (url: string): Promise<Preview> =>
+    (await (await app.request("/api/submissions/preview", json({ url }))).json()) as Preview;
+  const submit = async (url: string): Promise<Submitted> =>
+    (await (await app.request("/api/submissions", json({ url }))).json()) as Submitted;
+  const ehdotusjono = async (): Promise<QueueRow[]> =>
+    (await (
+      await app.request("/api/admin/submissions", { headers: { cookie: editorCookie } })
+    ).json()) as QueueRow[];
+
+  it("absorbs a resubmitted link instead of queueing it twice", async () => {
+    const canonical = "https://hs.fi.invalid/politiikka/tuplattu";
+    const first = await submit(canonical);
+    expect(first.duplicate).toBe(false);
+
+    for (const variant of [
+      "https://www.hs.fi.invalid/politiikka/tuplattu/?utm_source=whatsapp#kommentit",
+      "http://hs.fi.invalid/politiikka/tuplattu",
+      canonical,
+    ]) {
+      const again = await submit(variant);
+      expect(again.duplicate).toBe(true);
+      // Absorbed into the original entry, not queued as a new one.
+      expect(again.id).toBe(first.id);
+    }
+
+    const queue = await ehdotusjono();
+    expect(queue.filter((row) => row.id === first.id)).toHaveLength(1);
+    // Nothing else live shares the link, so the card carries no pill.
+    expect(queue.find((row) => row.id === first.id)?.duplicate).toBeNull();
+  });
+
+  it("warns the reader at the preview step while the link sits in the queue", async () => {
+    const url = "https://yle.fi.invalid/a/jonossa-jo";
+    expect((await previewOf(url)).alreadySubmitted).toBe(false);
+
+    await submit(url);
+
+    // Also for the campaign-parameter variant — and the preview must not serve
+    // a cached "not yet submitted" from the page-metadata cache.
+    const after = await previewOf("https://www.yle.fi.invalid/a/jonossa-jo?utm_medium=email");
+    expect(after.alreadySubmitted).toBe(true);
+    // The Ehdotusjono is not public: the reader learns nothing beyond the flag.
+    expect(after.publishedItem).toBeNull();
+  });
+
+  it("points the reader at the story once the link is published", async () => {
+    const url = "https://is.fi.invalid/politiikka/julkaistu-jo";
+    const { id: submissionId } = await submit(url);
+    await app.request(`/api/admin/submissions/${submissionId}/process`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    await waitUntilProcessed(submissionId);
+
+    const queue = (await (
+      await app.request("/api/admin/suggestions", { headers: { cookie: editorCookie } })
+    ).json()) as { id: string; url: string; title: string }[];
+    const entry = queue.find((row) => row.url === url)!;
+    const approved = await app.request(`/api/admin/suggestions/${entry.id}/approve`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(approved.status).toBe(200);
+
+    const preview = await previewOf("https://www.is.fi.invalid/politiikka/julkaistu-jo/");
+    expect(preview.publishedItem?.title).toBe(entry.title);
+    // Published means nothing is live in the pipeline any more.
+    expect(preview.alreadySubmitted).toBe(false);
+
+    // A resubmit still queues — the desk may want a second look at a published
+    // story — but it arrives badged so the editor sees why.
+    const resubmitted = await submit(url);
+    expect(resubmitted.duplicate).toBe(false);
+    const badged = (await ehdotusjono()).find((row) => row.id === resubmitted.id);
+    expect(badged?.duplicate?.publishedItemId).toBe(preview.publishedItem?.id);
+  });
+
+  it("lets a rejected link back in, badged with its history", async () => {
+    const url = "https://blogi.invalid/hylatty-kerran";
+    const { id } = await submit(url);
+    const rejected = await app.request(`/api/admin/submissions/${id}/reject`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(rejected.status).toBe(200);
+
+    // Rejection is not a wall: the desk is allowed to change its mind, so the
+    // resubmit queues a real entry rather than vanishing into the archive.
+    const again = await submit("https://www.blogi.invalid/hylatty-kerran?utm_source=x");
+    expect(again.duplicate).toBe(false);
+    expect(again.id).not.toBe(id);
+
+    const row = (await ehdotusjono()).find((entry) => entry.id === again.id);
+    expect(row?.duplicate?.rejectedCount).toBe(1);
+    expect(row?.duplicate?.publishedItemId).toBeNull();
+    // The rejected row is not live, so it doesn't count as one.
+    expect(row?.duplicate?.activeCount).toBe(0);
+  });
+
+  it("keeps genuinely different links apart", async () => {
+    const first = await submit("https://kaleva.invalid/uutiset/juttu-a");
+    const second = await submit("https://kaleva.invalid/uutiset/juttu-b");
+    expect(second.duplicate).toBe(false);
+    expect(second.id).not.toBe(first.id);
+
+    const queue = await ehdotusjono();
+    expect(queue.find((row) => row.id === first.id)?.duplicate).toBeNull();
+    expect(queue.find((row) => row.id === second.id)?.duplicate).toBeNull();
+  });
+});

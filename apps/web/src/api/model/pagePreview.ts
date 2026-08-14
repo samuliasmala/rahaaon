@@ -5,6 +5,7 @@
  * Crowdsourced tracker of wasteful public spending (rahaaon.fi).
  * OpenAPI spec version: 0.1.0
  */
+import type { PublishedItemRef } from './publishedItemRef';
 
 export interface PagePreview {
   url: string;
@@ -12,4 +13,6 @@ export interface PagePreview {
   title: string;
   description: string;
   fetched: boolean;
+  publishedItem: PublishedItemRef;
+  alreadySubmitted: boolean;
 }

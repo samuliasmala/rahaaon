@@ -62,37 +62,49 @@ export const urlSubmissionStatusEnum = pgEnum("url_submission_status", [
 export const archiveStatusEnum = pgEnum("archive_status", ["pending", "ok", "paywalled", "failed"]);
 
 /** A published waste-of-money story on the public feed. */
-export const wasteItem = pgTable("waste_item", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  title: text("title").notNull(),
-  /** Whole euros; a range's lower bound when amount_max_eur is set; 0 when amount_type = 'unknown'. */
-  amountEur: integer("amount_eur").notNull(),
-  amountType: amountTypeEnum("amount_type").notNull().default("exact"),
-  /** Range upper bound in whole euros ("100–200 M€"); null when the source gives no range. */
-  amountMaxEur: integer("amount_max_eur"),
-  /** Who spent the money: a municipality or a national body ("Valtio", "ELY-keskus"…). */
-  entity: text("entity").notNull(),
-  category: categoryEnum("category").notNull(),
-  /** Publication the story came from, e.g. "Helsingin Sanomat". */
-  sourceName: text("source_name").notNull(),
-  /** Link to the original article. */
-  sourceUrl: text("source_url").notNull(),
-  /** The article's own headline, shown as the source-link text; "" when unknown. */
-  articleTitle: text("article_title").notNull().default(""),
-  summary: text("summary").notNull(),
-  quote: text("quote").notNull().default(""),
-  /** Search keywords (AI-drafted, editor-editable) — feed the client-side feed search. */
-  keywords: text("keywords")
-    .array()
-    .notNull()
-    .default(sql`'{}'::text[]`),
-  /** Hidden items stay in the admin list but are removed from the feed and the total. */
-  hidden: boolean("hidden").notNull().default(false),
-  /** When the item went live on the feed (approval time). */
-  publishedAt: timestamp("published_at", { withTimezone: true }).notNull().defaultNow(),
-  /** The source article's own publication date (AI-extracted); null when unknown. */
-  articlePublishedAt: date("article_published_at", { mode: "string" }),
-});
+export const wasteItem = pgTable(
+  "waste_item",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    title: text("title").notNull(),
+    /** Whole euros; a range's lower bound when amount_max_eur is set; 0 when amount_type = 'unknown'. */
+    amountEur: integer("amount_eur").notNull(),
+    amountType: amountTypeEnum("amount_type").notNull().default("exact"),
+    /** Range upper bound in whole euros ("100–200 M€"); null when the source gives no range. */
+    amountMaxEur: integer("amount_max_eur"),
+    /** Who spent the money: a municipality or a national body ("Valtio", "ELY-keskus"…). */
+    entity: text("entity").notNull(),
+    category: categoryEnum("category").notNull(),
+    /** Publication the story came from, e.g. "Helsingin Sanomat". */
+    sourceName: text("source_name").notNull(),
+    /** Link to the original article. */
+    sourceUrl: text("source_url").notNull(),
+    /**
+     * `source_url` folded to its duplicate key (lib/url.ts) — what a fresh
+     * submission is matched against to tell the reader the story is already on
+     * the feed. "" only on rows written before the backfill in db/migrate.ts.
+     */
+    urlKey: text("url_key").notNull().default(""),
+    /** The article's own headline, shown as the source-link text; "" when unknown. */
+    articleTitle: text("article_title").notNull().default(""),
+    summary: text("summary").notNull(),
+    quote: text("quote").notNull().default(""),
+    /** Search keywords (AI-drafted, editor-editable) — feed the client-side feed search. */
+    keywords: text("keywords")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    /** Hidden items stay in the admin list but are removed from the feed and the total. */
+    hidden: boolean("hidden").notNull().default(false),
+    /** When the item went live on the feed (approval time). */
+    publishedAt: timestamp("published_at", { withTimezone: true }).notNull().defaultNow(),
+    /** The source article's own publication date (AI-extracted); null when unknown. */
+    articlePublishedAt: date("article_published_at", { mode: "string" }),
+  },
+  // Backs the duplicate lookup, which runs on every page preview and every
+  // Ehdotusjono load.
+  (t) => [index("waste_item_url_key_idx").on(t.urlKey)],
+);
 
 /** An AI-preprocessed reader suggestion; the editorial queue is `status = 'pending'`. */
 export const suggestion = pgTable("suggestion", {
@@ -144,6 +156,13 @@ export const urlSubmission = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     url: text("url").notNull(),
+    /**
+     * `url` folded to its duplicate key (lib/url.ts). A submit whose key already
+     * has a live entry is absorbed into that entry instead of queueing a second
+     * card; a key carrying only rejections is let through and badged for the
+     * editor. "" only on rows written before the backfill in db/migrate.ts.
+     */
+    urlKey: text("url_key").notNull().default(""),
     /** Page metadata captured at submit time (the preview the reader confirmed). */
     title: text("title").notNull().default(""),
     description: text("description").notNull().default(""),
@@ -225,6 +244,9 @@ export const urlSubmission = pgTable(
     index("url_submission_notify_claim_idx")
       .on(t.createdAt)
       .where(sql`${t.notifiedAt} is null`),
+    // Backs the duplicate lookup, which runs on every submit, every page
+    // preview and every Ehdotusjono load.
+    index("url_submission_url_key_idx").on(t.urlKey),
   ],
 );
 
