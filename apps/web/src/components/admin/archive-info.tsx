@@ -21,6 +21,13 @@ const linkClasses =
  * the worker takes another shot at the page. A settled capture gets the same
  * action inside the text dialog (next to Muokkaa), as a forced refetch.
  *
+ * `archiveError` splits two cases the status alone flattens. A capture that
+ * died on the storage side gets its own pill and copy, because "Sivua ei voitu
+ * ladata" on a page that read perfectly well points the editor at the wrong
+ * thing. And on a still-`pending` row the mere presence of a cause means the
+ * capture is retrying rather than starting — otherwise the card sits on a calm
+ * grey "Arkistoidaan…" for the whole retry budget with nothing to show for it.
+ *
  * `processed` marks refs whose entry already went through the AI extraction
  * (queue cards, published items): the "retried at processing" note would be a
  * false promise there, and text edits no longer feed anything but the archive.
@@ -46,7 +53,19 @@ export function ArchiveInfo({
 
   if (!archive) return null;
 
-  const pill = {
+  // A capture can fail on either side, and the two want opposite reactions: a
+  // dead page is this link's problem and the editor fixes it by pasting the
+  // text, while a storage failure is the desk's problem, affects every row at
+  // once, and pasting won't help until someone fixes S3. Blaming the page for
+  // the latter sends the editor after the wrong thing entirely. Null (rows that
+  // predate the column, or that never failed) keeps the original page wording.
+  const storageFailure = archive.archiveError === "storage";
+  // 'pending' covers both "started a second ago" and "has failed three times and
+  // is mid-backoff" — the same neutral pill for ~15 minutes before the row
+  // settles. A recorded cause is what separates them.
+  const awaitingRetry = archive.archiveStatus === "pending" && archive.archiveError !== null;
+
+  const basePill = {
     pending: { label: "Arkistoidaan…", classes: "bg-wash text-muted" },
     ok: { label: "Sivu arkistoitu", classes: "bg-ok-wash text-ok" },
     paywalled: { label: "Mahdollinen maksumuuri", classes: "bg-warn-wash text-warn" },
@@ -57,16 +76,31 @@ export function ArchiveInfo({
     // reloaded) must degrade to a neutral pill, not crash the admin view.
   }[archive.archiveStatus] ?? { label: "Arkiston tila tuntematon", classes: "bg-wash text-muted" };
 
-  const note = {
-    pending: null,
-    ok: null,
-    paywalled: "Sivusta saatiin vain vähän tekstiä — tarkista lähde itse.",
-    failed: processed
-      ? "Sivua ei saatu talteen — voit lisätä tekstin käsin."
-      : "Sivun lataus yritetään uudelleen käsittelyn yhteydessä.",
-    missing: "Sivua ei ole arkistoitu — voit arkistoida sen nyt tai lisätä tekstin käsin.",
-    disabled: "Sivua ei arkistoida, koska tallennustilaa (S3) ei ole määritetty.",
-  }[archive.archiveStatus];
+  // Retrying keeps the "Arkistoidaan…" wording — the capture really is still
+  // running — but drops the all-quiet grey, so a stalling row reads as one.
+  const pill =
+    archive.archiveStatus === "failed" && storageFailure
+      ? { label: "Arkistointi epäonnistui", classes: "bg-warn-wash text-warn" }
+      : awaitingRetry
+        ? { ...basePill, classes: "bg-warn-wash text-warn" }
+        : basePill;
+
+  const note = awaitingRetry
+    ? storageFailure
+      ? "Tekstin tallennus ei onnistunut — yritetään automaattisesti uudelleen."
+      : "Sivun lataus ei onnistunut — yritetään automaattisesti uudelleen."
+    : {
+        pending: null,
+        ok: null,
+        paywalled: "Sivusta saatiin vain vähän tekstiä — tarkista lähde itse.",
+        failed: storageFailure
+          ? "Sivu luettiin, mutta tekstin tallennus epäonnistui — vika ei ole tässä linkissä."
+          : processed
+            ? "Sivua ei saatu talteen — voit lisätä tekstin käsin."
+            : "Sivun lataus yritetään uudelleen käsittelyn yhteydessä.",
+        missing: "Sivua ei ole arkistoitu — voit arkistoida sen nyt tai lisätä tekstin käsin.",
+        disabled: "Sivua ei arkistoida, koska tallennustilaa (S3) ei ole määritetty.",
+      }[archive.archiveStatus];
 
   // 'disabled' has no actions: the archive endpoints refuse without S3.
   const canRetry = archive.archiveStatus === "failed" || archive.archiveStatus === "missing";

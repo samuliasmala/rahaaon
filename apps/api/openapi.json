@@ -286,6 +286,17 @@
               "disabled"
             ]
           },
+          "archiveError": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "page",
+              "storage",
+              null
+            ]
+          },
           "hasArchivedText": {
             "type": "boolean"
           }
@@ -293,6 +304,7 @@
         "required": [
           "submissionId",
           "archiveStatus",
+          "archiveError",
           "hasArchivedText"
         ]
       },
@@ -713,6 +725,17 @@
               "disabled"
             ]
           },
+          "archiveError": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "page",
+              "storage",
+              null
+            ]
+          },
           "hasArchivedText": {
             "type": "boolean"
           },
@@ -737,6 +760,7 @@
           "siteName",
           "createdAt",
           "archiveStatus",
+          "archiveError",
           "hasArchivedText",
           "processing",
           "processError",

@@ -70,6 +70,7 @@ export async function listAdminItems(opts: {
       id: urlSubmission.id,
       archiveStatus: urlSubmission.archiveStatus,
       archiveTextKey: urlSubmission.archiveTextKey,
+      archiveError: urlSubmission.archiveError,
       status: urlSubmission.status,
       processError: urlSubmission.processError,
     })

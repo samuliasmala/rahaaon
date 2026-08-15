@@ -5,9 +5,29 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { buildPdf, type FixtureLine } from "./lib/pdf-fixture.js";
+import type * as S3Module from "./lib/s3.js";
 import type { Hono } from "hono";
+
+/**
+ * The one fault this file can't stage for real: MinIO is up and healthy for the
+ * whole run (other tests need it), so there is no way to ask it to refuse a
+ * single write. Everything else here — dead pages, flaky pages, truncated
+ * bodies — is produced by the real article server. Off unless a test turns it
+ * on, so the rest of the file still exercises the genuine S3 path.
+ */
+const storageOutage = vi.hoisted(() => ({ active: false }));
+vi.mock("./lib/s3.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof S3Module>();
+  return {
+    ...actual,
+    putTextObject: async (key: string, body: string) => {
+      if (storageOutage.active) throw new Error("simulated S3 outage");
+      return actual.putTextObject(key, body);
+    },
+  };
+});
 
 /**
  * The article-archive flow against real Postgres + MinIO: submitting a link
@@ -81,7 +101,11 @@ const json = (body: unknown) => ({
 async function waitForArchive(
   submissionId: string,
   timeoutMs = 15_000,
-): Promise<{ archiveStatus: string | null; hasArchivedText: boolean }> {
+): Promise<{
+  archiveStatus: string | null;
+  archiveError: string | null;
+  hasArchivedText: boolean;
+}> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     const res = await app.request("/api/admin/submissions", {
@@ -90,6 +114,7 @@ async function waitForArchive(
     const list = (await res.json()) as {
       id: string;
       archiveStatus: string | null;
+      archiveError: string | null;
       hasArchivedText: boolean;
     }[];
     const entry = list.find((s) => s.id === submissionId);
@@ -379,12 +404,61 @@ describe("article archive", () => {
     const id = await submit("/missing");
     const entry = await waitForArchive(id);
     expect(entry.archiveStatus).toBe("failed");
+    // Blamed on the page, which is what the editor can act on (paste the text).
+    expect(entry.archiveError).toBe("page");
     expect(entry.hasArchivedText).toBe(false);
 
     const download = await app.request(`/api/admin/submissions/${id}/archive/text`, {
       headers: { cookie: editorCookie },
     });
     expect(download.status).toBe(404);
+  });
+
+  it("blames storage, not the page, when a readable page can't be written", async () => {
+    storageOutage.active = true;
+    try {
+      // The page itself is fine — the same /article every passing test uses.
+      // Reporting this as "Sivua ei voitu ladata" sends the editor after a
+      // link that was never broken, while the real fault is desk-wide.
+      const id = await submit("/article?ref=storage-outage");
+      const entry = await waitForArchive(id);
+      expect(entry.archiveStatus).toBe("failed");
+      expect(entry.archiveError).toBe("storage");
+      expect(entry.hasArchivedText).toBe(false);
+    } finally {
+      storageOutage.active = false;
+    }
+  });
+
+  it("records the cause on a pending row that is still burning retries", async () => {
+    // The gap this closes: 'pending' alone looks identical whether the capture
+    // started a second ago or has already failed twice, and the row can sit
+    // there for the whole retry budget before it settles.
+    const id = await submit("/article?ref=pending-cause");
+    await waitForArchive(id);
+
+    // A row mid-backoff: pending, one failure recorded, next attempt far off.
+    const { db } = await import("./db/client.js");
+    const { urlSubmission } = await import("./db/schema/index.js");
+    const { eq } = await import("drizzle-orm");
+    await db
+      .update(urlSubmission)
+      .set({
+        archiveStatus: "pending",
+        archiveError: "page",
+        archiveAttempts: 1,
+        archiveNextAttemptAt: new Date(Date.now() + 60_000),
+      })
+      .where(eq(urlSubmission.id, id));
+
+    const res = await app.request("/api/admin/submissions", { headers: { cookie: editorCookie } });
+    const entry = (
+      (await res.json()) as { id: string; archiveStatus: string; archiveError: string | null }[]
+    ).find((s) => s.id === id);
+    // Still pending — the admin view's poll predicates key off exactly this,
+    // so the cause has to ride alongside the status rather than replace it.
+    expect(entry?.archiveStatus).toBe("pending");
+    expect(entry?.archiveError).toBe("page");
   });
 
   it("accepts a manually pasted text for a failed archive", async () => {
@@ -424,10 +498,15 @@ describe("article archive", () => {
       headers: { cookie: editorCookie },
     });
     expect(retry.status).toBe(202);
-    expect(((await retry.json()) as { archiveStatus: string }).archiveStatus).toBe("pending");
+    const queued = (await retry.json()) as { archiveStatus: string; archiveError: string | null };
+    expect(queued.archiveStatus).toBe("pending");
+    // A fresh episode starts with a clean slate — a stale cause would make the
+    // re-queued row read as "already failed again" on its very first attempt.
+    expect(queued.archiveError).toBeNull();
 
     const entry = await waitForArchive(id);
     expect(entry.archiveStatus).toBe("ok");
+    expect(entry.archiveError).toBeNull();
     expect(entry.hasArchivedText).toBe(true);
   });
 
@@ -555,7 +634,12 @@ describe("article archive", () => {
     }
 
     // The queue entry points back at the submission's archive…
-    const expectedRef = { submissionId: id, archiveStatus: "ok", hasArchivedText: true };
+    const expectedRef = {
+      submissionId: id,
+      archiveStatus: "ok",
+      archiveError: null,
+      hasArchivedText: true,
+    };
     const queueRes = await app.request("/api/admin/suggestions", {
       headers: { cookie: editorCookie },
     });

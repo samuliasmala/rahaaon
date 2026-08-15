@@ -61,6 +61,18 @@ export const urlSubmissionStatusEnum = pgEnum("url_submission_status", [
  */
 export const archiveStatusEnum = pgEnum("archive_status", ["pending", "ok", "paywalled", "failed"]);
 
+/**
+ * Which half of the archive broke — a cause, not a message (the message goes to
+ * the log). `page` = the article couldn't be fetched or read; `storage` = it
+ * was read fine, but writing the capture to S3 (or recording it) failed.
+ *
+ * Worth separating because `archive_status = 'failed'` alone reads as "this
+ * link is bad" to an editor, and the fix is the opposite in each case: a `page`
+ * failure wants the text pasted in by hand, a `storage` one wants somebody to
+ * look at S3 and is fixed for every row at once.
+ */
+export const archiveErrorEnum = pgEnum("archive_error", ["page", "storage"]);
+
 /** A published waste-of-money story on the public feed. */
 export const wasteItem = pgTable(
   "waste_item",
@@ -184,6 +196,15 @@ export const urlSubmission = pgTable(
      */
     archiveStatus: archiveStatusEnum("archive_status"),
     archiveTextKey: text("archive_text_key"),
+    /**
+     * Why the last archive attempt failed (see {@link archiveErrorEnum}), or
+     * null when none has. Written on every failed attempt, not just the last
+     * one, so it also answers "is this `pending` row quietly burning retries?" —
+     * a distinction the status alone can't make, and one the editor waits ~15
+     * minutes on otherwise. Cleared whenever the row is queued afresh or an
+     * archive succeeds.
+     */
+    archiveError: archiveErrorEnum("archive_error"),
     /** How many times the archive worker has claimed this row (retry budget). */
     archiveAttempts: integer("archive_attempts").notNull().default(0),
     /**

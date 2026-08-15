@@ -29,12 +29,13 @@ type SubmissionRow = typeof urlSubmission.$inferSelect;
  * own archiveStatus).
  */
 export function toArchiveRef(
-  row: Pick<SubmissionRow, "id" | "archiveStatus" | "archiveTextKey">,
+  row: Pick<SubmissionRow, "id" | "archiveStatus" | "archiveTextKey" | "archiveError">,
 ): ArchiveRefView | null {
   if (!row.archiveStatus && !archiveEnabled) return null;
   return {
     submissionId: row.id,
     archiveStatus: effectiveArchiveStatus(row.archiveStatus, archiveEnabled),
+    archiveError: row.archiveError,
     hasArchivedText: row.archiveTextKey !== null,
   };
 }
@@ -166,6 +167,7 @@ function toView(row: SubmissionRow, duplicate: UrlDuplicate | null = null): UrlS
     siteName: row.siteName,
     createdAt: row.createdAt.toISOString(),
     archiveStatus: effectiveArchiveStatus(row.archiveStatus, archiveEnabled),
+    archiveError: row.archiveError,
     hasArchivedText: row.archiveTextKey !== null,
     processing: row.status === "processing",
     processError: row.processError,
@@ -397,7 +399,9 @@ export async function saveSubmissionArchiveText(id: string, text: string): Promi
   }
   await db
     .update(urlSubmission)
-    .set({ archiveStatus: "ok", archiveTextKey: key })
+    // The paste settles the row, so any recorded cause is now history — a
+    // pasted-over 'storage' failure must not keep telling the editor S3 is down.
+    .set({ archiveStatus: "ok", archiveTextKey: key, archiveError: null })
     .where(eq(urlSubmission.id, id));
 }
 
@@ -431,6 +435,9 @@ export async function retrySubmissionArchive(
       archiveTextKey: null,
       archiveAttempts: 0,
       archiveNextAttemptAt: null,
+      // Fresh episode, fresh slate: leaving the old cause would make the
+      // re-queued row look like it had already failed again on attempt one.
+      archiveError: null,
     })
     .where(and(eq(urlSubmission.id, id), eligible))
     .returning();

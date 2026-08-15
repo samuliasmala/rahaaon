@@ -101,6 +101,7 @@ export const getApiAdminItemsResponseItem = zod.object({
   "archive": zod.object({
   "submissionId": zod.uuid(),
   "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed', 'missing', 'disabled']),
+  "archiveError": zod.union([zod.literal('page'),zod.literal('storage'),zod.literal(null)]).nullable(),
   "hasArchivedText": zod.boolean()
 }).nullable(),
   "canReprocess": zod.boolean(),
@@ -222,6 +223,7 @@ export const getApiAdminSuggestionsResponseItem = zod.object({
   "archive": zod.object({
   "submissionId": zod.uuid(),
   "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed', 'missing', 'disabled']),
+  "archiveError": zod.union([zod.literal('page'),zod.literal('storage'),zod.literal(null)]).nullable(),
   "hasArchivedText": zod.boolean()
 }).nullable(),
   "canReprocess": zod.boolean(),
@@ -440,6 +442,7 @@ export const getApiAdminSubmissionsResponseItem = zod.object({
   "siteName": zod.string(),
   "createdAt": zod.iso.datetime({}),
   "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed', 'missing', 'disabled']),
+  "archiveError": zod.union([zod.literal('page'),zod.literal('storage'),zod.literal(null)]).nullable(),
   "hasArchivedText": zod.boolean(),
   "processing": zod.boolean(),
   "processError": zod.string().nullable(),
@@ -486,6 +489,7 @@ export const getApiAdminSubmissionsByUrlResponse = zod.object({
   "siteName": zod.string(),
   "createdAt": zod.iso.datetime({}),
   "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed', 'missing', 'disabled']),
+  "archiveError": zod.union([zod.literal('page'),zod.literal('storage'),zod.literal(null)]).nullable(),
   "hasArchivedText": zod.boolean(),
   "processing": zod.boolean(),
   "processError": zod.string().nullable(),
@@ -590,6 +594,7 @@ export const getApiAdminSubmissionsRejectedResponseItem = zod.object({
   "siteName": zod.string(),
   "createdAt": zod.iso.datetime({}),
   "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed', 'missing', 'disabled']),
+  "archiveError": zod.union([zod.literal('page'),zod.literal('storage'),zod.literal(null)]).nullable(),
   "hasArchivedText": zod.boolean(),
   "processing": zod.boolean(),
   "processError": zod.string().nullable(),
@@ -619,6 +624,7 @@ export const postApiAdminSubmissionsIdRestoreResponse = zod.object({
   "siteName": zod.string(),
   "createdAt": zod.iso.datetime({}),
   "archiveStatus": zod.enum(['pending', 'ok', 'paywalled', 'failed', 'missing', 'disabled']),
+  "archiveError": zod.union([zod.literal('page'),zod.literal('storage'),zod.literal(null)]).nullable(),
   "hasArchivedText": zod.boolean(),
   "processing": zod.boolean(),
   "processError": zod.string().nullable(),

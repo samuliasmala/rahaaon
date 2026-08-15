@@ -6,9 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ArchiveRefAnyOfArchiveStatus } from './archiveRefAnyOfArchiveStatus';
+import type { ArchiveRefAnyOfArchiveError } from './archiveRefAnyOfArchiveError';
 
 export type ArchiveRefAnyOf = {
   submissionId: string;
   archiveStatus: ArchiveRefAnyOfArchiveStatus;
+  archiveError: ArchiveRefAnyOfArchiveError;
   hasArchivedText: boolean;
 };

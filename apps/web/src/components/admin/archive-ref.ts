@@ -5,6 +5,7 @@ export function submissionArchiveRef(entry: UrlSubmission): NonNullable<ArchiveR
   return {
     submissionId: entry.id,
     archiveStatus: entry.archiveStatus,
+    archiveError: entry.archiveError,
     hasArchivedText: entry.hasArchivedText,
   };
 }

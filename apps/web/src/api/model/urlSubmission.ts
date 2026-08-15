@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { UrlSubmissionArchiveStatus } from './urlSubmissionArchiveStatus';
+import type { UrlSubmissionArchiveError } from './urlSubmissionArchiveError';
 import type { UrlSubmissionProcessError } from './urlSubmissionProcessError';
 import type { SubmissionDuplicate } from './submissionDuplicate';
 
@@ -17,6 +18,7 @@ export interface UrlSubmission {
   siteName: string;
   createdAt: string;
   archiveStatus: UrlSubmissionArchiveStatus;
+  archiveError: UrlSubmissionArchiveError;
   hasArchivedText: boolean;
   processing: boolean;
   processError: UrlSubmissionProcessError;

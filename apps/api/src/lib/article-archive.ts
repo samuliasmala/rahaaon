@@ -63,6 +63,18 @@ export const EFFECTIVE_ARCHIVE_STATUSES = [
 export type EffectiveArchiveStatus = (typeof EFFECTIVE_ARCHIVE_STATUSES)[number];
 
 /**
+ * Why an archive attempt failed — the vocabulary behind `archive_error` (see
+ * the column's own note in db/schema/content.ts for what each value means).
+ * Deliberately a separate axis from the status rather than two more entries in
+ * {@link EFFECTIVE_ARCHIVE_STATUSES}: `pending` has to stay `pending` for the
+ * admin view's poll predicates, and a cause is orthogonal to a state anyway —
+ * it outlives the retries that produced it and survives into the terminal row.
+ */
+export const ARCHIVE_ERRORS = ["page", "storage"] as const;
+
+export type ArchiveError = (typeof ARCHIVE_ERRORS)[number];
+
+/**
  * What the admin UI should report for a row's archive. The DB keeps NULL for
  * "never attempted"; whether that gap is worth acting on depends on whether
  * archiving is available at all, which only read time knows: `missing`
@@ -191,10 +203,16 @@ async function markTerminal(
   status: "ok" | "paywalled" | "failed",
   textKey: string | null,
   attempts: number,
+  error: ArchiveError | null = null,
 ): Promise<void> {
   await db
     .update(urlSubmission)
-    .set({ archiveStatus: status, archiveTextKey: textKey, archiveNextAttemptAt: null })
+    .set({
+      archiveStatus: status,
+      archiveTextKey: textKey,
+      archiveNextAttemptAt: null,
+      archiveError: error,
+    })
     .where(
       and(
         eq(urlSubmission.id, id),
@@ -204,11 +222,21 @@ async function markTerminal(
     );
 }
 
-/** Push the next attempt into the future (backoff). Conditional as above. */
-async function scheduleRetry(id: string, retryAt: Date, attempts: number): Promise<void> {
+/**
+ * Push the next attempt into the future (backoff). Conditional as above. Also
+ * records what went wrong, so a `pending` row that is quietly burning its retry
+ * budget is distinguishable from one on its first attempt — the admin card has
+ * no other way to tell, and the difference is ~15 minutes of silence.
+ */
+async function scheduleRetry(
+  id: string,
+  retryAt: Date,
+  attempts: number,
+  error: ArchiveError,
+): Promise<void> {
   await db
     .update(urlSubmission)
-    .set({ archiveNextAttemptAt: retryAt })
+    .set({ archiveNextAttemptAt: retryAt, archiveError: error })
     .where(
       and(
         eq(urlSubmission.id, id),
@@ -225,12 +253,19 @@ async function scheduleRetry(id: string, retryAt: Date, attempts: number): Promi
  * Never throws; the worker treats every row independently.
  */
 async function archiveRow(id: string, url: string, attempts: number): Promise<void> {
+  // Which half of the work we're in, so a failure can be attributed. Everything
+  // up to a successful classification is the page's doing; from there on the
+  // page has been read and only the write-out can still fail. Tracked as a
+  // moving marker rather than inspected from the error, because an S3 client
+  // error and a dead-page error are not reliably distinguishable by message.
+  let phase: ArchiveError = "page";
   try {
     const { fetched, text, accessibleForFree } = await fetchPageText(url);
     const status = classifyArchive(fetched, text, accessibleForFree);
     if (status !== "failed") {
       // ok / paywalled: store what we got (paywalled pages carry a little text)
       // and finish. A throw here (S3 down) falls through to the retry path.
+      phase = "storage";
       const key = text ? archiveKeyFor(id) : null;
       if (key) await putTextObject(key, text);
       await markTerminal(id, status, key, attempts);
@@ -240,8 +275,8 @@ async function archiveRow(id: string, url: string, attempts: number): Promise<vo
   } catch (err) {
     const message = (err as Error).message;
     if (attempts >= env.ARCHIVE_MAX_ATTEMPTS) {
-      logger.warn({ submissionId: id, url, attempts, err: message }, "archive giving up");
-      await markTerminal(id, "failed", null, attempts).catch((e: unknown) =>
+      logger.warn({ submissionId: id, url, attempts, phase, err: message }, "archive giving up");
+      await markTerminal(id, "failed", null, attempts, phase).catch((e: unknown) =>
         logger.error(
           { submissionId: id, err: (e as Error).message },
           "failed to record archive failure",
@@ -250,10 +285,10 @@ async function archiveRow(id: string, url: string, attempts: number): Promise<vo
     } else {
       const retryAt = new Date(Date.now() + backoffMs(attempts));
       logger.debug(
-        { submissionId: id, url, attempts, err: message },
+        { submissionId: id, url, attempts, phase, err: message },
         "archive attempt failed, retrying",
       );
-      await scheduleRetry(id, retryAt, attempts).catch((e: unknown) =>
+      await scheduleRetry(id, retryAt, attempts, phase).catch((e: unknown) =>
         logger.error(
           { submissionId: id, err: (e as Error).message },
           "failed to reschedule archive",

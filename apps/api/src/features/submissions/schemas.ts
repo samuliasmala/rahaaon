@@ -1,5 +1,5 @@
 import { z } from "@hono/zod-openapi";
-import { EFFECTIVE_ARCHIVE_STATUSES } from "../../lib/article-archive.js";
+import { ARCHIVE_ERRORS, EFFECTIVE_ARCHIVE_STATUSES } from "../../lib/article-archive.js";
 
 /**
  * A submitted link. Scheme is restricted to http(s): `z.url()` alone accepts
@@ -93,6 +93,14 @@ export const urlSubmissionSchema = z
      * archive/retry endpoint) or `disabled` when it isn't (S3 not configured).
      */
     archiveStatus: z.enum(EFFECTIVE_ARCHIVE_STATUSES),
+    /**
+     * Why the last archive attempt failed, or null if none has. Orthogonal to
+     * the status: on `failed` it says whether to blame the page or the storage
+     * (different pill, different advice), and on `pending` its mere presence
+     * means the capture is already retrying rather than running for the first
+     * time.
+     */
+    archiveError: z.enum(ARCHIVE_ERRORS).nullable(),
     /** True when archived page text exists — the archive/text download works. */
     hasArchivedText: z.boolean(),
     /**
@@ -154,6 +162,8 @@ export const archiveRefSchema = z
      * web can pass submission rows through the same archive components.
      */
     archiveStatus: z.enum(EFFECTIVE_ARCHIVE_STATUSES),
+    /** Why the last archive attempt failed, as on UrlSubmission. */
+    archiveError: z.enum(ARCHIVE_ERRORS).nullable(),
     /** True when archived page text exists — the archive/text endpoints work. */
     hasArchivedText: z.boolean(),
   })
