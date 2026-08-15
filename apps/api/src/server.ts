@@ -5,9 +5,15 @@ import { closeDb } from "./db/client.js";
 import { startArchiveWorker, stopArchiveWorker } from "./lib/article-archive.js";
 import { logger } from "./lib/logger.js";
 import { startQueueNotifier, stopQueueNotifier } from "./lib/queue-notifier.js";
+import { verifyS3Access } from "./lib/s3.js";
 import { startSubmissionProcessor, stopSubmissionProcessor } from "./lib/submission-processor.js";
 
 const app = createApp();
+
+// Probe the archive bucket once at boot so a dead endpoint or a missing bucket
+// shows up here, in one line, instead of as a 15-minute silent retry loop the
+// first time an editor submits a link. Diagnostic only — see verifyS3Access.
+void verifyS3Access();
 
 // Background workers (archive capture + submission processing + the editor's
 // queue notifications): they resume rows a restart stranded and poll for

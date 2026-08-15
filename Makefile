@@ -69,9 +69,21 @@ else
 	@./deploy/init-env.sh $(ENV)
 endif
 
+# Brought up in two steps so a broken stack fails the command instead of exiting
+# 0 with a plausible-looking `docker ps`. Plain `up -d` reports success even when
+# the one-shot minio-init died (e.g. it couldn't resolve `minio`), leaving the
+# archive bucket missing — which only surfaces ~15 min after the first
+# submission, as a *page-load* error that blames the wrong thing entirely.
+#
+# The long-running services take --wait (healthy db/minio, app up). minio-init
+# can't: --wait treats any container exit as a failure, including the exit 0 a
+# successful bucket creation produces. `run --rm` instead propagates mc's own
+# exit code, which is the thing actually worth checking. It's idempotent
+# (`mc mb --ignore-existing`), so re-running `make up` is also the fix.
 up: ## Start the dev stack (app + db), detached [local only]
 	@[ "$(ENV)" = local ] || { echo "up is local-only — deployed stacks are brought up by the deploy pipeline (deploy/deploy.sh / CI), not make."; exit 1; }
-	$(COMPOSE) up -d
+	$(COMPOSE) up -d --wait db minio app
+	$(COMPOSE) run --rm minio-init
 
 down: ## Stop the dev stack (volumes are kept) [local only]
 	@[ "$(ENV)" = local ] || { echo "down is local-only — stopping a deployed stack is an outage; use the deploy pipeline."; exit 1; }
