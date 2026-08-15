@@ -1,1 +1,2 @@
+scripts/check-file-owners.sh
 pnpm lint-staged

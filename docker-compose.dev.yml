@@ -26,7 +26,12 @@ services:
       API_URL: ${API_URL:-http://localhost:3001}
       # Keep pnpm's content-addressable store off the bind-mounted repo (else it
       # leaks a .pnpm-store/ into the host tree) and in a persistent volume.
-      PNPM_STORE_DIR: /pnpm/store
+      # PNPM_CONFIG_<SETTING> is how pnpm 11 reads its settings from the
+      # environment; the plain PNPM_STORE_DIR this used to say is not a name
+      # pnpm knows, so the store kept landing in /app/.pnpm-store — 560 MB of it
+      # by the time anyone looked. Verify after changing: `pnpm store path`
+      # inside the container must print /pnpm/store/v11.
+      PNPM_CONFIG_STORE_DIR: /pnpm/store
     ports:
       # Host ports are overridable to avoid clashes with other local services,
       # e.g. WEB_PORT=5175 API_PORT=3002 docker compose … up
@@ -36,13 +41,19 @@ services:
       - .:/app
       # Container-owned node_modules — never share the host's (platform-native
       # binaries, pnpm store). These volumes mask the bind-mounted host dirs.
+      # Every target below is pre-created and chowned to `node` in
+      # docker/dev.Dockerfile: a fresh volume inherits its ownership from the
+      # image's directory at that path, so a volume added here without its
+      # mkdir there comes up root-owned and unwritable.
       - rahaaon_root_node_modules:/app/node_modules
       - rahaaon_api_node_modules:/app/apps/api/node_modules
       - rahaaon_web_node_modules:/app/apps/web/node_modules
       - rahaaon_pnpm_store:/pnpm/store
       # Playwright browser binaries (downloaded by the entrypoint) — persist
-      # across container recreation so e2e runs don't re-download ~115 MB.
-      - rahaaon_playwright_browsers:/root/.cache/ms-playwright
+      # across container recreation so e2e runs don't re-download ~115 MB. Under
+      # the `node` user's home: the image runs as uid 1000 (docker/dev.Dockerfile),
+      # and Playwright caches per user.
+      - rahaaon_playwright_browsers:/home/node/.cache/ms-playwright
     depends_on:
       db:
         condition: service_healthy

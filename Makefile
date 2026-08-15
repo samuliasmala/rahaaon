@@ -50,7 +50,7 @@ endif
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env up down restart recreate build logs ps shell migrate seed set-admin-password set-db-password psql clean \
+.PHONY: help env up down restart recreate build logs ps doctor shell migrate seed set-admin-password set-db-password psql clean \
 	backup-now backup-list backup-status backup-install
 
 help: ## List targets. Append ENV=dev|test|prod to target a deployed stack (default: local)
@@ -108,6 +108,9 @@ logs: ## Follow app/api logs; SERVICE=db (or several: SERVICE="api db") for othe
 
 ps: ## Show stack status
 	$(COMPOSE) ps
+
+doctor: ## Check the working tree for files another user (a root container) left behind
+	@./scripts/check-file-owners.sh
 
 shell: ## Open a shell in the app/api container
 	$(COMPOSE) exec $(APP_SVC) bash
