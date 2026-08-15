@@ -1,0 +1,1 @@
+ALTER TABLE "suggestion" ADD COLUMN "ai_skipped" boolean DEFAULT false NOT NULL;

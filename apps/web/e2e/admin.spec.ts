@@ -15,7 +15,7 @@ test("admin page shows the seeded queues and the tabs switch", async ({ page }) 
 
   // Seed: 2 url submissions, 3 queued suggestions, 1+1 rejected, 8 published items.
   await expect(page.getByRole("tab", { name: "Ehdotusjono (2)" })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Tekoälyn käsittelemät (3)" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Julkaisujono (3)" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Hylätyt (2)" })).toBeVisible();
   await page.getByRole("tab", { name: "Julkaistut (8)" }).click();
   await expect(page.getByRole("tab", { name: "Julkaistut (8)" })).toHaveAttribute(
@@ -90,10 +90,10 @@ test("resubmitting the same link is caught at the preview step", async ({ page }
   await expect(page.getByRole("tab", { name: `Ehdotusjono (${before})` })).toBeVisible();
 });
 
-test("processing a submission moves it to the AI queue", async ({ page }) => {
+test("processing a submission moves it to the Julkaisujono", async ({ page }) => {
   await page.goto("/admin");
   const submissionsBefore = await tabCount(page, "Ehdotusjono");
-  const queueBefore = await tabCount(page, "Tekoälyn käsittelemät");
+  const queueBefore = await tabCount(page, "Julkaisujono");
 
   // Process the newest submission, whichever it is. The name filter keeps
   // the locator on the source URL — cards with archived text also carry a
@@ -112,10 +112,10 @@ test("processing a submission moves it to the AI queue", async ({ page }) => {
   await expect(
     page.getByRole("tab", { name: `Ehdotusjono (${submissionsBefore - 1})` }),
   ).toBeVisible({ timeout: 60_000 });
-  const queueTabName = `Tekoälyn käsittelemät (${queueBefore + 1})`;
+  const queueTabName = `Julkaisujono (${queueBefore + 1})`;
   await expect(page.getByRole("tab", { name: queueTabName })).toBeVisible({ timeout: 10_000 });
 
-  // The processed entry now sits in the AI queue with its source link intact.
+  // The processed entry now sits in the Julkaisujono with its source link intact.
   await page.getByRole("tab", { name: queueTabName }).click();
   await expect(page.getByRole("link", { name: url }).first()).toBeVisible();
 });
@@ -123,7 +123,7 @@ test("processing a submission moves it to the AI queue", async ({ page }) => {
 test("processing with editor instructions via the split button", async ({ page }) => {
   await page.goto("/admin");
   const submissionsBefore = await tabCount(page, "Ehdotusjono");
-  const queueBefore = await tabCount(page, "Tekoälyn käsittelemät");
+  const queueBefore = await tabCount(page, "Julkaisujono");
 
   // The chevron half of the split button opens the instructions dialog.
   const firstCard = page.locator("section").first();
@@ -135,20 +135,20 @@ test("processing with editor instructions via the split button", async ({ page }
   await expect(dialog).toBeHidden();
 
   // From here the flow matches a plain "Käsittele": the card locks and the
-  // entry moves on to the AI queue when the background extraction finishes.
+  // entry moves on to the Julkaisujono when the background extraction finishes.
   await expect(firstCard.getByRole("button", { name: "Käsitellään…" })).toBeVisible();
   await expect(
     page.getByRole("tab", { name: `Ehdotusjono (${submissionsBefore - 1})` }),
   ).toBeVisible({ timeout: 60_000 });
-  await expect(
-    page.getByRole("tab", { name: `Tekoälyn käsittelemät (${queueBefore + 1})` }),
-  ).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("tab", { name: `Julkaisujono (${queueBefore + 1})` })).toBeVisible({
+    timeout: 10_000,
+  });
 });
 
 test("reprocessing a queue entry runs through the instructions dialog", async ({ page }) => {
   await page.goto("/admin");
-  const queueCount = await tabCount(page, "Tekoälyn käsittelemät");
-  await page.getByRole("tab", { name: `Tekoälyn käsittelemät (${queueCount})` }).click();
+  const queueCount = await tabCount(page, "Julkaisujono");
+  await page.getByRole("tab", { name: `Julkaisujono (${queueCount})` }).click();
 
   // Newest first: the entry the previous test processed from a reader link —
   // it has a source submission, so the reprocess action is available.
@@ -162,7 +162,7 @@ test("reprocessing a queue entry runs through the instructions dialog", async ({
 
   // The success toast proves the run was accepted (a 409/500 would toast the
   // failure instead) — the run itself happens in the background.
-  await expect(page.getByText("Uudelleenkäsittely aloitettu")).toBeVisible();
+  await expect(page.getByText("Tekoälykäsittely aloitettu")).toBeVisible();
 
   // Without asserting the transient "Tekoäly käsittelee…" state (an offline
   // mock finishes near-instantly), wait for the card to settle back to an
@@ -170,25 +170,23 @@ test("reprocessing a queue entry runs through the instructions dialog", async ({
   await expect(card.getByRole("button", { name: "Käsittele uudelleen" })).toBeEnabled({
     timeout: 60_000,
   });
-  await expect(card.getByText("Uudelleenkäsittely epäonnistui", { exact: false })).toBeHidden();
+  await expect(card.getByText("Tekoälykäsittely epäonnistui", { exact: false })).toBeHidden();
 });
 
 test("rejecting and restoring a suggestion round-trips through Hylätyt", async ({ page }) => {
   await page.goto("/admin");
-  const queueBefore = await tabCount(page, "Tekoälyn käsittelemät");
+  const queueBefore = await tabCount(page, "Julkaisujono");
   const rejectedBefore = await tabCount(page, "Hylätyt");
 
   // Reject the newest queue entry.
-  await page.getByRole("tab", { name: `Tekoälyn käsittelemät (${queueBefore})` }).click();
+  await page.getByRole("tab", { name: `Julkaisujono (${queueBefore})` }).click();
   const queueCard = page.locator("section").first();
   const url = await queueCard.getByRole("link", { name: /^http/ }).innerText();
   await queueCard.getByRole("button", { name: "Hylkää" }).click();
 
   const rejectedTabName = `Hylätyt (${rejectedBefore + 1})`;
   await expect(page.getByRole("tab", { name: rejectedTabName })).toBeVisible();
-  await expect(
-    page.getByRole("tab", { name: `Tekoälyn käsittelemät (${queueBefore - 1})` }),
-  ).toBeVisible();
+  await expect(page.getByRole("tab", { name: `Julkaisujono (${queueBefore - 1})` })).toBeVisible();
 
   // Restore it from the archive (newest rejection first) …
   await page.getByRole("tab", { name: rejectedTabName }).click();
@@ -198,9 +196,7 @@ test("rejecting and restoring a suggestion round-trips through Hylätyt", async 
 
   // … and both queues are back where they started.
   await expect(page.getByRole("tab", { name: `Hylätyt (${rejectedBefore})` })).toBeVisible();
-  await expect(
-    page.getByRole("tab", { name: `Tekoälyn käsittelemät (${queueBefore})` }),
-  ).toBeVisible();
+  await expect(page.getByRole("tab", { name: `Julkaisujono (${queueBefore})` })).toBeVisible();
 });
 
 test("rejecting and restoring a link round-trips through Hylätyt", async ({ page }) => {
@@ -229,6 +225,53 @@ test("rejecting and restoring a link round-trips through Hylätyt", async ({ pag
   // … and both queues are back where they started.
   await expect(page.getByRole("tab", { name: `Hylätyt (${rejectedBefore})` })).toBeVisible();
   await expect(page.getByRole("tab", { name: `Ehdotusjono (${submissionsBefore})` })).toBeVisible();
+});
+
+test("skipping the Julkaisujonos a blank card the editor fills in by hand", async ({ page }) => {
+  await page.goto("/admin");
+  const submissionsBefore = await tabCount(page, "Ehdotusjono");
+  const queueBefore = await tabCount(page, "Julkaisujono");
+  const publishedBefore = await tabCount(page, "Julkaistut");
+
+  const submissionCard = page.locator("section").first();
+  const url = await submissionCard.getByRole("link", { name: /^http/ }).innerText();
+  await submissionCard.getByRole("button", { name: "Ohita tekoäly" }).click();
+
+  // Nothing runs in the background: the entry is in the Julkaisujono at once.
+  await expect(page.getByText("Siirretty julkaisujonoon ilman tekoälyä")).toBeVisible();
+  await expect(
+    page.getByRole("tab", { name: `Ehdotusjono (${submissionsBefore - 1})` }),
+  ).toBeVisible();
+  const queueTabName = `Julkaisujono (${queueBefore + 1})`;
+  await page.getByRole("tab", { name: queueTabName }).click();
+
+  // Newest first: the entry just skipped. No AI readouts, and blank fields.
+  const queueCard = page.locator("section").first();
+  await expect(queueCard.getByRole("link", { name: url })).toBeVisible();
+  await expect(queueCard.getByText("Ehdotus ilman tekoälykäsittelyä")).toBeVisible();
+  await expect(queueCard.getByText(/AI-varmuus/)).toBeHidden();
+  await expect(queueCard.getByText("Tekoälyn huomiot")).toBeHidden();
+  await expect(queueCard.getByLabel("Otsikko", { exact: true })).toHaveValue("");
+
+  // Publishing as is names the fields that are missing …
+  await queueCard.getByRole("button", { name: "Hyväksy ja julkaise" }).click();
+  await expect(queueCard.getByText("Otsikko puuttuu")).toBeVisible();
+  await expect(queueCard.getByText("Tiivistelmä puuttuu")).toBeVisible();
+  await expect(queueCard.getByText("Taho puuttuu")).toBeVisible();
+  await expect(page.getByRole("tab", { name: queueTabName })).toBeVisible();
+
+  // … and once they are filled in by hand, the card publishes like any other.
+  const title = `Käsin kirjoitettu tapaus ${Date.now()}`;
+  await queueCard.getByLabel("Otsikko", { exact: true }).fill(title);
+  await queueCard.getByLabel("Tiivistelmä", { exact: true }).fill("Toimituksen oma tiivistelmä.");
+  await queueCard.getByLabel("Taho").fill("Testikunta");
+  await queueCard.getByRole("button", { name: "Hyväksy ja julkaise" }).click();
+
+  await expect(page.getByText("Julkaistu etusivulle")).toBeVisible();
+  await expect(page.getByRole("tab", { name: `Julkaisujono (${queueBefore})` })).toBeVisible();
+  await expect(
+    page.getByRole("tab", { name: `Julkaistut (${publishedBefore + 1})` }),
+  ).toBeVisible();
 });
 
 test("editing a published item from the inline editor updates the row", async ({ page }) => {

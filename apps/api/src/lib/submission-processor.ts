@@ -12,7 +12,7 @@ import { suggestion, urlSubmission, wasteItem } from "../db/schema/index.js";
  * flips the row to `processing` and returns — the extraction (text retrieval +
  * LLM call, easily tens of seconds) runs here, off the request. The admin UI
  * shows the persisted `processing` state (it survives a page refresh) and polls
- * until the entry moves on to the AI queue.
+ * until the entry moves on to the Julkaisujono.
  *
  * Same durable-queue design as the archive worker (lib/article-archive.ts): a
  * row with `status = 'processing'` is outstanding work. The worker claims due
@@ -146,7 +146,12 @@ async function finalize(
         .limit(1)
         .for("update");
       if (current && current.status !== "rejected") {
-        await tx.update(suggestion).set(extraction).where(eq(suggestion.id, suggestionId));
+        // aiSkipped clears here: the entry now carries an AI draft, whether it
+        // was skipped on the way in and handed to the AI later, or redrafted.
+        await tx
+          .update(suggestion)
+          .set({ ...extraction, aiSkipped: false })
+          .where(eq(suggestion.id, suggestionId));
         if (current.status === "approved" && current.publishedItemId) {
           // The suggestion is live on the feed — carry the redraft onto the
           // item (same fields approval copies; aiNote/confidence stay

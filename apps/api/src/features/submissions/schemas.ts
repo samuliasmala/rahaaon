@@ -98,7 +98,7 @@ export const urlSubmissionSchema = z
     /**
      * True while the background AI extraction runs for this entry. The queue
      * card renders these rows locked ("Käsitellään…") and the admin view polls
-     * until the entry moves to the AI queue.
+     * until the entry moves to the Julkaisujono.
      */
     processing: z.boolean(),
     /** Why the last processing run failed (attempts exhausted); null otherwise. */

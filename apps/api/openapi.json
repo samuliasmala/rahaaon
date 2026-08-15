@@ -506,6 +506,9 @@
           "confidence": {
             "type": "integer"
           },
+          "aiSkipped": {
+            "type": "boolean"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -528,6 +531,7 @@
           "keywords",
           "aiNote",
           "confidence",
+          "aiSkipped",
           "createdAt"
         ]
       },
@@ -536,12 +540,10 @@
         "properties": {
           "title": {
             "type": "string",
-            "minLength": 1,
             "maxLength": 300
           },
           "summary": {
             "type": "string",
-            "minLength": 1,
             "maxLength": 2000
           },
           "quote": {
@@ -564,7 +566,6 @@
           },
           "entity": {
             "type": "string",
-            "minLength": 1,
             "maxLength": 120
           },
           "category": {
@@ -1549,7 +1550,7 @@
     },
     "/api/admin/suggestions": {
       "get": {
-        "summary": "The AI queue: pending suggestions, newest first",
+        "summary": "The Julkaisujono: pending suggestions, newest first",
         "tags": [
           "Admin"
         ],
@@ -1884,6 +1885,7 @@
     "/api/admin/suggestions/{id}/approve": {
       "post": {
         "summary": "Publish a pending suggestion to the feed",
+        "description": "Requires a title, an entity and a summary — an AI-skipped entry enters the queue blank on all three, and a 422 lists the ones still missing.",
         "tags": [
           "Admin"
         ],
@@ -2855,6 +2857,117 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UrlSubmission"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Virheellinen pyyntö",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kirjautuminen vaaditaan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Ei käyttöoikeutta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ei löytynyt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validointivirhe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Palvelinvirhe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Palvelu ei tilapäisesti käytettävissä",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/submissions/{id}/skip": {
+      "post": {
+        "summary": "Move a submission to the Julkaisujono without AI processing",
+        "description": "Creates the queue entry immediately, with every field the AI would have drafted (title, amount, entity, category, summary, quote, keywords, notes) left empty for the editor to fill in. The entry can still be handed to the AI later from the queue card.",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The queue entry created for this link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "suggestionId": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "suggestionId"
+                  ]
                 }
               }
             }

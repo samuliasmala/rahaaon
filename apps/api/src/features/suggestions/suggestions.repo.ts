@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "../../db/client.js";
 import { suggestion, urlSubmission, wasteItem } from "../../db/schema/index.js";
 import { normalizeAmount } from "../../lib/amount.js";
-import { notFound } from "../../lib/http-errors.js";
+import { notFound, unprocessable } from "../../lib/http-errors.js";
 import { normalizeUrl } from "../../lib/url.js";
 import { requeueSubmissionForReprocess, toArchiveRef } from "../submissions/submissions.repo.js";
 import type {
@@ -35,12 +35,13 @@ function toView(row: SuggestionRow): SuggestionView {
     keywords: row.keywords,
     aiNote: row.aiNote,
     confidence: row.confidence,
+    aiSkipped: row.aiSkipped,
     createdAt: row.createdAt.toISOString(),
   };
 }
 
 /**
- * The AI queue: pending suggestions, newest first, each with the pointer to
+ * The Julkaisujono: pending suggestions, newest first, each with the pointer to
  * its source submission's page archive (null for seeded/archive-less rows)
  * and the state of a reprocess run on that submission, when one is underway
  * or has failed.
@@ -130,6 +131,22 @@ export async function updateSuggestion(
   });
 }
 
+/**
+ * The fields a feed item can't do without, checked at approval instead of on
+ * every edit: an AI-skipped entry is blank on all three when it enters the
+ * queue, and the editor saves the card field by field on the way to filling it.
+ * The admin UI validates the same three before submitting — this is the
+ * backstop for a stale tab or a direct API call.
+ */
+function missingRequiredFields(entry: SuggestionRow): string[] {
+  const required = [
+    { label: "otsikko", value: entry.title },
+    { label: "taho", value: entry.entity },
+    { label: "tiivistelmä", value: entry.summary },
+  ];
+  return required.filter((field) => field.value.trim() === "").map((field) => field.label);
+}
+
 /** Publish a pending suggestion as a feed item; returns the new item's id. */
 export async function approveSuggestion(id: string): Promise<{ itemId: string }> {
   return db.transaction(async (tx) => {
@@ -144,6 +161,11 @@ export async function approveSuggestion(id: string): Promise<{ itemId: string }>
       .limit(1)
       .for("update");
     if (!entry) throw notFound("Ehdotusta ei löytynyt");
+
+    const missing = missingRequiredFields(entry);
+    if (missing.length > 0) {
+      throw unprocessable(`Täytä ennen julkaisua: ${missing.join(", ")}`, { fields: missing });
+    }
 
     const [item] = await tx
       .insert(wasteItem)

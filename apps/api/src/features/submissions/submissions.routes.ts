@@ -20,6 +20,7 @@ import {
   restoreSubmission,
   retrySubmissionArchive,
   saveSubmissionArchiveText,
+  skipProcessingForSubmission,
 } from "./submissions.repo.js";
 import { commonErrorResponses, createRouter, errorResponse } from "../../lib/openapi.js";
 import { fetchPagePreview } from "../../lib/page-preview.js";
@@ -221,6 +222,30 @@ submissionRoutes.openapi(
       instructionsOrNull(body?.instructions),
     );
     return c.json(queued, 202);
+  },
+);
+
+submissionRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/admin/submissions/{id}/skip",
+    summary: "Move a submission to the Julkaisujono without AI processing",
+    description:
+      "Creates the queue entry immediately, with every field the AI would have drafted (title, amount, entity, category, summary, quote, keywords, notes) left empty for the editor to fill in. The entry can still be handed to the AI later from the queue card.",
+    tags: ["Admin"],
+    middleware: [requireAuth] as const,
+    request: { params: idParam },
+    responses: {
+      201: {
+        description: "The queue entry created for this link",
+        content: { "application/json": { schema: z.object({ suggestionId: z.uuid() }) } },
+      },
+      ...commonErrorResponses,
+    },
+  }),
+  async (c) => {
+    const created = await skipProcessingForSubmission(c.req.valid("param").id);
+    return c.json(created, 201);
   },
 );
 

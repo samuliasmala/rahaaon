@@ -37,6 +37,7 @@ export * from './patchSuggestionArticlePublishedAt';
 export * from './postApiAdminItemsIdReprocess202';
 export * from './postApiAdminSubmissionsIdArchiveRetryParams';
 export * from './postApiAdminSubmissionsIdReject200';
+export * from './postApiAdminSubmissionsIdSkip201';
 export * from './postApiAdminSuggestionsIdApprove200';
 export * from './postApiAdminSuggestionsIdReject200';
 export * from './postApiAdminSuggestionsIdReprocess202';

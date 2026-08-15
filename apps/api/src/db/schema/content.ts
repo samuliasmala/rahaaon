@@ -136,6 +136,13 @@ export const suggestion = pgTable("suggestion", {
   aiNote: text("ai_note").notNull().default(""),
   /** AI extraction confidence, 0–100. */
   confidence: integer("confidence").notNull(),
+  /**
+   * True for an entry the editor sent onward without AI processing: every field
+   * the extraction would have drafted is blank and the editor fills them in by
+   * hand. Drives the queue card's presentation (no confidence pill, no AI
+   * notes) and is cleared if the AI is later run on the entry after all.
+   */
+  aiSkipped: boolean("ai_skipped").notNull().default(false),
   status: suggestionStatusEnum("status").notNull().default("pending"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
@@ -147,7 +154,7 @@ export const suggestion = pgTable("suggestion", {
 
 /**
  * A raw reader-submitted link (the public "Ehdota kohde" flow). Lands here as
- * `status = 'new'`; an editor either sends it onward to the AI queue
+ * `status = 'new'`; an editor either sends it onward to the Julkaisujono
  * ("process", which creates a {@link suggestion} row) or rejects it into the
  * archive — from where it can be restored back to `new`.
  */

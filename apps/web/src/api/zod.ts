@@ -197,7 +197,7 @@ export const postApiAdminKeywordsGenerateResponse = zod.object({
 
 
 /**
- * @summary The AI queue: pending suggestions, newest first
+ * @summary The Julkaisujono: pending suggestions, newest first
  */
 export const getApiAdminSuggestionsResponseItem = zod.object({
   "id": zod.uuid(),
@@ -216,6 +216,7 @@ export const getApiAdminSuggestionsResponseItem = zod.object({
   "keywords": zod.array(zod.string()),
   "aiNote": zod.string(),
   "confidence": zod.number(),
+  "aiSkipped": zod.boolean(),
   "createdAt": zod.iso.datetime({})
 }).and(zod.object({
   "archive": zod.object({
@@ -258,13 +259,13 @@ export const patchApiAdminSuggestionsIdBodyKeywordsMax = 10;
 
 
 export const patchApiAdminSuggestionsIdBody = zod.object({
-  "title": zod.string().min(1).max(patchApiAdminSuggestionsIdBodyTitleMax).optional(),
-  "summary": zod.string().min(1).max(patchApiAdminSuggestionsIdBodySummaryMax).optional(),
+  "title": zod.string().max(patchApiAdminSuggestionsIdBodyTitleMax).optional(),
+  "summary": zod.string().max(patchApiAdminSuggestionsIdBodySummaryMax).optional(),
   "quote": zod.string().max(patchApiAdminSuggestionsIdBodyQuoteMax).optional(),
   "amountEur": zod.number().min(patchApiAdminSuggestionsIdBodyAmountEurMin).optional(),
   "amountType": zod.enum(['exact', 'approx', 'min', 'unknown']).optional(),
   "amountMaxEur": zod.number().min(patchApiAdminSuggestionsIdBodyAmountMaxEurMin).nullish(),
-  "entity": zod.string().min(1).max(patchApiAdminSuggestionsIdBodyEntityMax).optional(),
+  "entity": zod.string().max(patchApiAdminSuggestionsIdBodyEntityMax).optional(),
   "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']).optional(),
   "articleTitle": zod.string().max(patchApiAdminSuggestionsIdBodyArticleTitleMax).optional(),
   "articlePublishedAt": zod.iso.date().nullish(),
@@ -288,6 +289,7 @@ export const patchApiAdminSuggestionsIdResponse = zod.object({
   "keywords": zod.array(zod.string()),
   "aiNote": zod.string(),
   "confidence": zod.number(),
+  "aiSkipped": zod.boolean(),
   "createdAt": zod.iso.datetime({})
 })
 
@@ -309,6 +311,7 @@ export const postApiAdminSuggestionsIdReprocessBody = zod.object({
 
 
 /**
+ * Requires a title, an entity and a summary — an AI-skipped entry enters the queue blank on all three, and a 422 lists the ones still missing.
  * @summary Publish a pending suggestion to the feed
  */
 export const postApiAdminSuggestionsIdApproveParams = zod.object({
@@ -352,6 +355,7 @@ export const getApiAdminSuggestionsRejectedResponseItem = zod.object({
   "keywords": zod.array(zod.string()),
   "aiNote": zod.string(),
   "confidence": zod.number(),
+  "aiSkipped": zod.boolean(),
   "createdAt": zod.iso.datetime({})
 }).and(zod.object({
   "rejectedAt": zod.iso.datetime({})
@@ -383,6 +387,7 @@ export const postApiAdminSuggestionsIdRestoreResponse = zod.object({
   "keywords": zod.array(zod.string()),
   "aiNote": zod.string(),
   "confidence": zod.number(),
+  "aiSkipped": zod.boolean(),
   "createdAt": zod.iso.datetime({})
 })
 
@@ -506,6 +511,15 @@ export const postApiAdminSubmissionsIdProcessBodyInstructionsMax = 2000;
 
 export const postApiAdminSubmissionsIdProcessBody = zod.object({
   "instructions": zod.string().max(postApiAdminSubmissionsIdProcessBodyInstructionsMax).optional()
+})
+
+
+/**
+ * Creates the queue entry immediately, with every field the AI would have drafted (title, amount, entity, category, summary, quote, keywords, notes) left empty for the editor to fill in. The entry can still be handed to the AI later from the queue card.
+ * @summary Move a submission to the Julkaisujono without AI processing
+ */
+export const postApiAdminSubmissionsIdSkipParams = zod.object({
+  "id": zod.uuid()
 })
 
 

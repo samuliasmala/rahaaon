@@ -10,7 +10,7 @@ import type { Hono } from "hono";
  * singleton is bound to the ephemeral container by setting DATABASE_URL before
  * dynamically importing the app (which transitively loads db/client + env).
  * Exercises the full editorial loop: anonymous url submission → Ehdotusjono →
- * process into the AI queue → edit → approve → public feed → votes → hide.
+ * process into the Julkaisujono → edit → approve → public feed → votes → hide.
  *
  * Submitted URLs use an unresolvable host (.invalid) so the page-preview fetch
  * fails fast and deterministically — the flow must work regardless.
@@ -216,7 +216,7 @@ describe("editorial loop", () => {
     expect(retry.status).toBe(503);
   });
 
-  it("queues a submission and the background worker moves it to the AI queue", async () => {
+  it("queues a submission and the background worker moves it to the Julkaisujono", async () => {
     const res = await app.request(`/api/admin/submissions/${submissionId}/process`, {
       method: "POST",
       headers: { cookie: editorCookie },
@@ -907,5 +907,171 @@ describe("capture lookup", () => {
   it("keeps another article on the same site apart", async () => {
     const res = await lookup("https://kaappaus.fi.invalid/uutiset/toinen-juttu");
     expect(await res.json()).toEqual({});
+  });
+});
+
+/**
+ * The editor's "Ohita tekoäly": the link moves to the Julkaisujono immediately,
+ * with nothing drafted for it. From there the card is the editor's to write —
+ * or to hand to the AI after all.
+ */
+describe("skipping AI processing", () => {
+  type QueueEntry = {
+    id: string;
+    url: string;
+    title: string;
+    entity: string;
+    summary: string;
+    quote: string;
+    keywords: string[];
+    sourceName: string;
+    articleTitle: string;
+    articlePublishedAt: string | null;
+    amountEur: number;
+    amountType: string;
+    amountMaxEur: number | null;
+    aiNote: string;
+    confidence: number;
+    aiSkipped: boolean;
+    canReprocess: boolean;
+    reprocessing: boolean;
+  };
+
+  const listQueue = async () =>
+    (await (
+      await app.request("/api/admin/suggestions", { headers: { cookie: editorCookie } })
+    ).json()) as QueueEntry[];
+
+  const patch = (id: string, body: unknown) =>
+    app.request(`/api/admin/suggestions/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie: editorCookie },
+      body: JSON.stringify(body),
+    });
+
+  /** Submit a link and send it onward without AI; returns both ids. */
+  async function submitAndSkip(url: string): Promise<{ submissionId: string; entry: QueueEntry }> {
+    const created = await app.request("/api/submissions", json({ url }));
+    const { id: submissionId } = (await created.json()) as { id: string };
+    const res = await app.request(`/api/admin/submissions/${submissionId}/skip`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(res.status).toBe(201);
+    const { suggestionId } = (await res.json()) as { suggestionId: string };
+    return { submissionId, entry: (await listQueue()).find((q) => q.id === suggestionId)! };
+  }
+
+  let submissionId: string;
+  let entry: QueueEntry;
+
+  it("queues the link with every AI-drafted field blank", async () => {
+    ({ submissionId, entry } = await submitAndSkip("https://kunta.invalid/uutiset/kasin-kirjattu"));
+
+    expect(entry).toMatchObject({
+      aiSkipped: true,
+      title: "",
+      entity: "",
+      summary: "",
+      quote: "",
+      keywords: [],
+      aiNote: "",
+      confidence: 0,
+      amountEur: 0,
+      amountType: "unknown",
+      amountMaxEur: null,
+      articlePublishedAt: null,
+    });
+    // sourceName is derived from the submitted page, not drafted — the queue
+    // card has no field for it, so a blank one could never be fixed.
+    expect(entry.sourceName).toBe("kunta.invalid");
+    // The AI can still be run on the entry later, from the queue card.
+    expect(entry.canReprocess).toBe(true);
+
+    // The link left the Ehdotusjono, with no background run to wait for.
+    const list = (await (
+      await app.request("/api/admin/submissions", { headers: { cookie: editorCookie } })
+    ).json()) as { id: string }[];
+    expect(list.map((sub) => sub.id)).not.toContain(submissionId);
+
+    // One-shot, like process: the row is no longer 'new'.
+    const again = await app.request(`/api/admin/submissions/${submissionId}/skip`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(again.status).toBe(404);
+  });
+
+  it("saves a half-filled card but refuses to publish it", async () => {
+    // What a blur-save from the queue card sends while the editor is still
+    // filling the card in: the whole draft, blank fields included.
+    const half = await patch(entry.id, {
+      title: "",
+      summary: "",
+      entity: "Testikunta",
+      amountEur: 12_000,
+      amountType: "exact",
+    });
+    expect(half.status).toBe(200);
+
+    const refused = await app.request(`/api/admin/suggestions/${entry.id}/approve`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(refused.status).toBe(422);
+    const body = (await refused.json()) as { error: { details: { fields: string[] } } };
+    expect(body.error.details.fields).toEqual(["otsikko", "tiivistelmä"]);
+  });
+
+  it("publishes once the editor has written the card", async () => {
+    const filled = await patch(entry.id, {
+      title: "Toimituksen kirjaama tapaus",
+      summary: "Toimitus kirjoitti tämän itse.",
+    });
+    expect(filled.status).toBe(200);
+
+    const approved = await app.request(`/api/admin/suggestions/${entry.id}/approve`, {
+      method: "POST",
+      headers: { cookie: editorCookie },
+    });
+    expect(approved.status).toBe(200);
+    const { itemId } = (await approved.json()) as { itemId: string };
+
+    const feed = (await (await app.request("/api/items")).json()) as {
+      id: string;
+      title: string;
+      sourceName: string;
+      amountType: string;
+    }[];
+    expect(feed.find((item) => item.id === itemId)).toMatchObject({
+      title: "Toimituksen kirjaama tapaus",
+      sourceName: "kunta.invalid",
+      amountType: "exact",
+    });
+  });
+
+  it("hands a skipped entry to the AI on request, clearing the flag", async () => {
+    const skipped = await submitAndSkip("https://yle.fi.invalid/a/myohemmin-tekoalylle");
+    expect(skipped.entry.aiSkipped).toBe(true);
+
+    const res = await app.request(`/api/admin/suggestions/${skipped.entry.id}/reprocess`, {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: editorCookie },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(202);
+
+    const deadline = Date.now() + 15_000;
+    let drafted: QueueEntry | undefined;
+    for (;;) {
+      drafted = (await listQueue()).find((q) => q.id === skipped.entry.id);
+      if (drafted && !drafted.reprocessing && drafted.title !== "") break;
+      if (Date.now() > deadline) throw new Error("skipped entry was not drafted in time");
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    // The mock extraction's fixed draft, and the entry is no longer "skipped".
+    expect(drafted.aiSkipped).toBe(false);
+    expect(drafted.confidence).toBeGreaterThan(0);
+    expect(drafted.entity).toBe("Vantaa");
   });
 });

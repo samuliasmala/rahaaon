@@ -13,13 +13,14 @@ import { fetchPagePreview } from "../../lib/page-preview.js";
 import { notifierEnabled, runQueueNotifierOnce } from "../../lib/queue-notifier.js";
 import { getTextObject, putTextObject } from "../../lib/s3.js";
 import { runProcessorOnce } from "../../lib/submission-processor.js";
+import { blankExtraction } from "../../lib/suggestion-ai.js";
 import { normalizeUrl } from "../../lib/url.js";
 import type { ArchiveRefView, RejectedUrlSubmissionView, UrlSubmissionView } from "./schemas.js";
 
 type SubmissionRow = typeof urlSubmission.$inferSelect;
 
 /**
- * The archive pointer other admin views (AI queue, published items) carry so
+ * The archive pointer other admin views (Julkaisujono, published items) carry so
  * their cards can open the submission-scoped archive viewer. A never-archived
  * row surfaces as a `missing` ref when archiving is available (the card can
  * offer re-archiving) but as null when it isn't — with S3 unconfigured the gap
@@ -46,7 +47,7 @@ export function toArchiveRef(
 export interface UrlDuplicate {
   /**
    * A live pipeline entry for this key — a first-run Ehdotusjono row or an
-   * entry already in the AI queue. A fresh submit is absorbed into it rather
+   * entry already in the Julkaisujono. A fresh submit is absorbed into it rather
    * than queueing a second card. Null when nothing live matches.
    */
   activeSubmissionId: string | null;
@@ -268,8 +269,8 @@ export async function findSubmissionByUrl(url: string): Promise<UrlSubmissionVie
  * The admin Ehdotusjono: unprocessed reader links, newest first. Rows the
  * background processor is working on stay in the list (`processing: true`) so
  * the queue card can show a persistent "Käsitellään…" state. Reprocess runs
- * (`processing` rows that already carry a suggestion_id) belong to the AI
- * queue / published views, not here.
+ * (`processing` rows that already carry a suggestion_id) belong to the
+ * Julkaisujono / published views, not here.
  */
 export async function listNewSubmissions(): Promise<UrlSubmissionView[]> {
   const rows = await db
@@ -450,7 +451,7 @@ export async function retrySubmissionArchive(
 }
 
 /**
- * Send a submission onward to the AI queue: flip it to `processing` and kick
+ * Send a submission onward to the Julkaisujono: flip it to `processing` and kick
  * the background processor (lib/submission-processor.ts), which runs the
  * extraction and finalizes the row off the request. The conditional update is
  * the concurrency guard — a second click (or a reject that raced this) finds a
@@ -479,8 +480,66 @@ export async function queueSubmissionForProcessing(
 }
 
 /**
+ * Send a submission onward to the Julkaisujono without AI: create its queue
+ * entry with every AI-drafted field blank and settle the submission in the same
+ * transaction. Nothing runs in the background — the editor fills the card in by
+ * hand, or hands it to the AI later from the queue card ("Käsittele
+ * tekoälyllä", the same reprocess path a drafted entry uses).
+ *
+ * Guarded like {@link queueSubmissionForProcessing}: only a first-run 'new' row
+ * moves, so a double click (or a race with process/reject) 404s instead of
+ * queueing a second entry for the same link.
+ */
+export async function skipProcessingForSubmission(id: string): Promise<{ suggestionId: string }> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(urlSubmission)
+      .where(
+        and(
+          eq(urlSubmission.id, id),
+          eq(urlSubmission.status, "new"),
+          isNull(urlSubmission.suggestionId),
+        ),
+      )
+      .limit(1)
+      .for("update");
+    if (!row) throw notFound("Ehdotusta ei löytynyt");
+
+    const [created] = await tx
+      .insert(suggestion)
+      // articleTitle is submit-time metadata, not AI output — copied exactly as
+      // the processor's finalize copies it.
+      .values({
+        url: row.url,
+        articleTitle: row.title.slice(0, 300),
+        aiSkipped: true,
+        ...blankExtraction(row.url, {
+          title: row.title,
+          description: row.description,
+          siteName: row.siteName,
+        }),
+      })
+      .returning({ id: suggestion.id });
+
+    await tx
+      .update(urlSubmission)
+      .set({
+        status: "processed",
+        processedAt: new Date(),
+        suggestionId: created!.id,
+        processNextAttemptAt: null,
+        processError: null,
+      })
+      .where(eq(urlSubmission.id, id));
+
+    return { suggestionId: created!.id };
+  });
+}
+
+/**
  * Send a processed submission back through the AI extraction — the reprocess
- * behind the AI queue's and published table's "Käsittele uudelleen". Keyed on
+ * behind the Julkaisujono's and published table's "Käsittele uudelleen". Keyed on
  * the suggestion because that's what the caller holds; the kept suggestion_id
  * is also what routes the worker's finalize into updating the existing
  * suggestion (and its published item) instead of inserting a new one. The

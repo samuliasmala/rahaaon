@@ -11,6 +11,7 @@ import {
   getGetApiAdminSuggestionsQueryKey,
   usePostApiAdminSubmissionsIdProcess,
   usePostApiAdminSubmissionsIdReject,
+  usePostApiAdminSubmissionsIdSkip,
 } from "../../api/admin/admin.js";
 import { formatTimeAgo } from "../../lib/format.js";
 import { Button } from "../ui/button.js";
@@ -49,20 +50,23 @@ function duplicatePill(
 
 /**
  * One reader-submitted link in the Ehdotusjono: the page metadata captured at
- * submit time plus the verdict — onward to the AI queue ("Käsittele"; queues
- * the LLM extraction, which runs in the background — see the API's
- * submission-processor module) or into the rejected archive ("Hylkää"). While
- * the extraction runs the entry stays here as `processing: true` (a state that
- * survives page refreshes) and the admin view polls until it moves on. Hylkää
- * stays available even then — it doubles as the way to cancel a processing run.
+ * submit time plus the verdict — onward to the Julkaisujono with an AI draft
+ * ("Käsittele"; queues the LLM extraction, which runs in the background — see
+ * the API's submission-processor module) or without one ("Ohita tekoäly"; the
+ * entry appears blank for the editor to fill in), or into the rejected archive
+ * ("Hylkää"). While the extraction runs the entry stays here as
+ * `processing: true` (a state that survives page refreshes) and the admin view
+ * polls until it moves on. Hylkää stays available even then — it doubles as the
+ * way to cancel a processing run.
  */
 export function SubmissionCard({ entry }: { entry: UrlSubmission }) {
   const queryClient = useQueryClient();
   const [instructionsOpen, setInstructionsOpen] = useState(false);
   const processMutation = usePostApiAdminSubmissionsIdProcess();
+  const skipMutation = usePostApiAdminSubmissionsIdSkip();
   const rejectMutation = usePostApiAdminSubmissionsIdReject();
   const processing = entry.processing || processMutation.isPending;
-  const busy = processMutation.isPending || rejectMutation.isPending;
+  const busy = processMutation.isPending || skipMutation.isPending || rejectMutation.isPending;
   const duplicateNotice = duplicatePill(entry.duplicate);
 
   async function refreshSubmissions() {
@@ -80,7 +84,7 @@ export function SubmissionCard({ entry }: { entry: UrlSubmission }) {
       return;
     }
     // The entry is queued; the refetch re-renders this card locked
-    // ("Käsitellään…") until the background extraction finishes. The AI queue
+    // ("Käsitellään…") until the background extraction finishes. The Julkaisujono
     // is invalidated too in case the extraction beat this refetch — then the
     // finish would never be observed as a processing → done transition.
     await Promise.all([
@@ -88,6 +92,22 @@ export function SubmissionCard({ entry }: { entry: UrlSubmission }) {
       queryClient.invalidateQueries({ queryKey: getGetApiAdminSuggestionsQueryKey() }),
     ]);
     toast("Käsittely aloitettu");
+  }
+
+  async function skip() {
+    try {
+      await skipMutation.mutateAsync({ id: entry.id });
+    } catch {
+      toast("Siirto epäonnistui. Yritä uudelleen.");
+      return;
+    }
+    // The entry is already in the Julkaisujono — no background run to wait for,
+    // so both lists are refetched right away.
+    await Promise.all([
+      refreshSubmissions(),
+      queryClient.invalidateQueries({ queryKey: getGetApiAdminSuggestionsQueryKey() }),
+    ]);
+    toast("Siirretty julkaisujonoon ilman tekoälyä");
   }
 
   async function reject() {
@@ -144,7 +164,7 @@ export function SubmissionCard({ entry }: { entry: UrlSubmission }) {
             <p className="text-[13px] text-accent">Käsittely epäonnistui: {entry.processError}</p>
           )}
         </div>
-        <div className="flex shrink-0 gap-2.5 md:self-center">
+        <div className="flex shrink-0 flex-wrap gap-2.5 md:self-center">
           {/* Split button: the main half is the one-click "Käsittele", the
               chevron opens the optional editor-instructions dialog. */}
           <div className="flex">
@@ -165,6 +185,16 @@ export function SubmissionCard({ entry }: { entry: UrlSubmission }) {
               <ChevronDown aria-hidden className="size-4" />
             </Button>
           </div>
+          {/* Straight to the Julkaisujono with no AI draft — for a link the
+              editor would rather write up themselves. */}
+          <Button
+            variant="outline"
+            disabled={processing || busy}
+            onClick={() => void skip()}
+            title="Siirrä julkaisujonoon ilman tekoälykäsittelyä"
+          >
+            Ohita tekoäly
+          </Button>
           {/* Enabled while processing: rejecting cancels the run (the worker
               discards a finished extraction for a non-processing row). */}
           <Button variant="outlineDanger" disabled={busy} onClick={() => void reject()}>

@@ -11,15 +11,9 @@ import type { Category } from './category';
 import type { PatchSuggestionArticlePublishedAt } from './patchSuggestionArticlePublishedAt';
 
 export interface PatchSuggestion {
-  /**
-   * @minLength 1
-   * @maxLength 300
-   */
+  /** @maxLength 300 */
   title?: string;
-  /**
-   * @minLength 1
-   * @maxLength 2000
-   */
+  /** @maxLength 2000 */
   summary?: string;
   /** @maxLength 500 */
   quote?: string;
@@ -28,10 +22,7 @@ export interface PatchSuggestion {
   amountType?: AmountType;
   /** @minimum 0 */
   amountMaxEur?: PatchSuggestionAmountMaxEur;
-  /**
-   * @minLength 1
-   * @maxLength 120
-   */
+  /** @maxLength 120 */
   entity?: string;
   category?: Category;
   /** @maxLength 300 */

@@ -27,5 +27,6 @@ export interface Suggestion {
   keywords: string[];
   aiNote: string;
   confidence: number;
+  aiSkipped: boolean;
   createdAt: string;
 }

@@ -18,10 +18,28 @@ const AMOUNT_TYPE_OPTIONS: { value: AmountType; label: string }[] = [
 ];
 
 /**
- * The editable extraction fields shared by the AI queue and the published
+ * Validation messages for the fields a feed item can't do without, shown under
+ * the inputs. The caller decides when they apply — the Julkaisujono fills them in
+ * when the editor tries to publish a card that is still missing something.
+ */
+export interface ExtractionFieldErrors {
+  title?: string;
+  summary?: string;
+  entity?: string;
+}
+
+/** The shared "this field is required" note under an input. */
+function FieldError({ message }: { message?: string | undefined }) {
+  if (!message) return null;
+  return <p className="text-[13px] font-medium text-accent">{message}</p>;
+}
+
+/**
+ * The editable extraction fields shared by the Julkaisujono and the published
  * table: title + summary + the amount/entity/category grid. Owns no state —
- * the caller holds the draft. Pass `onSave` to save on field blur (the AI
- * queue), or omit it and provide explicit save controls (the published table).
+ * the caller holds the draft. Pass `onSave` to save on field blur (the
+ * Julkaisujono), or omit it and provide explicit save controls (the published
+ * table).
  */
 export function ExtractionFields({
   idPrefix,
@@ -31,6 +49,7 @@ export function ExtractionFields({
   summaryLabel = "Tiivistelmä",
   busy = false,
   disabled = false,
+  errors,
 }: {
   idPrefix: string;
   draft: ExtractionDraft;
@@ -41,10 +60,12 @@ export function ExtractionFields({
   busy?: boolean;
   /** Locks every field — e.g. while a reprocess is about to replace their values. */
   disabled?: boolean;
+  /** Per-field validation messages; absent while nothing has been validated. */
+  errors?: ExtractionFieldErrors | undefined;
 }) {
   const keywordsMutation = usePostApiAdminKeywordsGenerate();
 
-  // Blur-saving callers (the AI queue) never see a blur from the generate
+  // Blur-saving callers (the Julkaisujono) never see a blur from the generate
   // button, so a generation asks for a save itself — via an effect, one render
   // later, when `onSave` closes over the draft that includes the new keywords.
   const saveAfterGenerate = useRef(false);
@@ -92,8 +113,10 @@ export function ExtractionFields({
           value={draft.title}
           onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
           onBlur={onSave}
+          aria-invalid={!!errors?.title}
           className="text-[15px] font-semibold"
         />
+        <FieldError message={errors?.title} />
       </div>
       <div className="flex flex-col gap-1.5">
         <FieldLabel htmlFor={`${idPrefix}-article-title`}>
@@ -114,7 +137,9 @@ export function ExtractionFields({
           value={draft.summary}
           onChange={(e) => setDraft((d) => ({ ...d, summary: e.target.value }))}
           onBlur={onSave}
+          aria-invalid={!!errors?.summary}
         />
+        <FieldError message={errors?.summary} />
       </div>
       <div className="flex flex-col gap-1.5">
         <FieldLabel htmlFor={`${idPrefix}-quote`}>Sitaatti artikkelista, jos on</FieldLabel>
@@ -197,8 +222,10 @@ export function ExtractionFields({
             value={draft.entity}
             onChange={(e) => setDraft((d) => ({ ...d, entity: e.target.value }))}
             onBlur={onSave}
+            aria-invalid={!!errors?.entity}
             className="font-medium"
           />
+          <FieldError message={errors?.entity} />
         </div>
         <div className="flex flex-col gap-1.5">
           <FieldLabel htmlFor={`${idPrefix}-category`}>Kategoria</FieldLabel>

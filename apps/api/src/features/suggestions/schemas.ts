@@ -27,6 +27,12 @@ export const suggestionSchema = z
     keywords: z.array(z.string()),
     aiNote: z.string(),
     confidence: z.number().int(),
+    /**
+     * True when the editor sent this entry onward without AI processing — the
+     * drafted fields are blank, and aiNote/confidence say nothing (the queue
+     * card leaves out the AI panels rather than showing empty ones).
+     */
+    aiSkipped: z.boolean(),
     createdAt: z.iso.datetime(),
   })
   .openapi("Suggestion");
@@ -52,18 +58,24 @@ export const rejectedSuggestionSchema = suggestionSchema
 
 export type RejectedSuggestionView = z.infer<typeof rejectedSuggestionSchema>;
 
-/** Editorial edits before publishing; all fields optional. */
+/**
+ * Editorial edits before publishing; all fields optional. Unlike a published
+ * item's patch, title/summary/entity may be empty here: an AI-skipped entry
+ * starts blank on all three and the editor's per-field saves have to land while
+ * the card is still half-filled. Approval is where they are required
+ * ({@link approveSuggestion}) — nothing empty reaches the feed.
+ */
 export const patchSuggestionSchema = z
   .object({
-    title: z.string().min(1).max(300),
-    summary: z.string().min(1).max(2000),
+    title: z.string().max(300),
+    summary: z.string().max(2000),
     /** "" removes the quote from the feed item. */
     quote: z.string().max(500),
     amountEur: z.number().int().min(0),
     amountType: amountTypeSchema,
     /** Null clears the range; the repo drops a bound that isn't above amountEur. */
     amountMaxEur: z.number().int().min(0).nullable(),
-    entity: z.string().min(1).max(120),
+    entity: z.string().max(120),
     category: categorySchema,
     /** "" = article title unknown; the feed link falls back to generic text. */
     articleTitle: z.string().max(300),

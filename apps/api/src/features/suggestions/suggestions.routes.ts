@@ -26,7 +26,7 @@ suggestionRoutes.openapi(
   createRoute({
     method: "get",
     path: "/admin/suggestions",
-    summary: "The AI queue: pending suggestions, newest first",
+    summary: "The Julkaisujono: pending suggestions, newest first",
     tags: ["Admin"],
     middleware: [requireAuth] as const,
     responses: {
@@ -101,6 +101,8 @@ suggestionRoutes.openapi(
     method: "post",
     path: "/admin/suggestions/{id}/approve",
     summary: "Publish a pending suggestion to the feed",
+    description:
+      "Requires a title, an entity and a summary — an AI-skipped entry enters the queue blank on all three, and a 422 lists the ones still missing.",
     tags: ["Admin"],
     middleware: [requireAuth] as const,
     request: { params: idParam },

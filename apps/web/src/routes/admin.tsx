@@ -65,8 +65,8 @@ function AdminPage() {
     },
   });
 
-  // When a processing run finishes, the entry either moved to the AI queue or
-  // returned to 'new' with an error — refetch the AI queue whenever an id
+  // When a processing run finishes, the entry either moved to the Julkaisujono or
+  // returned to 'new' with an error — refetch the Julkaisujono whenever an id
   // leaves the processing set, so its tab count keeps up. Tracked as an id set
   // (not a count): a finish and a fresh click landing in the same poll delta
   // would leave the count unchanged and hide the transition.
@@ -148,7 +148,7 @@ function AdminPage() {
           Ehdotusjono ({submissions.length})
         </TabButton>
         <TabButton active={tab === "queue"} onClick={() => setTab("queue")}>
-          Tekoälyn käsittelemät ({queue.length})
+          Julkaisujono ({queue.length})
         </TabButton>
         <TabButton active={tab === "published"} onClick={() => setTab("published")}>
           Julkaistut ({items.length})

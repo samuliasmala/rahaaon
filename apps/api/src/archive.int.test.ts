@@ -533,7 +533,7 @@ describe("article archive", () => {
     expect(entry.hasArchivedText).toBe(true);
   });
 
-  it("carries the archive ref through the AI queue to the published item", async () => {
+  it("carries the archive ref through the Julkaisujono to the published item", async () => {
     const id = await submit("/article?ref=chain");
     const archived = await waitForArchive(id);
     expect(archived.archiveStatus).toBe("ok");

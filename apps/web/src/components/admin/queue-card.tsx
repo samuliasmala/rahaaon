@@ -4,12 +4,13 @@ import { toast } from "sonner";
 import { AiInstructionsDialog } from "./ai-instructions-dialog.js";
 import { ArchiveInfo } from "./archive-info.js";
 import {
+  type ExtractionDraft,
   draftsEqual,
   syncDraftToPatch,
   toExtractionDraft,
   toExtractionPatch,
 } from "./extraction-draft.js";
-import { ExtractionFields } from "./extraction-fields.js";
+import { ExtractionFields, type ExtractionFieldErrors } from "./extraction-fields.js";
 import {
   getGetApiAdminItemsQueryKey,
   getGetApiAdminSuggestionsQueryKey,
@@ -33,17 +34,37 @@ function confidenceClasses(confidence: number): string {
 }
 
 /**
- * One AI-preprocessed suggestion: editable extraction + source panel + verdict.
- * Edits live in local draft state and are saved on blur; approving saves the
- * draft first so what the editor sees is exactly what gets published.
- * "Käsittele uudelleen" re-runs the AI extraction (optionally with editor
- * instructions) through the background pipeline; the card locks until the
- * redraft lands and then reloads the draft from it.
+ * What a feed item can't do without — the same three fields the approve
+ * endpoint insists on. Blank while a card is being filled in (edits save
+ * field by field, which an AI-skipped entry needs), checked when the editor
+ * publishes. Undefined = nothing missing.
+ */
+function missingFieldErrors(draft: ExtractionDraft): ExtractionFieldErrors | undefined {
+  const errors: ExtractionFieldErrors = {};
+  if (!draft.title.trim()) errors.title = "Otsikko puuttuu";
+  if (!draft.summary.trim()) errors.summary = "Tiivistelmä puuttuu";
+  if (!draft.entity.trim()) errors.entity = "Taho puuttuu";
+  return Object.keys(errors).length > 0 ? errors : undefined;
+}
+
+/**
+ * One queue entry: editable extraction + source panel + verdict. The fields
+ * arrive either drafted by the AI or blank (the editor chose "Ohita tekoäly" in
+ * the Ehdotusjono), which is what `aiSkipped` switches the card's AI panels on
+ * and off by. Edits live in local draft state and are saved on blur; approving
+ * validates the required fields, then saves the draft first so what the editor
+ * sees is exactly what gets published. "Käsittele uudelleen" (or, on a skipped
+ * entry, "Käsittele tekoälyllä") runs the AI extraction — optionally with
+ * editor instructions — through the background pipeline; the card locks until
+ * the draft lands and then reloads from it.
  */
 export function QueueCard({ entry }: { entry: SuggestionWithArchive }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState(() => toExtractionDraft(entry));
   const [reprocessOpen, setReprocessOpen] = useState(false);
+  // Set by a publish attempt that found something missing. The messages are
+  // derived from the current draft, so they clear as the editor types.
+  const [validated, setValidated] = useState(false);
   // Covers the whole reprocess kick (POST + the refetch that brings
   // `entry.reprocessing`), so the card can't unlock in the gap between them.
   const [reprocessKicked, setReprocessKicked] = useState(false);
@@ -54,6 +75,9 @@ export function QueueCard({ entry }: { entry: SuggestionWithArchive }) {
   const reprocessMutation = usePostApiAdminSuggestionsIdReprocess();
   const reprocessing = entry.reprocessing || reprocessKicked;
   const busy = approveMutation.isPending || rejectMutation.isPending;
+  const missing = missingFieldErrors(draft);
+  // "Käsittele uudelleen" reads wrong on an entry the AI never read.
+  const reprocessLabel = entry.aiSkipped ? "Käsittele tekoälyllä" : "Käsittele uudelleen";
 
   // When a redraft lands, the refetched entry's fields change under the local
   // draft — reload it. Keyed on content, not on observing a `reprocessing`
@@ -95,15 +119,23 @@ export function QueueCard({ entry }: { entry: SuggestionWithArchive }) {
       });
       // The refetch re-renders this card locked until the background run lands.
       await refreshQueue();
-      toast("Uudelleenkäsittely aloitettu");
+      toast("Tekoälykäsittely aloitettu");
     } catch {
-      toast("Uudelleenkäsittely epäonnistui. Yritä uudelleen.");
+      toast("Tekoälykäsittely epäonnistui. Yritä uudelleen.");
     } finally {
       setReprocessKicked(false);
     }
   }
 
   async function approve() {
+    // The approve endpoint refuses these too — catching them here keeps the
+    // editor on the card, with the gaps pointed out field by field.
+    if (missing) {
+      setValidated(true);
+      toast("Täytä puuttuvat tiedot ennen julkaisua.");
+      return;
+    }
+    setValidated(false);
     try {
       await patchMutation.mutateAsync({ id: entry.id, data: toExtractionPatch(draft) });
       await approveMutation.mutateAsync({ id: entry.id });
@@ -137,11 +169,15 @@ export function QueueCard({ entry }: { entry: SuggestionWithArchive }) {
     <section className="animate-in overflow-hidden rounded-[10px] border border-hairline bg-surface duration-250 fade-in slide-in-from-bottom-[10px]">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-hairline bg-wash px-4.5 py-3.5">
         <span className="text-[11px] font-semibold tracking-[0.08em] text-body uppercase">
-          Tekoälyn esikäsittelemä ehdotus
+          {entry.aiSkipped ? "Ehdotus ilman tekoälykäsittelyä" : "Tekoälyn esikäsittelemä ehdotus"}
         </span>
-        <Pill className={cn(confidenceClasses(entry.confidence), "tabular")}>
-          AI-varmuus {entry.confidence}%
-        </Pill>
+        {/* Both AI readouts are meaningless on a skipped entry — 0 % and an
+            empty note would only read as a failed extraction. */}
+        {!entry.aiSkipped && (
+          <Pill className={cn(confidenceClasses(entry.confidence), "tabular")}>
+            AI-varmuus {entry.confidence}%
+          </Pill>
+        )}
         <span className="ml-auto text-xs text-muted">
           Saapunut {formatTimeAgo(entry.createdAt)}
         </span>
@@ -153,9 +189,10 @@ export function QueueCard({ entry }: { entry: SuggestionWithArchive }) {
           draft={draft}
           setDraft={setDraft}
           onSave={saveDraft}
-          summaryLabel="Tekoälyn tiivistelmä"
+          summaryLabel={entry.aiSkipped ? "Tiivistelmä" : "Tekoälyn tiivistelmä"}
           busy={busy || reprocessing}
           disabled={reprocessing}
+          errors={validated ? missing : undefined}
         />
 
         <div className="flex flex-col gap-3">
@@ -179,12 +216,14 @@ export function QueueCard({ entry }: { entry: SuggestionWithArchive }) {
               processed
             />
           </div>
-          <div className="flex flex-col gap-1.5 rounded-lg border border-hairline bg-wash-soft px-4 py-3.5">
-            <p className="text-[11px] font-semibold tracking-[0.08em] text-muted uppercase">
-              Tekoälyn huomiot
-            </p>
-            <p className="text-[13px]/[1.5] text-body">{entry.aiNote}</p>
-          </div>
+          {!entry.aiSkipped && (
+            <div className="flex flex-col gap-1.5 rounded-lg border border-hairline bg-wash-soft px-4 py-3.5">
+              <p className="text-[11px] font-semibold tracking-[0.08em] text-muted uppercase">
+                Tekoälyn huomiot
+              </p>
+              <p className="text-[13px]/[1.5] text-body">{entry.aiNote}</p>
+            </div>
+          )}
           <div className="mt-auto flex flex-col gap-2.5 pt-1">
             {entry.canReprocess && (
               <Button
@@ -192,12 +231,12 @@ export function QueueCard({ entry }: { entry: SuggestionWithArchive }) {
                 disabled={busy || reprocessing}
                 onClick={() => setReprocessOpen(true)}
               >
-                {reprocessing ? "Tekoäly käsittelee…" : "Käsittele uudelleen"}
+                {reprocessing ? "Tekoäly käsittelee…" : reprocessLabel}
               </Button>
             )}
             {entry.reprocessError && !reprocessing && (
               <p className="text-[13px] text-accent">
-                Uudelleenkäsittely epäonnistui: {entry.reprocessError}
+                Tekoälykäsittely epäonnistui: {entry.reprocessError}
               </p>
             )}
             <div className="flex gap-2.5">
@@ -222,9 +261,13 @@ export function QueueCard({ entry }: { entry: SuggestionWithArchive }) {
       <AiInstructionsDialog
         open={reprocessOpen}
         onClose={() => setReprocessOpen(false)}
-        title="Käsittele uudelleen"
-        description="Tekoäly lukee lähteen uudelleen ja korvaa kortin tiedot — myös käsin tehdyt muokkaukset."
-        confirmLabel="Käsittele uudelleen"
+        title={reprocessLabel}
+        description={
+          entry.aiSkipped
+            ? "Tekoäly lukee lähteen ja täyttää kortin tiedot — myös käsin kirjoitetut korvataan."
+            : "Tekoäly lukee lähteen uudelleen ja korvaa kortin tiedot — myös käsin tehdyt muokkaukset."
+        }
+        confirmLabel={reprocessLabel}
         onSubmit={(instructions) => {
           setReprocessOpen(false);
           void reprocess(instructions);

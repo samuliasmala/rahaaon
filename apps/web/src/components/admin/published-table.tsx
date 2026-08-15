@@ -232,7 +232,7 @@ export function PublishedTable({ items }: { items: AdminWasteItem[] }) {
 
 /**
  * Inline editor for a published item, expanded below its row. Same fields as
- * the AI queue card, but nothing saves until Tallenna — the item is live, so
+ * the Julkaisujono card, but nothing saves until Tallenna — the item is live, so
  * a stray keystroke must not reach the feed on its own.
  */
 function PublishedItemEditor({

@@ -241,6 +241,34 @@ export async function extractArticle(
   }
 }
 
+/**
+ * The extraction for an entry the editor sends onward without AI: every field
+ * the LLM would have drafted left empty, for the editor to fill in by hand.
+ * Typed as a full {@link ArticleExtraction} so a new extraction field has to be
+ * given a blank here too, instead of silently defaulting in the database.
+ *
+ * `sourceName` is the exception: it is derived, not drafted — the queue card
+ * has no input for it, so an empty one would follow the entry onto the feed
+ * with no way to fix it. Page metadata first, then the hostname mapping.
+ */
+export function blankExtraction(url: string, context: SubmissionContext): ArticleExtraction {
+  return {
+    title: "",
+    amountEur: 0,
+    amountType: "unknown",
+    amountMaxEur: null,
+    entity: "",
+    category: "Muu",
+    sourceName: context.siteName || sourceNameFromUrl(url),
+    articlePublishedAt: null,
+    summary: "",
+    quote: "",
+    keywords: [],
+    aiNote: "",
+    confidence: 0,
+  };
+}
+
 /** Map a hostname to a publication name the way the prototype does. */
 function sourceNameFromUrl(url: string): string {
   let host = "";

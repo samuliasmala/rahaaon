@@ -38,6 +38,7 @@ import type {
   PostApiAdminItemsIdReprocess202,
   PostApiAdminSubmissionsIdArchiveRetryParams,
   PostApiAdminSubmissionsIdReject200,
+  PostApiAdminSubmissionsIdSkip201,
   PostApiAdminSuggestionsIdApprove200,
   PostApiAdminSuggestionsIdReject200,
   PostApiAdminSuggestionsIdReprocess202,
@@ -343,7 +344,7 @@ export const usePostApiAdminKeywordsGenerate = <TError = ErrorResponse,
       return useMutation(mutationOptions, queryClient);
     }
     /**
- * @summary The AI queue: pending suggestions, newest first
+ * @summary The Julkaisujono: pending suggestions, newest first
  */
 export const getApiAdminSuggestions = (
     
@@ -414,7 +415,7 @@ export function useGetApiAdminSuggestions<TData = Awaited<ReturnType<typeof getA
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary The AI queue: pending suggestions, newest first
+ * @summary The Julkaisujono: pending suggestions, newest first
  */
 
 export function useGetApiAdminSuggestions<TData = Awaited<ReturnType<typeof getApiAdminSuggestions>>, TError = ErrorResponse>(
@@ -564,6 +565,7 @@ export const usePostApiAdminSuggestionsIdReprocess = <TError = ErrorResponse,
       return useMutation(mutationOptions, queryClient);
     }
     /**
+ * Requires a title, an entity and a summary — an AI-skipped entry enters the queue blank on all three, and a 422 lists the ones still missing.
  * @summary Publish a pending suggestion to the feed
  */
 export const postApiAdminSuggestionsIdApprove = (
@@ -1154,6 +1156,69 @@ export const usePostApiAdminSubmissionsIdProcess = <TError = ErrorResponse,
       > => {
 
       const mutationOptions = getPostApiAdminSubmissionsIdProcessMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * Creates the queue entry immediately, with every field the AI would have drafted (title, amount, entity, category, summary, quote, keywords, notes) left empty for the editor to fill in. The entry can still be handed to the AI later from the queue card.
+ * @summary Move a submission to the Julkaisujono without AI processing
+ */
+export const postApiAdminSubmissionsIdSkip = (
+    id: string,
+ signal?: AbortSignal
+) => {
+      
+      
+      return apiFetch<PostApiAdminSubmissionsIdSkip201>(
+      {url: `/api/admin/submissions/${id}/skip`, method: 'POST', ...(signal ? { signal }: {})
+    },
+      );
+    }
+  
+
+
+export const getPostApiAdminSubmissionsIdSkipMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdSkip>>, TError,{id: string}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdSkip>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['postApiAdminSubmissionsIdSkip'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiAdminSubmissionsIdSkip>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  postApiAdminSubmissionsIdSkip(id,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiAdminSubmissionsIdSkipMutationResult = NonNullable<Awaited<ReturnType<typeof postApiAdminSubmissionsIdSkip>>>
+    
+    export type PostApiAdminSubmissionsIdSkipMutationError = ErrorResponse
+
+    /**
+ * @summary Move a submission to the Julkaisujono without AI processing
+ */
+export const usePostApiAdminSubmissionsIdSkip = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAdminSubmissionsIdSkip>>, TError,{id: string}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiAdminSubmissionsIdSkip>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+
+      const mutationOptions = getPostApiAdminSubmissionsIdSkipMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
