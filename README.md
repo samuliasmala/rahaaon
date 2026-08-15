@@ -41,6 +41,9 @@ pnpm dev                      # web on :5174, api on :3001 (vesi owns 5173/3000)
 Checks: `pnpm lint`, `pnpm typecheck`, `pnpm test` (includes API integration tests against an
 ephemeral Postgres via testcontainers), `pnpm build`.
 
+`pnpm test:e2e` (Playwright) runs against a throwaway `rahaaon_e2e` database on the same Postgres,
+recreated and reseeded on every run — the dev database and its data are left alone.
+
 After changing API routes/schemas, regenerate the web client:
 
 ```bash

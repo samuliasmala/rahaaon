@@ -8,7 +8,16 @@ import { test, expect } from "@playwright/test";
 
 const SEEDED_TITLE = "IT-järjestelmä myöhässä neljä vuotta — hinta ehti kolminkertaistua";
 
-test("feed shows the seeded items and running total", async ({ page }) => {
+/** Feed page size (apps/web/src/routes/index.tsx); "Näytä lisää" adds one more. */
+const PAGE_SIZE = 6;
+
+test("feed shows the seeded items and running total", async ({ page, request }) => {
+  // The admin specs run before this one (filename order) and leave the items
+  // they published behind, so the feed is the seed plus whatever they added.
+  // Take the count from the API rather than hard-coding the seed's 8.
+  const total = ((await (await request.get("/api/items")).json()) as unknown[]).length;
+  expect(total).toBeGreaterThan(PAGE_SIZE);
+
   await page.goto("/");
 
   // Hero: the running total of recorded waste, in euros.
@@ -16,14 +25,14 @@ test("feed shows the seeded items and running total", async ({ page }) => {
     page.getByText("Turhaa julkista rahankäyttöä kirjattu tähän mennessä"),
   ).toBeVisible();
 
-  // A known seeded story is on the first page (8 seeded, 6 shown initially).
+  // A known seeded story is on the first page.
   await expect(page.getByRole("button", { name: SEEDED_TITLE })).toBeVisible();
 
-  // Pagination: 8 items > page size 6 → "Näytä lisää" reveals the rest.
+  // Pagination: more items than fit on a page → "Näytä lisää" reveals the next.
   const articles = page.locator("article");
-  await expect(articles).toHaveCount(6);
+  await expect(articles).toHaveCount(PAGE_SIZE);
   await page.getByRole("button", { name: "Näytä lisää" }).click();
-  await expect(articles).toHaveCount(8);
+  await expect(articles).toHaveCount(Math.min(total, 2 * PAGE_SIZE));
 });
 
 test("detail dialog opens from an item row and closes", async ({ page }) => {

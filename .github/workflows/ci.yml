@@ -74,8 +74,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: verify
     services:
-      # Real Postgres for the E2E run: global-setup migrates + seeds it and the
-      # API server connects to it (unlike the unit jobs, which use testcontainers).
+      # Real Postgres for the E2E run (unlike the unit jobs, which use
+      # testcontainers). The suite creates its own `ci_e2e` database on it —
+      # see apps/api/src/db/reset-e2e-db.ts — migrates and seeds that.
       postgres:
         image: postgres:17
         env:
