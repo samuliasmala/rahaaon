@@ -77,7 +77,7 @@ down: ## Stop the dev stack (volumes are kept) [local only]
 	@[ "$(ENV)" = local ] || { echo "down is local-only — stopping a deployed stack is an outage; use the deploy pipeline."; exit 1; }
 	$(COMPOSE) down
 
-restart: ## Restart the app/api service (db untouched)
+restart: ## Restart the app/api service, db untouched (local: also reinstalls deps after a package.json/lockfile change)
 	$(COMPOSE) restart $(APP_SVC)
 
 # `restart` reuses the container and its baked-in env; only recreating re-reads
