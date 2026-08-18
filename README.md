@@ -15,7 +15,9 @@ pnpm + Turborepo monorepo, TypeScript (strict, ESM).
   orval from the API's OpenAPI document. UI text is Finnish.
 - `apps/api` — Hono + `@hono/zod-openapi` REST API: Drizzle ORM on PostgreSQL 17, better-auth
   (email/password, sign-up disabled — editorial accounts only), pino logging, tsdown build.
-  Swagger UI at `/api/docs`.
+  Swagger UI at `/api/docs`. Health checks: `GET /api/health` (liveness — process up) and
+  `GET /api/health/ready` (readiness — also checks the DB, 503 if it's down); the latter is used
+  by the compose healthcheck and uptime monitoring ([DEPLOYMENT.md](DEPLOYMENT.md) → Monitoring).
 
 Anonymous readers browse the feed, vote ("tämä on turhaa", one vote per visitor cookie, toggle to
 retract) and submit article links. The AI extraction (`apps/api/src/lib/suggestion-ai.ts`) is still
