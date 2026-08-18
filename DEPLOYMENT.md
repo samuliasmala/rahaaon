@@ -178,11 +178,19 @@ untested restore is a hypothesis, not a capability.
 
 ## Monitoring
 
+Two complementary tools — an active prober for "is the site up?", a passive
+ping receiver for "did the scheduled thing run?":
+
 1. **Uptime check** on `https://<host>/api/health/ready` (readiness — checks the
-   DB), e.g. a free healthchecks.io / UptimeRobot monitor. Alerts on downtime.
+   DB), e.g. a free UptimeRobot monitor. Must be an _active_ prober that makes
+   the HTTP request from outside the server; healthchecks.io cannot do this —
+   it only receives pings. (Faking it with a local cron that curls the endpoint
+   puts the monitor on the box it's monitoring, which defeats the purpose.)
 2. **Backup dead-man's-switch**: set `BACKUP_PING_URL` to a healthchecks.io check
    URL; `backup.sh` pings it on success, so a failed dump _or_ a timer that never
-   fires is noticed.
+   fires is noticed. The same healthchecks.io project (free tier: 20 checks)
+   covers any future scheduled job — nightly cleanups, out-of-process feed
+   refresh, etc. — one check per job, pinged on success.
 
 ## Editorial queue notifications
 
