@@ -50,7 +50,7 @@ endif
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env up down restart recreate build logs ps doctor shell migrate seed set-admin-password set-db-password psql clean \
+.PHONY: help env up down restart recreate update-images logs ps doctor shell migrate seed set-admin-password set-db-password psql clean \
 	backup-now backup-list backup-status backup-install
 
 help: ## List targets. Append ENV=dev|test|prod to target a deployed stack (default: local)
@@ -80,9 +80,15 @@ endif
 # successful bucket creation produces. `run --rm` instead propagates mc's own
 # exit code, which is the thing actually worth checking. It's idempotent
 # (`mc mb --ignore-existing`), so re-running `make up` is also the fix.
+#
+# --build keeps the app image in sync with docker/dev.Dockerfile and the
+# entrypoint it COPYs — otherwise their edits sit unapplied until someone
+# remembers to rebuild. A cache-hit build costs ~1s (.dockerignore keeps the
+# context small). It resolves FROM against the local image, so a newer
+# node:24 base needs `make update-images`.
 up: ## Start the dev stack (app + db), detached [local only]
 	@[ "$(ENV)" = local ] || { echo "up is local-only — deployed stacks are brought up by the deploy pipeline (deploy/deploy.sh / CI), not make."; exit 1; }
-	$(COMPOSE) up -d --wait db minio app
+	$(COMPOSE) up -d --build --wait db minio app
 	$(COMPOSE) run --rm minio-init
 
 down: ## Stop the dev stack (volumes are kept) [local only]
@@ -99,9 +105,16 @@ recreate: ## Recreate migrate+api so they re-read .env.$(ENV) after env-file edi
 	@[ "$(ENV)" != local ] || { echo "recreate is deployed-only — the local stack re-reads .env on make down && make up."; exit 1; }
 	$(COMPOSE) up -d --force-recreate --wait --wait-timeout 120 migrate api
 
-build: ## Rebuild the dev image (only needed when dev.Dockerfile changes) [local only]
-	@[ "$(ENV)" = local ] || { echo "build is local-only — deployed stacks run pulled images built by CI."; exit 1; }
-	$(COMPOSE) build
+# --pull re-resolves FROM against the registry (a local tag is frozen at
+# whatever was last pulled); --no-cache covers the gap where the base tag
+# hasn't been republished but apt has newer packages — the price is a full
+# ~2-5 min rebuild, fine for a deliberate, rarely-run target. --ignore-buildable
+# pulls every image service (db, minio, minio-init) without touching app.
+# The next `make up` recreates containers on the new images.
+update-images: ## Pull newer base/service images and rebuild the dev image from scratch [local only]
+	@[ "$(ENV)" = local ] || { echo "update-images is local-only — deployed stacks run pulled images built by CI."; exit 1; }
+	$(COMPOSE) build --pull --no-cache
+	$(COMPOSE) pull --ignore-buildable
 
 logs: ## Follow app/api logs; SERVICE=db (or several: SERVICE="api db") for other services, SERVICE=all for the whole stack
 	$(COMPOSE) logs -f $(if $(filter all,$(SERVICE)),,$(or $(SERVICE),$(APP_SVC)))
