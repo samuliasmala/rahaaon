@@ -29,10 +29,15 @@ main() {
   exec 9>"/tmp/rahaaon-deploy.lock"
   flock -w 900 9 || { echo "another deploy has held the lock for >15 min — aborting" >&2; exit 1; }
 
-  # Sync infra files (compose, this script, docker/) to the deployed ref. main()
-  # is fully parsed before we run, so replacing files on disk now is safe.
+  # Sync infra files (compose, this script, docker/) to the deployed ref, then
+  # re-exec so the deployed deploy.sh runs — bash has already parsed this copy,
+  # and running the previous commit's logic against the new compose files is
+  # how a deploy that changes both breaks ("no such service").
   git fetch --all --tags --prune --force
   git checkout --force "$DEPLOY_REF"
+  if [ -z "${DEPLOY_REEXEC:-}" ]; then
+    DEPLOY_REEXEC=1 exec "$dir/deploy/deploy.sh" "$@"
+  fi
 
   local env_file=".env.$DEPLOY_ENV"
   [ -f "$env_file" ] || { echo "missing $dir/$env_file" >&2; exit 1; }
