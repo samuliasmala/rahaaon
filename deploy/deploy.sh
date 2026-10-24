@@ -44,10 +44,10 @@ main() {
   export DEPLOY_ENV IMAGE_TAG REGISTRY
   local dc=(docker compose -p "rahaaon-$DEPLOY_ENV" --env-file "$env_file" -f docker-compose.prod.yml)
 
-  # MinIO (self-hosted S3) runs in the dev/test stacks only; prod points S3_* at R2.
-  # Empty for prod so the minio profile is never activated there.
+  # versitygw (self-hosted S3) runs in the dev/test stacks only; prod points S3_* at R2.
+  # Empty for prod so the s3 profile is never activated there.
   local storage_profile=()
-  [ "$DEPLOY_ENV" != "prod" ] && storage_profile=(--profile minio)
+  [ "$DEPLOY_ENV" != "prod" ] && storage_profile=(--profile s3)
 
   echo "==> pulling images ($REGISTRY/*:$IMAGE_TAG)"
   # --profile backup: backup is profile-gated so a plain pull skips it, and its
@@ -55,36 +55,25 @@ main() {
   # missing image), so without this the VPS runs a stale backup image forever.
   "${dc[@]}" --profile backup pull db migrate api web backup
 
-  # Bring MinIO up before the pre-migration dump so the test backup — which targets
-  # it (S3_ENDPOINT=http://minio:9000) — has a live endpoint. dev skips backups;
-  # prod has no minio.
+  # Bring s3 up before the pre-migration dump so the test backup — which targets
+  # it (S3_ENDPOINT=http://s3:9000) — has a live endpoint. dev skips backups;
+  # prod has no s3.
   if [ "${#storage_profile[@]}" -ne 0 ]; then
-    # Fail fast on blank/short MinIO root creds. Blank creds don't stop MinIO (it
-    # falls back to built-in defaults and reports healthy) — minio-init then dies
-    # with an opaque "Access Denied" exit 1. Short creds fail MinIO's own minimums.
+    # Fail fast on blank/short S3 root creds: an empty root account would let the
+    # gateway start wide open instead of failing.
     # Read from the env file (deploy.sh doesn't source it; compose does).
     local s3_key s3_secret
     s3_key="$(grep -E '^S3_ACCESS_KEY_ID=' "$env_file" | tail -1 | cut -d= -f2-)"
     s3_secret="$(grep -E '^S3_SECRET_ACCESS_KEY=' "$env_file" | tail -1 | cut -d= -f2-)"
     if [ "${#s3_key}" -lt 3 ] || [ "${#s3_secret}" -lt 8 ]; then
-      echo "MinIO needs S3_ACCESS_KEY_ID (>=3 chars) and S3_SECRET_ACCESS_KEY (>=8 chars)" >&2
+      echo "S3 storage needs S3_ACCESS_KEY_ID (>=3 chars) and S3_SECRET_ACCESS_KEY (>=8 chars)" >&2
       echo "set in $env_file — see the object-storage block in .env.prod.example." >&2
       exit 1
     fi
 
-    echo "==> starting MinIO (object storage)"
-    "${dc[@]}" "${storage_profile[@]}" up -d --wait --wait-timeout 60 minio || {
-      echo "MinIO failed to start — aborting deploy" >&2; exit 1;
-    }
-    # `run` (not `up --wait`) for the bucket-init one-shot: up --wait treats any
-    # exited container as failed unless another service depends on it via
-    # service_completed_successfully — nothing depends on minio-init, so even a
-    # successful init (exit 0) would abort the deploy. run returns the real exit
-    # code and auto-enables the service's profile. Ordering: the up --wait above
-    # guarantees minio is healthy (minio-init has no depends_on in prod.yml —
-    # it would drag the profile-gated minio into scope and break this run).
-    "${dc[@]}" run --rm minio-init || {
-      echo "MinIO bucket init failed — aborting deploy" >&2; exit 1;
+    echo "==> starting S3 object storage (versitygw)"
+    "${dc[@]}" "${storage_profile[@]}" up -d --wait --wait-timeout 60 s3 || {
+      echo "S3 storage failed to start — aborting deploy" >&2; exit 1;
     }
   fi
 
@@ -102,7 +91,7 @@ main() {
   # --wait blocks until services are healthy and returns non-zero if any fail to
   # become healthy within the timeout, so a boot-broken image fails the deploy
   # (and the workflow) instead of reporting green while the API crash-loops.
-  # storage_profile keeps MinIO in the active set so --remove-orphans won't reap it.
+  # storage_profile keeps s3 in the active set so --remove-orphans won't reap it.
   "${dc[@]}" "${storage_profile[@]}" up -d --remove-orphans --wait --wait-timeout 120 || {
     # Surface the usual culprit in the workflow log — a failed migration is
     # otherwise invisible without SSHing in.

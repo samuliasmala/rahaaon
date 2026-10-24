@@ -9,8 +9,8 @@ cd "$(dirname "$0")/.."
 
 ENV="${1:-}"
 case "$ENV" in
-  dev)  DOMAIN=dev.rahaa-on.fi;  WEB_PORT=8091; MINIO_CONSOLE_PORT=9093 ;;
-  test) DOMAIN=test.rahaa-on.fi; WEB_PORT=8092; MINIO_CONSOLE_PORT=9094 ;;
+  dev)  DOMAIN=dev.rahaa-on.fi;  WEB_PORT=8091; ;;
+  test) DOMAIN=test.rahaa-on.fi; WEB_PORT=8092; ;;
   prod) DOMAIN=rahaa-on.fi;      WEB_PORT=8090 ;;
   *) echo "usage: $0 dev|test|prod" >&2; exit 1 ;;
 esac
@@ -44,13 +44,12 @@ if [ "$ENV" = prod ]; then
 fi
 
 if [ "$ENV" != prod ]; then
-  # dev/test use the bundled MinIO service (profile "minio") instead of R2
+  # dev/test use the bundled versitygw service (profile "s3") instead of R2
   sed -i \
-    -e "s|^S3_ENDPOINT=.*|S3_ENDPOINT=http://minio:9000|" \
+    -e "s|^S3_ENDPOINT=.*|S3_ENDPOINT=http://s3:9000|" \
     -e "s|^S3_ACCESS_KEY_ID=.*|S3_ACCESS_KEY_ID=rahaaon-$ENV|" \
     -e "s|^S3_SECRET_ACCESS_KEY=.*|S3_SECRET_ACCESS_KEY=$(openssl rand -hex 24)|" \
-    -e "s|^S3_PROVIDER=.*|S3_PROVIDER=Minio|" \
-    -e "s|^# MINIO_CONSOLE_PORT=.*|MINIO_CONSOLE_PORT=$MINIO_CONSOLE_PORT|" \
+    -e "s|^S3_PROVIDER=.*|S3_PROVIDER=Other|" \
     "$TARGET"
 fi
 

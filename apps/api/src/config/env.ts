@@ -67,7 +67,7 @@ const rawSchema = z.object({
 
   /**
    * Object storage for the article archive (raw text captured at submit time).
-   * The same S3_* values the backup runner uses: R2 in prod, MinIO in the
+   * The same S3_* values the backup runner uses: R2 in prod, versitygw in the
    * dev/test stacks and local dev. All four must be set for archiving to run —
    * without them submissions simply skip archiving (archive_status stays null).
    */

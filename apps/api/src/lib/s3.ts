@@ -9,7 +9,7 @@ import { env } from "../config/env.js";
 
 /**
  * Thin S3 wrapper for the article archive. Talks to whatever the S3_* env
- * points at — Cloudflare R2 in prod, MinIO in the dev/test stacks and local
+ * points at — Cloudflare R2 in prod, versitygw in the dev/test stacks and local
  * dev. Path-style addressing works against both, so there is no per-provider
  * branching. Optional by design: when unconfigured, callers skip archiving.
  */
@@ -41,7 +41,7 @@ function s3(): S3Client {
 /**
  * One-shot reachability probe, logged at boot. `s3Configured` only proves four
  * env strings are non-empty — it says nothing about whether the endpoint
- * answers or the bucket exists. Without this, a wrong `S3_BUCKET` or a MinIO
+ * answers or the bucket exists. Without this, a wrong `S3_BUCKET` or a gateway
  * that never joined the compose network stays invisible until an editor
  * submits: every archive then burns `ARCHIVE_MAX_ATTEMPTS` over ~15 minutes
  * before settling as `failed`, and the admin pill blames the *page* ("Sivua ei
@@ -49,7 +49,7 @@ function s3(): S3Client {
  *
  * Deliberately diagnostic, not a gate: it does NOT disable archiving. The
  * worker's backoff already recovers on its own once storage returns — a capture
- * that failed its first four attempts against a dead MinIO succeeded on the
+ * that failed its first four attempts against a dead gateway succeeded on the
  * fifth once the container was reattached — and latching `archiveEnabled` off
  * at boot would throw that recovery away for the life of the process, on
  * nothing more than a slow-starting dependency.

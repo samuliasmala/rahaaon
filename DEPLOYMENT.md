@@ -78,7 +78,7 @@ git clone git@github.com-rahaaon:samuliasmala/rahaaon.git /srv/rahaaon
 cd /srv/rahaaon
 
 # Env files — one per stack (gitignored). deploy/init-env.sh fills the per-env
-# values (domain, WEB_PORT, BACKUP_ENV, MinIO vs R2) and generates the DB
+# values (domain, WEB_PORT, BACKUP_ENV, versitygw vs R2) and generates the DB
 # password + secrets; then fill in what it lists as manual (prod R2 creds).
 make env ENV=dev && make env ENV=test && make env ENV=prod
 $EDITOR .env.prod
@@ -143,9 +143,9 @@ DEPLOY_ENV=prod DEPLOY_REF=v0.1.0 IMAGE_TAG=v0.1.0 REGISTRY=ghcr.io/samuliasmala
 
 Daily `pg_dump` (compressed custom format) streamed straight to object storage
 by the `backup` container, invoked by the systemd timers. prod targets
-**Cloudflare R2**; dev/test target the stack's bundled **MinIO** (profile
-`minio`, console published on `127.0.0.1:${MINIO_CONSOLE_PORT}` — dev 9093 /
-test 9094). Layout in the bucket:
+**Cloudflare R2**; dev/test target the stack's bundled **versitygw** (profile
+`s3`, S3 API internal to the stack network; `make backup-list` shows the
+contents). Layout in the bucket:
 `backups/<env>/rahaaon-<env>-<UTC-timestamp>-<label>.dump` (`label` = `daily`
 or `premigrate`). Kept `RETENTION_DAYS` (default 30); older dumps auto-pruned.
 

@@ -69,17 +69,9 @@ else
 	@./deploy/init-env.sh $(ENV)
 endif
 
-# Brought up in two steps so a broken stack fails the command instead of exiting
-# 0 with a plausible-looking `docker ps`. Plain `up -d` reports success even when
-# the one-shot minio-init died (e.g. it couldn't resolve `minio`), leaving the
-# archive bucket missing — which only surfaces ~15 min after the first
-# submission, as a *page-load* error that blames the wrong thing entirely.
-#
-# The long-running services take --wait (healthy db/minio, app up). minio-init
-# can't: --wait treats any container exit as a failure, including the exit 0 a
-# successful bucket creation produces. `run --rm` instead propagates mc's own
-# exit code, which is the thing actually worth checking. It's idempotent
-# (`mc mb --ignore-existing`), so re-running `make up` is also the fix.
+# --wait makes a broken stack fail the command instead of exiting 0 with a
+# plausible-looking `docker ps`. The archive bucket is a directory the s3
+# container creates at start, so there is no separate init step to check.
 #
 # --build keeps the app image in sync with docker/dev.Dockerfile and the
 # entrypoint it COPYs — otherwise their edits sit unapplied until someone
@@ -88,8 +80,7 @@ endif
 # node:24 base needs `make update-images`.
 up: ## Start the dev stack (app + db), detached [local only]
 	@[ "$(ENV)" = local ] || { echo "up is local-only — deployed stacks are brought up by the deploy pipeline (deploy/deploy.sh / CI), not make."; exit 1; }
-	$(COMPOSE) up -d --build --wait db minio app
-	$(COMPOSE) run --rm minio-init
+	$(COMPOSE) up -d --build --wait db s3 app
 
 down: ## Stop the dev stack (volumes are kept) [local only]
 	@[ "$(ENV)" = local ] || { echo "down is local-only — stopping a deployed stack is an outage; use the deploy pipeline."; exit 1; }
@@ -109,7 +100,7 @@ recreate: ## Recreate migrate+api so they re-read .env.$(ENV) after env-file edi
 # whatever was last pulled); --no-cache covers the gap where the base tag
 # hasn't been republished but apt has newer packages — the price is a full
 # ~2-5 min rebuild, fine for a deliberate, rarely-run target. --ignore-buildable
-# pulls every image service (db, minio, minio-init) without touching app.
+# pulls every image service (db, s3) without touching app.
 # The next `make up` recreates containers on the new images.
 update-images: ## Pull newer base/service images and rebuild the dev image from scratch [local only]
 	@[ "$(ENV)" = local ] || { echo "update-images is local-only — deployed stacks run pulled images built by CI."; exit 1; }
@@ -161,7 +152,7 @@ clean: ## Stop the stack and DELETE all volumes (db data, node_modules) [local o
 
 # ---- Backups (deployed stacks only; the daily run is a systemd timer, not make) ----
 
-backup-now: ## Take a backup right now to R2/MinIO (ENV=dev|test|prod)
+backup-now: ## Take a backup right now to R2/versitygw (ENV=dev|test|prod)
 	@[ "$(ENV)" != local ] || { echo "backups need a deployed stack, e.g. make backup-now ENV=prod (there is no object storage in the local dev stack)."; exit 1; }
 	$(COMPOSE) --profile backup run --rm backup daily
 

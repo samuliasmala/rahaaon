@@ -1,5 +1,4 @@
 import { createServer, type Server } from "node:http";
-import { CreateBucketCommand, S3Client } from "@aws-sdk/client-s3";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
@@ -11,7 +10,7 @@ import type * as S3Module from "./lib/s3.js";
 import type { Hono } from "hono";
 
 /**
- * The one fault this file can't stage for real: MinIO is up and healthy for the
+ * The one fault this file can't stage for real: the S3 gateway is up and healthy for the
  * whole run (other tests need it), so there is no way to ask it to refuse a
  * single write. Everything else here — dead pages, flaky pages, truncated
  * bodies — is produced by the real article server. Off unless a test turns it
@@ -30,7 +29,7 @@ vi.mock("./lib/s3.js", async (importOriginal) => {
 });
 
 /**
- * The article-archive flow against real Postgres + MinIO: submitting a link
+ * The article-archive flow against real Postgres + S3 (versitygw): submitting a link
  * captures the page text to S3 (fire-and-forget), the admin list reports the
  * archive status (ok / paywalled / failed), the text downloads through the
  * admin endpoint, and processing consumes the archive. Articles are served by
@@ -82,7 +81,7 @@ const UNTITLED_PDF = buildPdf([pdfBody(9)]);
 const SCANNED_PDF = buildPdf([[]], { title: "Skannattu liite" });
 
 let dbContainer: StartedPostgreSqlContainer;
-let minio: StartedTestContainer;
+let s3: StartedTestContainer;
 let articleServer: Server;
 let articleBase: string;
 let app: Hono;
@@ -132,23 +131,33 @@ async function submit(path: string): Promise<string> {
 }
 
 beforeAll(async () => {
-  [dbContainer, minio] = await Promise.all([
+  [dbContainer, s3] = await Promise.all([
     new PostgreSqlContainer("postgres:17").start(),
-    new GenericContainer("minio/minio:latest")
-      .withCommand(["server", "/data"])
+    // versitygw rejects any SigV4 region but its own, and with "auto" (what the
+    // client signs for) CreateBucket is refused as an illegal location
+    // constraint — so the bucket is made as a directory before the gateway starts.
+    new GenericContainer("versity/versitygw:v1.10.0")
+      .withEnvironment({
+        ROOT_ACCESS_KEY_ID: "testadmin",
+        ROOT_SECRET_ACCESS_KEY: "testadmin-secret",
+      })
+      .withEntrypoint(["/bin/sh", "-c"])
+      .withCommand([
+        "mkdir -p /data/archive-test && exec /usr/local/bin/versitygw --port :9000 --region auto --health /health posix /data",
+      ])
       .withExposedPorts(9000)
-      .withWaitStrategy(Wait.forHttp("/minio/health/live", 9000))
+      .withWaitStrategy(Wait.forHttp("/health", 9000))
       .start(),
   ]);
 
-  const s3Endpoint = `http://127.0.0.1:${minio.getMappedPort(9000)}`;
+  const s3Endpoint = `http://127.0.0.1:${s3.getMappedPort(9000)}`;
   process.env.DATABASE_URL = dbContainer.getConnectionUri();
   process.env.AUTH_SECRET = "test-auth-secret-at-least-16-chars-long";
   process.env.NODE_ENV = "test";
   process.env.S3_ENDPOINT = s3Endpoint;
   process.env.S3_BUCKET = "archive-test";
-  process.env.S3_ACCESS_KEY_ID = "minioadmin";
-  process.env.S3_SECRET_ACCESS_KEY = "minioadmin";
+  process.env.S3_ACCESS_KEY_ID = "testadmin";
+  process.env.S3_SECRET_ACCESS_KEY = "testadmin-secret";
   // Stay on the mock extraction. "" rather than delete — loadEnvFile refills
   // deleted vars from the repo .env but leaves present-and-empty ones alone.
   process.env.OPENAI_API_KEY = "";
@@ -157,13 +166,6 @@ beforeAll(async () => {
   process.env.ARCHIVE_MAX_ATTEMPTS = "3";
   process.env.ARCHIVE_RETRY_BASE_MS = "20";
   process.env.ARCHIVE_POLL_INTERVAL_MS = "100";
-
-  await new S3Client({
-    endpoint: s3Endpoint,
-    region: "auto",
-    forcePathStyle: true,
-    credentials: { accessKeyId: "minioadmin", secretAccessKey: "minioadmin" },
-  }).send(new CreateBucketCommand({ Bucket: "archive-test" }));
 
   // Fails the first two requests, then serves the article — exercises retry.
   let flakyHits = 0;
@@ -270,7 +272,7 @@ afterAll(async () => {
   await stopArchiveWorker?.();
   await closeDb?.();
   await new Promise((r) => articleServer?.close(r));
-  await Promise.all([dbContainer?.stop(), minio?.stop()]);
+  await Promise.all([dbContainer?.stop(), s3?.stop()]);
 });
 
 describe("article archive", () => {

@@ -17,42 +17,29 @@ services:
       timeout: 5s
       retries: 10
 
-  # S3 for the article archive (see api/src/lib/article-archive.ts). Dev-only
-  # credentials, matching .env.example. Console: http://localhost:9003
-  minio:
-    image: minio/minio:latest
+  # S3 (versitygw) for the article archive (see api/src/lib/article-archive.ts).
+  # Dev-only credentials, matching .env.example. --region auto: the app signs
+  # for "auto" (R2's convention) and versitygw rejects any region but its own.
+  # The bucket is a directory the container creates at start (POSIX backend).
+  s3:
+    image: versity/versitygw:v1.10.0
     restart: unless-stopped
-    command: ["server", "/data", "--console-address", ":9001"]
+    entrypoint: ["/bin/sh", "-c"]
+    command: ['mkdir -p /data/rahaaon && exec /usr/local/bin/versitygw --port :9000 --region auto --health /health posix /data']
     environment:
-      MINIO_ROOT_USER: rahaaon
-      MINIO_ROOT_PASSWORD: rahaaon-dev-minio
+      ROOT_ACCESS_KEY_ID: rahaaon
+      ROOT_SECRET_ACCESS_KEY: rahaaon-dev-secret
     ports:
-      # 9000/9001 are often taken by other local MinIOs; map to 9002/9003.
+      # 9000 is often taken by other local S3 servers; map to 9002.
       - "127.0.0.1:9002:9000"
-      - "127.0.0.1:9003:9001"
     volumes:
-      - minio_data:/data
+      - s3_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:9000/health"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  # One-shot: create the bucket the archive expects, then exit. Safe to re-run
-  # (--ignore-existing); plain `up -d` tolerates the exited container.
-  minio-init:
-    image: minio/mc:latest
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        set -e
-        mc alias set local http://minio:9000 rahaaon rahaaon-dev-minio
-        mc mb --ignore-existing local/rahaaon
-    restart: "no"
-    depends_on:
-      minio:
-        condition: service_healthy
-
 volumes:
   db_data:
-  minio_data:
+  s3_data:
