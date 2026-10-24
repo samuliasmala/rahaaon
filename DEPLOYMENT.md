@@ -41,7 +41,8 @@ rebuild — so what you approve is byte-identical to what you tested.
    - `DEPLOY_DIR` — optional, defaults to `/srv/rahaaon`.
 5. **Secrets** (same page → _Secrets_) — sensitive only:
    - `VPS_SSH_KEY` — private key whose public half is in `deploy`'s
-     `~/.ssh/authorized_keys`.
+     `~/.ssh/authorized_keys`, restricted to the `ci-deploy-gate` forced
+     command (see VPS setup): it can run `deploy/deploy.sh`, nothing else.
    - GHCR auth uses the built-in `GITHUB_TOKEN` (no PAT needed).
 
 ## One-time: VPS
@@ -53,6 +54,13 @@ The VPS already runs the vesi stacks, so Docker, Caddy and the non-root
 
 ```bash
 sudo mkdir -p /srv/rahaaon && sudo chown deploy:deploy /srv/rahaaon
+
+# Authorize CI (PUBLIC half of VPS_SSH_KEY), pinned to the forced command the vesi
+# setup installed as /usr/local/bin/ci-deploy-gate (source: vesi/deploy/ci-deploy-gate).
+# It accepts only the payload deploy.yml sends and runs deploy/deploy.sh with
+# REGISTRY and DEPLOY_DIR fixed. Rejects: `journalctl -t ci-deploy-gate`.
+{ printf 'restrict,command="/usr/local/bin/ci-deploy-gate rahaaon" '; cat ci_key.pub; } \
+  | sudo -u deploy tee -a /home/deploy/.ssh/authorized_keys >/dev/null
 ```
 
 **As the deploy user** (`sudo -iu deploy`) — GitHub access, clone, config:
