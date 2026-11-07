@@ -152,7 +152,7 @@ function decodeEntities(text: string): string {
 }
 
 /** `<meta … property="og:title" … content="…">` in either attribute order. */
-function metaPatterns(attr: "property" | "name", key: string): RegExp[] {
+function metaPatterns(attr: "property" | "name" | "itemprop", key: string): RegExp[] {
   return [
     // eslint-disable-next-line security/detect-non-literal-regexp -- attr/key are compile-time constants from this module's call sites, never user input
     new RegExp(`<meta[^>]+${attr}=["']${key}["'][^>]+content=["']([^"']*)["']`, "i"),
@@ -724,6 +724,34 @@ export function isAccessibleForFree(html: string): boolean | null {
   return null;
 }
 
+const HELSINKI_MINUTE = new Intl.DateTimeFormat("sv-SE", {
+  timeZone: "Europe/Helsinki",
+  dateStyle: "short",
+  timeStyle: "short",
+});
+
+/**
+ * The article's publication time from the page's own metadata, as Helsinki
+ * wall-clock "YYYY-MM-DD HH:MM"; null when the page doesn't mark one. News
+ * sites print same-day stories with the time alone ("9:00", "Tänään klo
+ * 10:24"), so the visible text can't date them.
+ */
+export function articlePublishedTime(html: string): string | null {
+  const raw = firstMatch(html, [
+    ...metaPatterns("property", "article:published_time"),
+    ...metaPatterns("name", "article:published_time"),
+    ...metaPatterns("itemprop", "datePublished"),
+  ]);
+  const time = new Date(raw);
+  return raw && !Number.isNaN(time.getTime()) ? HELSINKI_MINUTE.format(time) : null;
+}
+
+/** The archive Markdown, headed by the publication time when the page states one. */
+function withPublishedLine(markdown: string, html: string): string {
+  const published = articlePublishedTime(html);
+  return published && markdown ? `Julkaistu: ${published}\n\n${markdown}` : markdown;
+}
+
 export interface PageText {
   /** False when the page couldn't be read at all (network, wrong type, blocked). */
   fetched: boolean;
@@ -893,7 +921,7 @@ export async function fetchPageText(url: string, maxChars = 30_000): Promise<Pag
     }
     return {
       fetched: true,
-      text: extractArticleMarkdown(doc.html).slice(0, maxChars),
+      text: withPublishedLine(extractArticleMarkdown(doc.html), doc.html).slice(0, maxChars),
       accessibleForFree: isAccessibleForFree(doc.html),
     };
   } catch (err) {

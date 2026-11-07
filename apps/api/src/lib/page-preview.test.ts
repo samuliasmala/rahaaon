@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 // throwaway value so the pure functions can be tested without a database.
 process.env.DATABASE_URL ??= "postgres://unit:unit@localhost:5432/unit";
 const {
+  articlePublishedTime,
   extractArticleMarkdown,
   htmlToMarkdown,
   isAccessibleForFree,
@@ -282,6 +283,35 @@ describe("isAccessibleForFree (schema.org paywall marking)", () => {
       isAccessibleForFree(
         '<script>var s = {"@type":"NewsArticle","isAccessibleForFree":false};</script>',
       ),
+    ).toBeNull();
+  });
+});
+
+describe("articlePublishedTime", () => {
+  it("reads article:published_time as Helsinki wall-clock time", () => {
+    // hs.fi: name= with a camel-cased itemProp alongside; the visible byline says only "9:00".
+    const hs =
+      '<meta data-rh="true" itemProp="datePublished" name="article:published_time" ' +
+      'content="2026-11-07T09:00:00.000+02:00">';
+    expect(articlePublishedTime(hs)).toBe("2026-11-07 09:00");
+    // UTC late evening is already the next day in Finland.
+    expect(
+      articlePublishedTime(
+        '<meta property="article:published_time" content="2026-11-06T22:30:00Z">',
+      ),
+    ).toBe("2026-11-07 00:30");
+  });
+
+  it("falls back to itemprop datePublished (iltalehti.fi)", () => {
+    expect(
+      articlePublishedTime('<meta itemprop="datePublished" content="2026-11-07T10:24:14+02:00"/>'),
+    ).toBe("2026-11-07 10:24");
+  });
+
+  it("returns null when the page marks no valid publication time", () => {
+    expect(articlePublishedTime("<p>9:00</p>")).toBeNull();
+    expect(
+      articlePublishedTime('<meta property="article:published_time" content="eilen">'),
     ).toBeNull();
   });
 });
