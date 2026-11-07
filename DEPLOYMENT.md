@@ -206,7 +206,7 @@ ping receiver for "did the scheduled thing run?":
 ## Editorial queue notifications
 
 The api pushes to **ntfy** when a reader's link lands in the Ehdotusjono, then
-nudges every hour for as long as the admin badge still shows anything. Prod
+nudges once a day for as long as the admin badge still shows anything. Prod
 only — the switch is `NTFY_TOPIC`, which dev/test leave empty.
 
 1. `make env ENV=prod` generates a random `NTFY_TOPIC` and prints it. For a
@@ -224,7 +224,7 @@ only — the switch is `NTFY_TOPIC`, which dev/test leave empty.
 
 Cadence knobs (both optional): `NOTIFY_POLL_INTERVAL_MS` (arrival sweep, default
 60 s — the submit path also kicks a sweep, so this is mostly a safety net) and
-`NOTIFY_REMINDER_INTERVAL_MS` (default 1 h). The reminder clock is in-process, so
+`NOTIFY_REMINDER_INTERVAL_MS` (default 24 h). The reminder clock is in-process, so
 a deploy costs at most one skipped nudge; arrivals are not lost across restarts.
 
 ## Scaling — single-server assumption

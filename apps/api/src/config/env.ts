@@ -116,8 +116,8 @@ const rawSchema = z.object({
    * how long a non-empty queue may sit before the next reminder goes out.
    */
   NOTIFY_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
-  /** One hour: often enough to nag, rare enough to stay ignorable overnight. */
-  NOTIFY_REMINDER_INTERVAL_MS: z.coerce.number().int().positive().default(3_600_000),
+  /** One day: a single nudge per day keeps a lingering queue visible without nagging. */
+  NOTIFY_REMINDER_INTERVAL_MS: z.coerce.number().int().positive().default(86_400_000),
 });
 
 const DEV_AUTH_SECRET = "dev-only-insecure-auth-secret-0000000000";

@@ -121,7 +121,7 @@ export function arrivalMessage(arrivals: Arrival[], counts: QueueCounts): NtfyMe
   };
 }
 
-/** The hourly nudge while the badge is non-empty. Pure — exported for the unit tests. */
+/** The daily nudge while the badge is non-empty. Pure — exported for the unit tests. */
 export function reminderMessage(counts: QueueCounts): NtfyMessage {
   return {
     title: "Ylläpitojono odottaa",
