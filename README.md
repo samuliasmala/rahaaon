@@ -36,9 +36,13 @@ pnpm install
 docker compose up -d          # Postgres 17 on :5434
 cp .env.example .env
 pnpm db:migrate
-pnpm db:seed                  # demo content + editor login (toimitus@rahaaon.fi / rahaaon-dev)
-pnpm dev                      # web on :5174, api on :3001 (vesi owns 5173/3000)
+pnpm db:seed                  # demo content + editor login toimitus@rahaaon.fi / $SEED_ADMIN_PASSWORD
+pnpm dev                      # web on :5174, api on :3001
 ```
+
+The editor password is `SEED_ADMIN_PASSWORD` from `.env` (`rahaaon-dev` in `.env.example`); the seed
+also prints it. If 5174, 3001 or 5434 is taken, set `WEB_PORT`, `API_PORT` or `DB_PORT` in `.env` and
+keep `APP_URL`, `API_URL` and `DATABASE_URL` in step. `make up` runs the same stack in containers.
 
 Checks: `pnpm lint`, `pnpm typecheck`, `pnpm test` (includes API integration tests against an
 ephemeral Postgres via testcontainers), `pnpm build`.

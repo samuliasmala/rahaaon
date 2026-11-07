@@ -13,7 +13,7 @@
 #   make logs ENV=prod                    # follow prod api logs (on the VPS)
 #   make set-admin-password ENV=test      # rotate the test admin password
 #   make set-admin-password ENV=prod ARGS=--revoke-sessions
-#   WEB_PORT=5175 API_PORT=3002 make up   # override host ports (local only)
+#   WEB_PORT=5175 API_PORT=3002 DB_PORT=5439 make up   # override host ports (local only)
 
 ENV ?= local
 VALID_ENVS := local dev test prod
