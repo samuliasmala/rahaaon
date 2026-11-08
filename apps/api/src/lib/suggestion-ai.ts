@@ -57,17 +57,21 @@ const extractionSchema = z.object({
   title: z
     .string()
     .describe(
-      "Headline naming the case, in Finnish: a short noun phrase (typically 2–6 words, at " +
-        "most ~70 characters) a reader recognises at a glance. Name the place or payer and " +
-        "the thing: 'Kuopion keskustan pyörätalli', 'Keravan jumppakepit', 'Kuusijärven wc'. " +
-        "Prefer a widely known place (city, district) over an obscure street or park name. " +
-        "Describe the thing precisely ('laivalaiturin laajennus', not 'uusi laivalaituri', " +
-        "when an existing pier is extended). When what makes the case questionable is how " +
-        "the money was spent rather than what it bought, name that: 'Kilpailuttamaton " +
-        "viestintäkonsultointi Uncle Tell -yritykselle'. Never include the amount, budget or " +
-        "price (shown separately) and never phrase it as a sentence: 'Käpylän lippakioskin " +
-        "vessa ja lava', not 'Käpylän lippakioskin vessa ja lava — Omastadin 400 000 euron " +
-        "budjetti' or 'Eiranrannan uimaportaille ja pukukopeille varattu 250 000 euroa'.",
+      "Headline naming the case, in Finnish: a short noun phrase (typically 2–8 words, at " +
+        "most ~70 characters) a reader recognises at a glance. The payer is shown under the " +
+        "title, so don't spend words on the city or payer; name a place only when it " +
+        "identifies the thing ('Kuusijärven wc', 'Käpylän lippakioskin vessa ja lava'). Lead " +
+        "with what the money bought, and when the article states how little that delivered, " +
+        "say so with the article's own facts: 'Vajaa kilometri pyörätietä, joka oikaisee sata " +
+        "metriä', not 'Kulosaari–Herttoniemen pyörätie'. A relative clause is fine; a full " +
+        "sentence is not. Describe the thing precisely ('laivalaiturin laajennus', not 'uusi " +
+        "laivalaituri', when an existing pier is extended). When what makes the case " +
+        "questionable is how the money was spent rather than what it bought, name that: " +
+        "'Kilpailuttamaton viestintäkonsultointi Uncle Tell -yritykselle'. Make no claim the " +
+        "article doesn't make. Never include the amount, budget or price (shown separately) " +
+        "and never phrase it as a sentence: 'Lippakioskin vessa ja lava', not 'Lippakioskin " +
+        "vessa ja lava — Omastadin 400 000 euron budjetti' or 'Uimaportaille ja pukukopeille " +
+        "varattu 250 000 euroa'.",
     ),
   amountEur: z
     .number()
