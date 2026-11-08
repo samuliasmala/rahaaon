@@ -125,8 +125,10 @@ export const patchApiAdminItemsIdBodySummaryMax = 2000;
 export const patchApiAdminItemsIdBodyQuoteMax = 500;
 
 export const patchApiAdminItemsIdBodyAmountEurMin = 0;
+export const patchApiAdminItemsIdBodyAmountEurMax = 9007199254740991;
 
 export const patchApiAdminItemsIdBodyAmountMaxEurMin = 0;
+export const patchApiAdminItemsIdBodyAmountMaxEurMax = 9007199254740991;
 
 export const patchApiAdminItemsIdBodyEntityMax = 120;
 
@@ -142,9 +144,9 @@ export const patchApiAdminItemsIdBody = zod.object({
   "title": zod.string().min(1).max(patchApiAdminItemsIdBodyTitleMax).optional(),
   "summary": zod.string().min(1).max(patchApiAdminItemsIdBodySummaryMax).optional(),
   "quote": zod.string().max(patchApiAdminItemsIdBodyQuoteMax).optional(),
-  "amountEur": zod.number().min(patchApiAdminItemsIdBodyAmountEurMin).optional(),
+  "amountEur": zod.number().min(patchApiAdminItemsIdBodyAmountEurMin).max(patchApiAdminItemsIdBodyAmountEurMax).optional(),
   "amountType": zod.enum(['exact', 'approx', 'min', 'unknown']).optional(),
-  "amountMaxEur": zod.number().min(patchApiAdminItemsIdBodyAmountMaxEurMin).nullish(),
+  "amountMaxEur": zod.number().min(patchApiAdminItemsIdBodyAmountMaxEurMin).max(patchApiAdminItemsIdBodyAmountMaxEurMax).nullish(),
   "entity": zod.string().min(1).max(patchApiAdminItemsIdBodyEntityMax).optional(),
   "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']).optional(),
   "articleTitle": zod.string().max(patchApiAdminItemsIdBodyArticleTitleMax).optional(),
@@ -247,8 +249,10 @@ export const patchApiAdminSuggestionsIdBodySummaryMax = 2000;
 export const patchApiAdminSuggestionsIdBodyQuoteMax = 500;
 
 export const patchApiAdminSuggestionsIdBodyAmountEurMin = 0;
+export const patchApiAdminSuggestionsIdBodyAmountEurMax = 9007199254740991;
 
 export const patchApiAdminSuggestionsIdBodyAmountMaxEurMin = 0;
+export const patchApiAdminSuggestionsIdBodyAmountMaxEurMax = 9007199254740991;
 
 export const patchApiAdminSuggestionsIdBodyEntityMax = 120;
 
@@ -264,9 +268,9 @@ export const patchApiAdminSuggestionsIdBody = zod.object({
   "title": zod.string().max(patchApiAdminSuggestionsIdBodyTitleMax).optional(),
   "summary": zod.string().max(patchApiAdminSuggestionsIdBodySummaryMax).optional(),
   "quote": zod.string().max(patchApiAdminSuggestionsIdBodyQuoteMax).optional(),
-  "amountEur": zod.number().min(patchApiAdminSuggestionsIdBodyAmountEurMin).optional(),
+  "amountEur": zod.number().min(patchApiAdminSuggestionsIdBodyAmountEurMin).max(patchApiAdminSuggestionsIdBodyAmountEurMax).optional(),
   "amountType": zod.enum(['exact', 'approx', 'min', 'unknown']).optional(),
-  "amountMaxEur": zod.number().min(patchApiAdminSuggestionsIdBodyAmountMaxEurMin).nullish(),
+  "amountMaxEur": zod.number().min(patchApiAdminSuggestionsIdBodyAmountMaxEurMin).max(patchApiAdminSuggestionsIdBodyAmountMaxEurMax).nullish(),
   "entity": zod.string().max(patchApiAdminSuggestionsIdBodyEntityMax).optional(),
   "category": zod.enum(['Rakentaminen', 'IT-hankkeet', 'Konsultit', 'Kulttuuri', 'Viestintä', 'Matkustus', 'Muu']).optional(),
   "articleTitle": zod.string().max(patchApiAdminSuggestionsIdBodyArticleTitleMax).optional(),

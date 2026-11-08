@@ -327,7 +327,8 @@
           },
           "amountEur": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 9007199254740991
           },
           "amountType": {
             "$ref": "#/components/schemas/AmountType"
@@ -337,7 +338,8 @@
               "integer",
               "null"
             ],
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 9007199254740991
           },
           "entity": {
             "type": "string",
@@ -564,7 +566,8 @@
           },
           "amountEur": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 9007199254740991
           },
           "amountType": {
             "$ref": "#/components/schemas/AmountType"
@@ -574,7 +577,8 @@
               "integer",
               "null"
             ],
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 9007199254740991
           },
           "entity": {
             "type": "string",

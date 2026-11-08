@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   date,
   index,
@@ -80,10 +81,10 @@ export const wasteItem = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     title: text("title").notNull(),
     /** Whole euros; a range's lower bound when amount_max_eur is set; 0 when amount_type = 'unknown'. */
-    amountEur: integer("amount_eur").notNull(),
+    amountEur: bigint("amount_eur", { mode: "number" }).notNull(),
     amountType: amountTypeEnum("amount_type").notNull().default("exact"),
     /** Range upper bound in whole euros ("100–200 M€"); null when the source gives no range. */
-    amountMaxEur: integer("amount_max_eur"),
+    amountMaxEur: bigint("amount_max_eur", { mode: "number" }),
     /** Who spent the money: a municipality or a national body ("Valtio", "ELY-keskus"…). */
     entity: text("entity").notNull(),
     category: categoryEnum("category").notNull(),
@@ -123,9 +124,9 @@ export const suggestion = pgTable("suggestion", {
   id: uuid("id").primaryKey().defaultRandom(),
   url: text("url").notNull(),
   title: text("title").notNull(),
-  amountEur: integer("amount_eur").notNull(),
+  amountEur: bigint("amount_eur", { mode: "number" }).notNull(),
   amountType: amountTypeEnum("amount_type").notNull().default("exact"),
-  amountMaxEur: integer("amount_max_eur"),
+  amountMaxEur: bigint("amount_max_eur", { mode: "number" }),
   entity: text("entity").notNull(),
   category: categoryEnum("category").notNull(),
   sourceName: text("source_name").notNull(),

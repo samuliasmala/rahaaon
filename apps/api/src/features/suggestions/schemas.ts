@@ -71,10 +71,10 @@ export const patchSuggestionSchema = z
     summary: z.string().max(2000),
     /** "" removes the quote from the feed item. */
     quote: z.string().max(500),
-    amountEur: z.number().int().min(0),
+    amountEur: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
     amountType: amountTypeSchema,
     /** Null clears the range; the repo drops a bound that isn't above amountEur. */
-    amountMaxEur: z.number().int().min(0).nullable(),
+    amountMaxEur: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).nullable(),
     entity: z.string().max(120),
     category: categorySchema,
     /** "" = article title unknown; the feed link falls back to generic text. */

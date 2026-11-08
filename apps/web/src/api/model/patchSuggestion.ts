@@ -17,10 +17,16 @@ export interface PatchSuggestion {
   summary?: string;
   /** @maxLength 500 */
   quote?: string;
-  /** @minimum 0 */
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
   amountEur?: number;
   amountType?: AmountType;
-  /** @minimum 0 */
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
   amountMaxEur?: PatchSuggestionAmountMaxEur;
   /** @maxLength 120 */
   entity?: string;

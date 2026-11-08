@@ -238,12 +238,9 @@ function buildPrompt(
   return parts.filter(Boolean).join("\n");
 }
 
-/** Postgres `integer` max — amount_eur would overflow past this at insert. */
-const PG_INT_MAX = 2_147_483_647;
-
-/** Non-negative whole euros within Postgres `integer` range. */
+/** Non-negative whole euros; the columns are bigint, so only JS number precision bounds it. */
 function clampEur(value: number): number {
-  return Math.min(PG_INT_MAX, Math.max(0, Math.round(value)));
+  return Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.round(value)));
 }
 
 /** The feed wraps the quote in typographic quotes — drop any the model wrapped it in itself. */

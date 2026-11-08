@@ -174,6 +174,25 @@ describe("submission processor", () => {
     expect(created?.status).toBe("pending");
   });
 
+  it("stores amounts beyond the 32-bit integer range", async () => {
+    extractArticleMock.mockResolvedValue({
+      ...EXTRACTION,
+      amountEur: 30_000_000_000,
+      amountType: "approx" as const,
+      amountMaxEur: 35_000_000_000,
+    });
+    const id = await insertSubmission("https://example.invalid/miljardit");
+    await queueSubmissionForProcessing(id);
+    await waitForStatus(id, "processed");
+    const { suggestion_id: sid } = await submissionById(id);
+
+    const [created] = await sql<{ amount_eur: string; amount_max_eur: string }[]>`
+      select amount_eur, amount_max_eur from suggestion where id = ${sid}
+    `;
+    expect(Number(created?.amount_eur)).toBe(30_000_000_000);
+    expect(Number(created?.amount_max_eur)).toBe(35_000_000_000);
+  });
+
   it("retries a transient extraction failure within the attempt budget", async () => {
     extractArticleMock
       .mockRejectedValueOnce(new Error("tilapäinen häiriö"))
@@ -343,10 +362,10 @@ describe("submission processor", () => {
       return item?.title === "Päivitetty juttu";
     }, "item redraft");
 
-    const [item] = await sql<{ amount_eur: number }[]>`
+    const [item] = await sql<{ amount_eur: string }[]>`
       select amount_eur from waste_item where id = ${itemId}
     `;
-    expect(item?.amount_eur).toBe(99_000);
+    expect(Number(item?.amount_eur)).toBe(99_000);
     // The suggestion row follows the redraft and stays approved.
     const [sugg] = await sql<{ title: string; status: string }[]>`
       select title, status from suggestion where id = ${sid}
