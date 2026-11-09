@@ -167,6 +167,24 @@ export function captureArticle(doc: Document): CapturedArticle {
   // the archive reads better when the first line names the article.
   if (title && !blocks.some((block) => block.startsWith("# "))) blocks.unshift(`# ${title}`);
 
+  // Mirrors the server archive's head line: the AI dates the article from it, as pages print same-day times alone.
+  const publishedSelectors = [
+    'meta[property="article:published_time"]',
+    'meta[name="article:published_time"]',
+    'meta[itemprop="datePublished"]',
+  ];
+  for (const selector of publishedSelectors) {
+    const published = new Date(doc.querySelector(selector)?.getAttribute("content") ?? "");
+    if (Number.isNaN(published.getTime())) continue;
+    const helsinki = new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "Europe/Helsinki",
+      dateStyle: "short",
+      timeStyle: "short",
+    });
+    if (blocks.length) blocks.unshift(`Julkaistu: ${helsinki.format(published)}`);
+    break;
+  }
+
   // The canonical link is what the admin matches the submission by; an absent
   // or empty one leaves the address bar as the best answer.
   const canonical = doc.querySelector<HTMLLinkElement>('link[rel="canonical"]');

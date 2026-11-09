@@ -32,6 +32,7 @@ const ARTICLE_PAGE = `<!doctype html>
   <head>
     <title>Valoinstallaatio sammutettu — HS</title>
     <meta property="og:title" content="Valoinstallaatio sammui, lasku jäi" />
+    <meta itemProp="datePublished" name="article:published_time" content="2026-11-06T22:30:00.000Z" />
     <link rel="canonical" href="${SEEDED_ARTICLE_URL}" />
   </head>
   <body>
@@ -68,6 +69,8 @@ test("the extractor keeps the story and drops the furniture around it", async ({
 
   expect(article.title).toBe("Valoinstallaatio sammui, lasku jäi");
   const lines = article.markdown.split("\n\n");
+  // The publication time heads the capture in Helsinki time, like the server archive.
+  expect(lines[0]).toBe("Julkaistu: 2026-11-07 00:30");
   expect(lines).toContain("# Valoinstallaatio sammui, lasku jäi");
   expect(lines).toContain(BODY_TEXT);
   expect(lines).toContain("## Mitä hankinnasta tiedetään");
