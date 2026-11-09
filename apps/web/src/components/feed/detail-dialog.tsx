@@ -6,7 +6,16 @@ import { Button } from "../ui/button.js";
 import { Dialog, DialogHeader } from "../ui/dialog.js";
 import type { WasteItem } from "../../api/model/index.js";
 
-export function DetailDialog({ item, onClose }: { item: WasteItem | null; onClose: () => void }) {
+/** `preview`: an admin look at an item not yet in the feed — voting would hit an id that isn't one. */
+export function DetailDialog({
+  item,
+  onClose,
+  preview = false,
+}: {
+  item: WasteItem | null;
+  onClose: () => void;
+  preview?: boolean;
+}) {
   const voteMutation = useToggleVote();
 
   return (
@@ -72,7 +81,9 @@ export function DetailDialog({ item, onClose }: { item: WasteItem | null; onClos
             <div className="flex flex-wrap items-center gap-3 pt-1.5">
               <VoteButton
                 voted={item.voted}
-                onClick={() => voteMutation.mutate({ id: item.id })}
+                onClick={() => {
+                  if (!preview) voteMutation.mutate({ id: item.id });
+                }}
                 className="gap-2 px-5.5 py-3 text-[15px]"
               >
                 Tämä on turhaa&nbsp;·&nbsp;

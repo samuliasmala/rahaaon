@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { Eye } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AiInstructionsDialog } from "./ai-instructions-dialog.js";
@@ -21,9 +22,10 @@ import {
   usePostApiAdminSuggestionsIdReprocess,
 } from "../../api/admin/admin.js";
 import { getGetApiItemsQueryKey } from "../../api/items/items.js";
-import { type SuggestionWithArchive } from "../../api/model/index.js";
+import { type SuggestionWithArchive, type WasteItem } from "../../api/model/index.js";
 import { cn } from "../../lib/cn.js";
 import { formatTimeAgo } from "../../lib/format.js";
+import { DetailDialog } from "../feed/detail-dialog.js";
 import { Button } from "../ui/button.js";
 import { Pill } from "../ui/pill.js";
 
@@ -47,6 +49,20 @@ function missingFieldErrors(draft: ExtractionDraft): ExtractionFieldErrors | und
   return Object.keys(errors).length > 0 ? errors : undefined;
 }
 
+/** The feed item this entry would become if published now, unsaved edits included. */
+function toPreviewItem(entry: SuggestionWithArchive, draft: ExtractionDraft): WasteItem {
+  return {
+    ...toExtractionPatch(draft),
+    id: entry.id,
+    sourceName: entry.sourceName,
+    sourceUrl: entry.url,
+    hidden: false,
+    publishedAt: new Date().toISOString(),
+    votes: 0,
+    voted: false,
+  };
+}
+
 /**
  * One queue entry: editable extraction + source panel + verdict. The fields
  * arrive either drafted by the AI or blank (the editor chose "Ohita tekoäly" in
@@ -62,6 +78,7 @@ export function QueueCard({ entry }: { entry: SuggestionWithArchive }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState(() => toExtractionDraft(entry));
   const [reprocessOpen, setReprocessOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   // Set by a publish attempt that found something missing. The messages are
   // derived from the current draft, so they clear as the editor types.
   const [validated, setValidated] = useState(false);
@@ -225,6 +242,10 @@ export function QueueCard({ entry }: { entry: SuggestionWithArchive }) {
             </div>
           )}
           <div className="mt-auto flex flex-col gap-2.5 pt-1">
+            <Button variant="outline" onClick={() => setPreviewOpen(true)}>
+              <Eye aria-hidden className="size-4" />
+              Esikatsele
+            </Button>
             {entry.canReprocess && (
               <Button
                 variant="outline"
@@ -258,6 +279,11 @@ export function QueueCard({ entry }: { entry: SuggestionWithArchive }) {
           </div>
         </div>
       </div>
+      <DetailDialog
+        item={previewOpen ? toPreviewItem(entry, draft) : null}
+        onClose={() => setPreviewOpen(false)}
+        preview
+      />
       <AiInstructionsDialog
         open={reprocessOpen}
         onClose={() => setReprocessOpen(false)}

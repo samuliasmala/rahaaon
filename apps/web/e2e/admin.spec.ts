@@ -24,6 +24,20 @@ test("admin page shows the seeded queues and the tabs switch", async ({ page }) 
   );
 });
 
+test("previewing a queue entry shows it in the reader's modal", async ({ page }) => {
+  await page.goto("/admin");
+  await page.getByRole("tab", { name: "Julkaisujono (3)" }).click();
+
+  const card = page.locator("section").first();
+  const title = await card.getByLabel("Otsikko", { exact: true }).inputValue();
+  await card.getByRole("button", { name: "Esikatsele" }).click();
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading", { name: title })).toBeVisible();
+  await dialog.getByRole("button", { name: "Sulje" }).click();
+  await expect(dialog).toBeHidden();
+});
+
 /**
  * Current count from a tab labelled "Name (N)". Tabs render "(0)" until their
  * query resolves, so poll past that initial state — every call site here reads
