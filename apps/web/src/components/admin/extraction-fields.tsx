@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { type ComponentProps, useEffect, useLayoutEffect, useRef } from "react";
 import { toast } from "sonner";
 import { usePostApiAdminKeywordsGenerate } from "../../api/admin/admin.js";
 import { type AmountType, Category } from "../../api/model/index.js";
+import { groupEuroInput } from "../../lib/format.js";
 import { Button } from "../ui/button.js";
 import { Input } from "../ui/input.js";
 import { FieldLabel } from "../ui/label.js";
@@ -32,6 +33,51 @@ export interface ExtractionFieldErrors {
 function FieldError({ message }: { message?: string | undefined }) {
   if (!message) return null;
   return <p className="text-[13px] font-medium text-accent">{message}</p>;
+}
+
+function indexAfterDigits(text: string, digitCount: number): number {
+  let seen = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (seen === digitCount) return i;
+    if (/\d/.test(text.charAt(i))) seen++;
+  }
+  return text.length;
+}
+
+/** A euro amount input that regroups its digits in threes as the editor types. */
+function AmountInput({
+  value,
+  onValueChange,
+  ...props
+}: Omit<ComponentProps<typeof Input>, "value" | "onChange"> & {
+  value: string;
+  onValueChange: (value: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const digitsBeforeCaret = useRef<number | null>(null);
+
+  // Regrouping rewrites the value, which would throw the caret to the end.
+  useLayoutEffect(() => {
+    if (digitsBeforeCaret.current === null) return;
+    const caret = indexAfterDigits(value, digitsBeforeCaret.current);
+    inputRef.current?.setSelectionRange(caret, caret);
+    digitsBeforeCaret.current = null;
+  });
+
+  return (
+    <Input
+      {...props}
+      ref={inputRef}
+      inputMode="numeric"
+      value={value}
+      onChange={(e) => {
+        const typed = e.target.value;
+        const caret = e.target.selectionStart ?? typed.length;
+        digitsBeforeCaret.current = typed.slice(0, caret).replace(/\D/g, "").length;
+        onValueChange(groupEuroInput(typed));
+      }}
+    />
+  );
 }
 
 /**
@@ -134,6 +180,7 @@ export function ExtractionFields({
         <FieldLabel htmlFor={`${idPrefix}-summary`}>{summaryLabel}</FieldLabel>
         <Textarea
           id={`${idPrefix}-summary`}
+          rows={5}
           value={draft.summary}
           onChange={(e) => setDraft((d) => ({ ...d, summary: e.target.value }))}
           onBlur={onSave}
@@ -145,7 +192,7 @@ export function ExtractionFields({
         <FieldLabel htmlFor={`${idPrefix}-quote`}>Sitaatti artikkelista, jos on</FieldLabel>
         <Textarea
           id={`${idPrefix}-quote`}
-          rows={2}
+          rows={3}
           value={draft.quote}
           onChange={(e) => setDraft((d) => ({ ...d, quote: e.target.value }))}
           onBlur={onSave}
@@ -178,22 +225,20 @@ export function ExtractionFields({
       <div className="grid grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-3">
         <div className="flex flex-col gap-1.5">
           <FieldLabel htmlFor={`${idPrefix}-amount`}>Summa (€)</FieldLabel>
-          <Input
+          <AmountInput
             id={`${idPrefix}-amount`}
-            inputMode="numeric"
             value={draft.amount}
-            onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
+            onValueChange={(amount) => setDraft((d) => ({ ...d, amount }))}
             onBlur={onSave}
             className="font-semibold tabular"
           />
         </div>
         <div className="flex flex-col gap-1.5">
           <FieldLabel htmlFor={`${idPrefix}-amount-max`}>Yläraja (€), jos haarukka</FieldLabel>
-          <Input
+          <AmountInput
             id={`${idPrefix}-amount-max`}
-            inputMode="numeric"
             value={draft.amountMax}
-            onChange={(e) => setDraft((d) => ({ ...d, amountMax: e.target.value }))}
+            onValueChange={(amountMax) => setDraft((d) => ({ ...d, amountMax }))}
             onBlur={onSave}
             className="font-semibold tabular"
           />

@@ -61,9 +61,12 @@ function FeedPage() {
             Ei osumia haulla. Kokeile toista hakusanaa — rahareikiä kyllä riittää.
           </p>
         )}
-        {visible.map((item) => (
-          <ItemRow key={item.id} item={item} onOpen={() => setDetailId(item.id)} />
-        ))}
+        {/* The amount column is 185px unless a figure needs more to stay on one line. */}
+        <div className="md:grid md:grid-cols-[minmax(185px,min-content)_minmax(0,1fr)_auto] md:gap-x-6">
+          {visible.map((item) => (
+            <ItemRow key={item.id} item={item} onOpen={() => setDetailId(item.id)} />
+          ))}
+        </div>
         {filtered.length > visibleCount && (
           <div className="pt-7 text-center">
             <Button

@@ -9,14 +9,14 @@ export function ItemRow({ item, onOpen }: { item: WasteItem; onOpen: () => void 
   const voteMutation = useToggleVote();
 
   return (
-    <article className="flex animate-in flex-wrap items-center gap-2.5 border-b border-hairline py-6 duration-250 fade-in slide-in-from-bottom-[10px] md:flex-nowrap md:gap-6">
-      <p className="w-full flex-none font-display text-2xl font-bold text-accent tabular md:w-[185px] md:text-[28px]">
+    <article className="flex animate-in flex-wrap items-center gap-2.5 border-b border-hairline py-6 duration-250 fade-in slide-in-from-bottom-[10px] md:col-span-full md:grid md:grid-cols-subgrid md:gap-6">
+      <p className="w-full flex-none font-display text-2xl font-bold text-accent tabular md:text-[28px]">
         {formatAmount(item)}
       </p>
       <button
         type="button"
         onClick={onOpen}
-        className="group flex min-w-[min(100%,340px)] flex-1 cursor-pointer flex-col gap-1.5 text-left"
+        className="group flex min-w-[min(100%,340px)] flex-1 cursor-pointer flex-col gap-1.5 text-left md:min-w-0"
       >
         <span className="text-[19px]/[1.3] font-semibold transition-colors group-hover:text-accent">
           {item.title}

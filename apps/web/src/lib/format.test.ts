@@ -7,6 +7,7 @@ import {
   formatCount,
   formatDate,
   formatEur,
+  groupEuroInput,
   parseEuroAmount,
 } from "./format.js";
 
@@ -15,8 +16,8 @@ const NBSP = " ";
 
 describe("formatEur", () => {
   it("formats whole euros with Finnish grouping", () => {
-    expect(formatEur(62_000_000)).toBe(`62${NBSP}000${NBSP}000 €`);
-    expect(formatEur(0)).toBe("0 €");
+    expect(formatEur(62_000_000)).toBe(`62${NBSP}000${NBSP}000${NBSP}€`);
+    expect(formatEur(0)).toBe(`0${NBSP}€`);
   });
 });
 
@@ -26,23 +27,25 @@ describe("formatAmount", () => {
   }
 
   it("renders an exact amount as plain euros", () => {
-    expect(formatAmount(amount({}))).toBe(`40${NBSP}000 €`);
+    expect(formatAmount(amount({}))).toBe(`40${NBSP}000${NBSP}€`);
   });
 
   it("prefixes approximate and lower-bound amounts", () => {
-    expect(formatAmount(amount({ amountType: "approx" }))).toBe(`n. 40${NBSP}000 €`);
-    expect(formatAmount(amount({ amountType: "min" }))).toBe(`yli 40${NBSP}000 €`);
+    expect(formatAmount(amount({ amountType: "approx" }))).toBe(`n.${NBSP}40${NBSP}000${NBSP}€`);
+    expect(formatAmount(amount({ amountType: "min" }))).toBe(`yli${NBSP}40${NBSP}000${NBSP}€`);
   });
 
   it("renders a range, with the approx prefix when qualified", () => {
-    expect(formatAmount(amount({ amountMaxEur: 60_000 }))).toBe(`40${NBSP}000–60${NBSP}000 €`);
+    expect(formatAmount(amount({ amountMaxEur: 60_000 }))).toBe(
+      `40${NBSP}000–60${NBSP}000${NBSP}€`,
+    );
     expect(formatAmount(amount({ amountType: "approx", amountMaxEur: 60_000 }))).toBe(
-      `n. 40${NBSP}000–60${NBSP}000 €`,
+      `n.${NBSP}40${NBSP}000–60${NBSP}000${NBSP}€`,
     );
   });
 
   it("ignores an upper bound at or below the amount", () => {
-    expect(formatAmount(amount({ amountMaxEur: 40_000 }))).toBe(`40${NBSP}000 €`);
+    expect(formatAmount(amount({ amountMaxEur: 40_000 }))).toBe(`40${NBSP}000${NBSP}€`);
   });
 
   it("labels unknown amounts instead of showing 0 €", () => {
@@ -91,5 +94,28 @@ describe("parseEuroAmount", () => {
   it("takes the first figure of a pasted range, not the concatenated digits", () => {
     expect(parseEuroAmount("100 000–200 000 €")).toBe(100_000);
     expect(parseEuroAmount("100-200")).toBe(100);
+  });
+});
+
+describe("groupEuroInput", () => {
+  it("groups digits in threes with plain spaces", () => {
+    expect(groupEuroInput("1900000000")).toBe("1 900 000 000");
+    expect(groupEuroInput("35000")).toBe("35 000");
+    expect(groupEuroInput("999")).toBe("999");
+    expect(groupEuroInput("")).toBe("");
+  });
+
+  it("regroups a partially edited value and drops non-digits", () => {
+    expect(groupEuroInput("1 9000 000")).toBe("19 000 000");
+    expect(groupEuroInput("400 000 €")).toBe("400 000");
+  });
+
+  it("drops leading zeros but keeps a lone zero", () => {
+    expect(groupEuroInput("05000")).toBe("5 000");
+    expect(groupEuroInput("0")).toBe("0");
+  });
+
+  it("keeps only the first figure of a pasted range", () => {
+    expect(groupEuroInput("100 000–200 000 €")).toBe("100 000");
   });
 });

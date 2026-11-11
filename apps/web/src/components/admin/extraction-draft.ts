@@ -1,7 +1,7 @@
-import { parseEuroAmount } from "../../lib/format.js";
+import { groupEuroInput, parseEuroAmount } from "../../lib/format.js";
 import type { AmountType, Category, PatchSuggestion } from "../../api/model/index.js";
 
-/** Local editing state for the extraction fields; amounts kept as raw input strings. */
+/** Local editing state for the extraction fields; amounts kept as digit-grouped input strings. */
 export interface ExtractionDraft {
   title: string;
   /** The source article's own headline; "" = unknown (the feed link falls back). */
@@ -25,14 +25,18 @@ export interface ExtractionDraft {
  */
 export type ExtractionPatch = Required<PatchSuggestion>;
 
+function amountInput(amount: number | null): string {
+  return amount === null ? "" : groupEuroInput(String(amount));
+}
+
 export function toExtractionDraft(source: ExtractionPatch): ExtractionDraft {
   return {
     title: source.title,
     articleTitle: source.articleTitle,
     summary: source.summary,
     quote: source.quote,
-    amount: String(source.amountEur),
-    amountMax: source.amountMaxEur === null ? "" : String(source.amountMaxEur),
+    amount: amountInput(source.amountEur),
+    amountMax: amountInput(source.amountMaxEur),
     amountType: source.amountType,
     entity: source.entity,
     category: source.category,
@@ -94,9 +98,9 @@ export function draftsEqual(a: ExtractionDraft, b: ExtractionDraft): boolean {
 export function syncDraftToPatch(draft: ExtractionDraft, patch: ExtractionPatch): ExtractionDraft {
   return {
     ...draft,
-    amount: String(patch.amountEur),
+    amount: amountInput(patch.amountEur),
     amountType: patch.amountType,
-    amountMax: patch.amountMaxEur === null ? "" : String(patch.amountMaxEur),
+    amountMax: amountInput(patch.amountMaxEur),
     keywords: patch.keywords.join(", "),
   };
 }

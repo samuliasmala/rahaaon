@@ -1,8 +1,10 @@
 import type { AmountType } from "../api/model/index.js";
 
-/** "1 240 000 €" — space-grouped euros, Finnish locale. */
+const NBSP = "\u00a0";
+
+/** "1 240 000 €" — space-grouped euros, Finnish locale; non-breaking throughout so a figure never wraps. */
 export function formatEur(amount: number): string {
-  return `${amount.toLocaleString("fi-FI")} €`;
+  return `${amount.toLocaleString("fi-FI")}${NBSP}€`;
 }
 
 /** The amount fields shared by feed items and suggestions. */
@@ -19,10 +21,10 @@ export function formatAmount(item: AmountFields): string {
   // A malformed upper bound (≤ the lower one) is ignored rather than rendered.
   if (item.amountMaxEur !== null && item.amountMaxEur > item.amountEur) {
     const range = `${item.amountEur.toLocaleString("fi-FI")}–${formatEur(item.amountMaxEur)}`;
-    return item.amountType === "approx" ? `n. ${range}` : range;
+    return item.amountType === "approx" ? `n.${NBSP}${range}` : range;
   }
-  if (item.amountType === "approx") return `n. ${formatEur(item.amountEur)}`;
-  if (item.amountType === "min") return `yli ${formatEur(item.amountEur)}`;
+  if (item.amountType === "approx") return `n.${NBSP}${formatEur(item.amountEur)}`;
+  if (item.amountType === "min") return `yli${NBSP}${formatEur(item.amountEur)}`;
   return formatEur(item.amountEur);
 }
 
@@ -64,11 +66,23 @@ export function formatTimeAgo(iso: string): string {
 }
 
 /**
- * Best-effort whole euros from a free-text amount field ("400 000", "400000 €").
- * A pasted range ("100 000–200 000") yields its first figure, not the digits
+ * The digits of a free-text amount field ("400 000", "400000 €"). A pasted
+ * range ("100 000–200 000") yields its first figure, not the digits
  * concatenated — the upper bound has its own field.
  */
+function euroDigits(raw: string): string {
+  return (raw.split(/[-–—]/, 1)[0] ?? "").replace(/\D/g, "");
+}
+
+/** Best-effort whole euros from a free-text amount field. */
 export function parseEuroAmount(raw: string): number {
-  const digits = (raw.split(/[-–—]/, 1)[0] ?? "").replace(/\D/g, "");
+  const digits = euroDigits(raw);
   return digits ? Number.parseInt(digits, 10) : 0;
+}
+
+/** "1900000" → "1 900 000" for an editable amount field; plain spaces, so the value stays easy to retype. */
+export function groupEuroInput(raw: string): string {
+  return euroDigits(raw)
+    .replace(/^0+(?=\d)/, "")
+    .replace(/\B(?=(\d{3})+$)/g, " ");
 }
