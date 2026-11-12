@@ -36,7 +36,7 @@ echo "Created commit + annotated tag v$V"
 
 if $push; then
   git push --follow-tags
-  echo "Pushed."
+  echo "Pushed. Once it looks good on test: pnpm deploy:prod"
 else
   echo "Push with: git push --follow-tags"
 fi

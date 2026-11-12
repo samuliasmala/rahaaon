@@ -4,11 +4,11 @@ Three environments on one Ubuntu VPS (shared with the vesi stacks), each an
 isolated Docker Compose stack (own Postgres/volumes), fronted by host **Caddy**
 for TLS. Images are built once by CI, pushed to **GHCR**, and pulled on the VPS.
 
-| Env  | Trigger                             | Domain             | web port | project name   |
-| ---- | ----------------------------------- | ------------------ | -------- | -------------- |
-| dev  | push to `main` (no CI gate)         | `dev.rahaa-on.fi`  | 8091     | `rahaaon-dev`  |
-| test | push tag `vX.Y.Z`                   | `test.rahaa-on.fi` | 8092     | `rahaaon-test` |
-| prod | **manual** (Actions → Run workflow) | `rahaa-on.fi`      | 8090     | `rahaaon-prod` |
+| Env  | Trigger                         | Domain             | web port | project name   |
+| ---- | ------------------------------- | ------------------ | -------- | -------------- |
+| dev  | push to `main` (no CI gate)     | `dev.rahaa-on.fi`  | 8091     | `rahaaon-dev`  |
+| test | push tag `vX.Y.Z`               | `test.rahaa-on.fi` | 8092     | `rahaaon-test` |
+| prod | **manual** (`pnpm deploy:prod`) | `rahaa-on.fi`      | 8090     | `rahaaon-prod` |
 
 `www.rahaa-on.fi` permanently redirects to the apex (Caddy block, no stack).
 
@@ -122,8 +122,15 @@ make set-admin-password ENV=prod   # prod: editor login only, no demo content
   ```bash
   git tag v0.2.0 && git push origin v0.2.0
   ```
-- **prod** — GitHub → Actions → **Deploy** → _Run workflow_, enter `v0.2.0`,
-  approve the environment prompt. Same image `v0.2.0` is pulled and run.
+- **prod** — promote a version that is green on test:
+  ```bash
+  pnpm deploy:prod           # newest release tag
+  pnpm deploy:prod v0.2.0    # a specific one (also how you roll back)
+  ```
+  It dispatches the Deploy workflow through `gh` and follows the run; it waits
+  for a test deploy that is still running and refuses one that failed. Same
+  image `v0.2.0` is pulled and run. (Equivalent in the UI: Actions → **Deploy**
+  → _Run workflow_.)
 
 Migrations apply automatically: the compose `migrate` one-shot runs before `api`
 starts. test/prod also take a **pre-migration dump** (`deploy/deploy.sh`) so a
