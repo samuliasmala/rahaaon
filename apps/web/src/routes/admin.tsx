@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import {
   getGetApiAdminSuggestionsQueryKey,
   useGetApiAdminItems,
@@ -22,10 +22,24 @@ import { captureSearch, parseCaptureSearch } from "../lib/capture-search.js";
 import { cn } from "../lib/cn.js";
 import { ensureMe, invalidateMe, meQueryOptions } from "../lib/session.js";
 
-type AdminTab = "submissions" | "queue" | "published" | "rejected";
+const ADMIN_TABS = ["ehdotusjono", "julkaisujono", "julkaistut", "hylatyt"] as const;
+type AdminTab = (typeof ADMIN_TABS)[number];
+const DEFAULT_TAB: AdminTab = "ehdotusjono";
+
+// Absent for the default tab, so a plain `Link` to /admin needs no search.
+function tabSearch(tab: AdminTab | undefined): { valilehti?: AdminTab } {
+  return tab && tab !== DEFAULT_TAB ? { valilehti: tab } : {};
+}
+
+function parseAdminSearch(search: Record<string, unknown>) {
+  return {
+    ...parseCaptureSearch(search),
+    ...tabSearch(ADMIN_TABS.find((tab) => tab === search.valilehti)),
+  };
+}
 
 export const Route = createFileRoute("/admin")({
-  validateSearch: parseCaptureSearch,
+  validateSearch: parseAdminSearch,
   beforeLoad: async ({ context, search }) => {
     const me = await ensureMe(context.queryClient);
     // The capture rides through the login so an expired session doesn't lose it.
@@ -41,7 +55,7 @@ function AdminPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: me } = useQuery(meQueryOptions);
-  const { kaappaus } = Route.useSearch();
+  const { kaappaus, valilehti: tab = DEFAULT_TAB } = Route.useSearch();
   // Poll while any entry is being processed or archived in the background, so
   // the queue updates the moment the work finishes — also after a page refresh.
   const { data: submissions = [] } = useGetApiAdminSubmissions({
@@ -105,7 +119,14 @@ function AdminPage() {
           : false,
     },
   });
-  const [tab, setTab] = useState<AdminTab>("submissions");
+
+  function selectTab(next: AdminTab) {
+    void navigate({
+      to: "/admin",
+      search: { ...captureSearch(kaappaus), ...tabSearch(next) },
+      replace: true,
+    });
+  }
 
   // One archive for both kinds of rejections, newest first.
   const rejected = [
@@ -139,26 +160,26 @@ function AdminPage() {
         <CaptureBanner
           key={kaappaus}
           url={kaappaus}
-          onDismiss={() => void navigate({ to: "/admin", search: {} })}
+          onDismiss={() => void navigate({ to: "/admin", search: tabSearch(tab) })}
         />
       )}
 
       <div role="tablist" className="mb-6 flex gap-1 border-b border-hairline">
-        <TabButton active={tab === "submissions"} onClick={() => setTab("submissions")}>
+        <TabButton active={tab === "ehdotusjono"} onClick={() => selectTab("ehdotusjono")}>
           Ehdotusjono ({submissions.length})
         </TabButton>
-        <TabButton active={tab === "queue"} onClick={() => setTab("queue")}>
+        <TabButton active={tab === "julkaisujono"} onClick={() => selectTab("julkaisujono")}>
           Julkaisujono ({queue.length})
         </TabButton>
-        <TabButton active={tab === "published"} onClick={() => setTab("published")}>
+        <TabButton active={tab === "julkaistut"} onClick={() => selectTab("julkaistut")}>
           Julkaistut ({items.length})
         </TabButton>
-        <TabButton active={tab === "rejected"} onClick={() => setTab("rejected")}>
+        <TabButton active={tab === "hylatyt"} onClick={() => selectTab("hylatyt")}>
           Hylätyt ({rejected.length})
         </TabButton>
       </div>
 
-      {tab === "submissions" && (
+      {tab === "ehdotusjono" && (
         <div className="flex flex-col gap-5">
           <CaptureTool />
           {submissions.length === 0 && (
@@ -172,7 +193,7 @@ function AdminPage() {
         </div>
       )}
 
-      {tab === "queue" && (
+      {tab === "julkaisujono" && (
         <div className="flex flex-col gap-5">
           {queue.length === 0 && (
             <p className="py-14 text-center text-[15px] text-muted">
@@ -185,9 +206,9 @@ function AdminPage() {
         </div>
       )}
 
-      {tab === "published" && <PublishedTable items={items} />}
+      {tab === "julkaistut" && <PublishedTable items={items} />}
 
-      {tab === "rejected" && (
+      {tab === "hylatyt" && (
         <div className="flex flex-col gap-5">
           {rejected.length === 0 && (
             <p className="py-14 text-center text-[15px] text-muted">Ei hylättyjä ehdotuksia.</p>
