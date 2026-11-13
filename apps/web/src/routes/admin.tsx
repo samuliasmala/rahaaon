@@ -124,7 +124,6 @@ function AdminPage() {
     void navigate({
       to: "/admin",
       search: { ...captureSearch(kaappaus), ...tabSearch(next) },
-      replace: true,
     });
   }
 

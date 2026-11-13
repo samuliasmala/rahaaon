@@ -24,7 +24,9 @@ test("admin page shows the seeded queues and the tabs switch", async ({ page }) 
   );
 });
 
-test("the active tab survives a page reload", async ({ page }) => {
+test("the active tab survives a page reload and Back returns to the previous tab", async ({
+  page,
+}) => {
   await page.goto("/admin");
   await page.getByRole("tab", { name: "Hylätyt (2)" }).click();
   await expect(page).toHaveURL("/admin?valilehti=hylatyt");
@@ -37,6 +39,13 @@ test("the active tab survives a page reload", async ({ page }) => {
 
   await page.getByRole("tab", { name: "Ehdotusjono (2)" }).click();
   await expect(page).toHaveURL("/admin");
+
+  await page.goBack();
+  await expect(page).toHaveURL("/admin?valilehti=hylatyt");
+  await expect(page.getByRole("tab", { name: "Hylätyt (2)" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
 });
 
 test("previewing a queue entry shows it in the reader's modal", async ({ page }) => {
